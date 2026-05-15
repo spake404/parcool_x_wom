@@ -1,0 +1,7 @@
+{
+  "modmenu.descriptionTranslation.parcool_x_wom": "将 ParCool 与 Weapons of Miracles 的 Natural Sprinter 动画接入 Epic Fight。",
+  "parcool_x_wom.configuration.autoFastRunDash": "自动触发疾跑加速",
+  "parcool_x_wom.configuration.catLeapPrimesPhantomAscent": "猫跳后可触发幻影跳跃",
+  "parcool_x_wom.configuration.wallJumpPrimesPhantomAscent": "跑酷墙跳后可触发幻影跳跃",
+  "parcool_x_wom.configuration.spiderWallJumpPrimesPhantomAscent": "蜘蛛技巧墙跳后可触发幻影跳跃"
+}

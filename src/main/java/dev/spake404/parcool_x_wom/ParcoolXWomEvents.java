@@ -7,7 +7,6 @@ import com.alrex.parcool.common.action.impl.CatLeap;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.Vault;
 import com.alrex.parcool.common.action.impl.WallJump;
-import com.alrex.parcool.common.capability.Parkourability;
 import com.yesman.epicparcool.ParcoolLivingMotions;
 import dev.spake404.parcool_x_wom.mixin.AnimatorAccessor;
 import net.minecraft.world.InteractionHand;
@@ -112,24 +111,22 @@ public final class ParcoolXWomEvents {
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
-	public static void rememberFastRunBeforeVault(ParCoolActionEvent.Start.Post event) {
+	public static void rememberFastRunBeforeVault(ParCoolActionEvent.Start.Pre event) {
 		if (event.getPlayer().isLocalPlayer() && event.getAction() instanceof Vault) {
-			Parkourability parkourability = Parkourability.get(event.getPlayer());
-			if (parkourability != null && (parkourability.get(FastRun.class).isDoing() || event.getPlayer().isSprinting())) {
-				ParcoolXWomClientHooks.markVaultStartedFromFastRun(event.getPlayer());
-			}
+			ParcoolXWomClientHooks.markVaultStartedFromFastRun(event.getPlayer());
 		}
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
-	public static void restoreFastRunAfterVault(ParCoolActionEvent.Finish.Post event) {
+	public static void clearFastRunHoldAfterVault(ParCoolActionEvent.Finish.Post event) {
 		if (event.getPlayer().isLocalPlayer() && event.getAction() instanceof Vault) {
-			ParcoolXWomClientHooks.restoreFastRunAfterVault(event.getPlayer());
+			ParcoolXWomClientHooks.clearVaultFastRunHold(event.getPlayer());
 		}
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void tickLocalPlayer(TickEvent.PlayerTickEvent event) {
+		PhantomAscentAirAttackState.tick(event);
 		ParcoolXWomClientHooks.tickLocalPlayer(event);
 	}
 

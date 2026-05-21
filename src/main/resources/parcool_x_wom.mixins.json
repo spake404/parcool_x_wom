@@ -5,11 +5,21 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "parcool_x_wom.refmap.json",
   "mixins": [
-    "AnimatorAccessor"
+    "AnimatorAccessor",
+    "BasicAttackMixin",
+    "ComboBasicAttackMixin",
+    "EFNAirborneConditionMixin",
+    "EFNOnGroundConditionMixin",
+    "InvincibleJumpConditionMixin",
+    "VerticalWallRunMixin"
   ],
   "client": [
+    "AnimatorControlPacketAccessor",
     "FastRunMixin",
-    "NaturalSprinterSkillMixin"
+    "NaturalSprinterSkillMixin",
+    "PhantomAscentSkillMixin",
+    "SPAnimatorControlAccessor",
+    "SPAnimatorControlMixin"
   ],
   "injectors": {
     "defaultRequire": 0

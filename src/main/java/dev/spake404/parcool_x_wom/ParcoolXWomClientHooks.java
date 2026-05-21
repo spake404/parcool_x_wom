@@ -131,7 +131,7 @@ public final class ParcoolXWomClientHooks {
 	}
 
 	public static void markVaultStartedFromFastRun(Player player) {
-		if (player == null || !player.isLocalPlayer() || !hasNaturalSprinter(player)) {
+		if (player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -765,7 +765,6 @@ public final class ParcoolXWomClientHooks {
 	private static boolean hasHardVaultFastRunBlocker(Player player) {
 		return player == null
 				|| !player.isLocalPlayer()
-				|| !hasNaturalSprinter(player)
 				|| isPhantomAscentAirborneLocked(player)
 				|| player.isShiftKeyDown()
 				|| player.isInWaterOrBubble()

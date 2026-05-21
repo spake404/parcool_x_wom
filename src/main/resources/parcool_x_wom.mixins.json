@@ -11,7 +11,8 @@
     "EFNAirborneConditionMixin",
     "EFNOnGroundConditionMixin",
     "InvincibleJumpConditionMixin",
-    "VerticalWallRunMixin"
+    "VerticalWallRunMixin",
+    "WorldUtilMixin"
   ],
   "client": [
     "AnimatorControlPacketAccessor",

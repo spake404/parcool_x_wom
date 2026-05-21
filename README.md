@@ -9,12 +9,20 @@ Compatibility mod for ParCool, Epic Fight, EpicParCool, and Weapons of Miracles 
 | Phantom Ascent follow-ups | Allows Cat Leap, ParCool wall jump, and Spider Techniques wall jump to prime Phantom Ascent follow-ups. |
 | Phantom Ascent air attacks | Lets Phantom Ascent transition into air attacks while preserving normal ground attack behavior. |
 | Natural Sprinter support | Integrates WOM Natural Sprinter sprint and sprint-jump animations with ParCool actions. |
-| Vault sprint compatibility | Preserves ParCool FastRun behavior through Vault with control-mode-specific handling. |
+| Vault sprint compatibility | Preserves ParCool FastRun behavior through Vault with control-mode-specific handling, even without WOM Natural Sprinter. |
+| Vault height tuning | Adds a configurable ParCool Vault height scale, defaulting to 1.5 for stable three-block air vaults. |
 | Spider Techniques compatibility | Optionally disables ParCool vertical wall run after learning WOM Spider Techniques to avoid animation conflicts. |
 | Weapon compatibility | Adds handling for Epic Fight, WOM, Epic Fight Invincible, and EpicFight Nightfall style air-attack conditions. |
 | Runtime performance | Limits per-tick compatibility checks to active states and keeps temporary diagnostics out of normal runtime paths. |
 
 ## Changelog
+
+### 1.2.0
+
+- Added a configurable ParCool Vault height scale.
+- Set the compatibility default Vault height scale to 1.5 for stable three-block air vaults; ParCool's original value is 0.86.
+- Preserved ParCool FastRun through Vault even when the player has not learned WOM Natural Sprinter.
+- Added localization for the Vault height scale configuration option.
 
 ### 1.1.1
 

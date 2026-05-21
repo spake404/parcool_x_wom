@@ -9,6 +9,7 @@ public final class ParcoolXWomConfig {
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue SPIDER_WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
+	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
 
 	static {
 		ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -42,6 +43,16 @@ public final class ParcoolXWomConfig {
 				.comment("true: disables ParCool VerticalWallRun after learning WOM Spider Techniques.")
 				.define("disableVerticalWallRunWithSpiderTechniques", true);
 		builder.pop();
+
+		builder.push("Vault");
+		VAULT_HEIGHT_SCALE = builder
+				.translation("parcool_x_wom.configuration.vaultHeightScale")
+				.comment(
+						"Changes ParCool Vault's maximum detected obstacle height.",
+						"ParCool original default is 0.86. This compatibility mod defaults to 1.5 for stable three-block air vaults.",
+						"Lower values require more precise jump timing.")
+				.defineInRange("vaultHeightScale", 1.5D, 0.86D, 2.0D);
+		builder.pop();
 		SPEC = builder.build();
 	}
 
@@ -66,5 +77,9 @@ public final class ParcoolXWomConfig {
 
 	public static boolean disableVerticalWallRunWithSpiderTechniques() {
 		return DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES.get();
+	}
+
+	public static double vaultHeightScale() {
+		return VAULT_HEIGHT_SCALE.get();
 	}
 }

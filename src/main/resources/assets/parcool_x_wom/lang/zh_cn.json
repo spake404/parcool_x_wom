@@ -3,5 +3,6 @@
   "parcool_x_wom.configuration.autoFastRunDash": "自动触发疾跑冲刺",
   "parcool_x_wom.configuration.catLeapPrimesPhantomAscent": "猫跳后可触发幻影跃升",
   "parcool_x_wom.configuration.wallJumpPrimesPhantomAscent": "墙跳后可触发幻影跃升",
-  "parcool_x_wom.configuration.spiderWallJumpPrimesPhantomAscent": "Spider Techniques 墙跳后可触发幻影跃升"
+  "parcool_x_wom.configuration.spiderWallJumpPrimesPhantomAscent": "Spider Techniques 墙跳后可触发幻影跃升",
+  "parcool_x_wom.configuration.disableVerticalWallRunWithSpiderTechniques": "学会 Spider Techniques 后禁用 ParCool 垂直蹬墙跑"
 }

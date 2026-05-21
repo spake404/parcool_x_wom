@@ -40,11 +40,13 @@ public final class PhantomAscentAirAttackState {
 		return Boolean.TRUE.equals(AIR_ATTACK_SIGNALS.get(player));
 	}
 
-	public static void tick(TickEvent.PlayerTickEvent event) {
-		if (event.phase != TickEvent.Phase.END) {
-			return;
-		}
+	public static boolean hasTrackedState() {
+		return !AIR_ATTACK_SIGNALS.isEmpty()
+				|| !AIR_ATTACK_CONSUMED.isEmpty()
+				|| !PROTECT_NEXT_FALL_ACTIVE.isEmpty();
+	}
 
+	public static void tick(TickEvent.PlayerTickEvent event) {
 		Player player = event.player;
 		if (player.onGround()) {
 			AIR_ATTACK_SIGNALS.remove(player);

@@ -260,19 +260,61 @@ public final class ParcoolXWomClientHooks {
 	}
 
 	public static void tickLocalPlayer(TickEvent.PlayerTickEvent event) {
-		if (event.phase != TickEvent.Phase.END || !event.player.isLocalPlayer()) {
+		if (!event.player.isLocalPlayer()) {
 			return;
 		}
 
 		clearAirbornePhantomAscentLockIfLanded(event.player);
-		tickPendingForcedPhantomAscent(event.player);
-		tickNaturalSprinterCatLeap(event.player);
-		markSpiderWallJumpForPhantomAscent(event.player);
-		tickPhantomAscent(event.player);
-		tickDelayedPhantomAscentAirAttack(event.player);
-		tickPhantomAscentAirAttackSprintSuppression(event.player);
-		tickVaultFastRunDebugWindow(event.player);
-		playPendingFastRunDash(event.player);
+		if (!hasClientTickWork(event.player) && !shouldProbeSpiderWallJump(event.player)) {
+			return;
+		}
+
+		if (PENDING_FORCED_PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
+			tickPendingForcedPhantomAscent(event.player);
+		}
+		if (NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(event.player)) {
+			tickNaturalSprinterCatLeap(event.player);
+		}
+		if (shouldProbeSpiderWallJump(event.player)) {
+			markSpiderWallJumpForPhantomAscent(event.player);
+		}
+		if (PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
+			tickPhantomAscent(event.player);
+		}
+		if (DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.containsKey(event.player)) {
+			tickDelayedPhantomAscentAirAttack(event.player);
+		}
+		if (PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.containsKey(event.player)) {
+			tickPhantomAscentAirAttackSprintSuppression(event.player);
+		}
+		if (VAULT_FAST_RUN_DEBUG_TICKS.containsKey(event.player)) {
+			tickVaultFastRunDebugWindow(event.player);
+		}
+		if (!PENDING_FAST_RUN_DASHES.isEmpty()) {
+			playPendingFastRunDash(event.player);
+		}
+	}
+
+	private static boolean hasClientTickWork(Player player) {
+		return PHANTOM_ASCENT_TICKS.containsKey(player)
+				|| PHANTOM_ASCENT_USED_AIRBORNE.containsKey(player)
+				|| PHANTOM_ASCENT_STARTED_TICKS.containsKey(player)
+				|| DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.containsKey(player)
+				|| PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.containsKey(player)
+				|| PENDING_FORCED_PHANTOM_ASCENT_TICKS.containsKey(player)
+				|| PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.containsKey(player)
+				|| NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(player)
+				|| VAULT_HOLD_FAST_RUN.containsKey(player)
+				|| VAULT_FAST_RUN_DEBUG_TICKS.containsKey(player)
+				|| !PENDING_FAST_RUN_DASHES.isEmpty();
+	}
+
+	private static boolean shouldProbeSpiderWallJump(Player player) {
+		return ParcoolXWomConfig.spiderWallJumpPrimesPhantomAscent()
+				&& !PHANTOM_ASCENT_TICKS.containsKey(player)
+				&& !Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))
+				&& !player.onGround()
+				&& !player.isInWater();
 	}
 
 	private static void playPendingFastRunDash(Player player) {
@@ -332,7 +374,7 @@ public final class ParcoolXWomClientHooks {
 	}
 
 	private static void markSpiderWallJumpForPhantomAscent(Player player) {
-		if (player == null || !player.isLocalPlayer() || !ParcoolXWomConfig.spiderWallJumpPrimesPhantomAscent() || PHANTOM_ASCENT_TICKS.containsKey(player)) {
+		if (player == null || !player.isLocalPlayer() || !shouldProbeSpiderWallJump(player)) {
 			return;
 		}
 

@@ -12,8 +12,16 @@ Compatibility mod for ParCool, Epic Fight, EpicParCool, and Weapons of Miracles 
 | Vault sprint compatibility | Preserves ParCool FastRun behavior through Vault with control-mode-specific handling. |
 | Spider Techniques compatibility | Optionally disables ParCool vertical wall run after learning WOM Spider Techniques to avoid animation conflicts. |
 | Weapon compatibility | Adds handling for Epic Fight, WOM, Epic Fight Invincible, and EpicFight Nightfall style air-attack conditions. |
+| Runtime performance | Limits per-tick compatibility checks to active states and keeps temporary diagnostics out of normal runtime paths. |
 
 ## Changelog
+
+### 1.1.1
+
+- Reduced per-tick compatibility checks on both client and server by skipping inactive Phantom Ascent, Spider Techniques, Vault, and Natural Sprinter state handlers.
+- Split Natural Sprinter FastRun animation handling out of the main Forge event class to keep event dispatch lightweight and easier to maintain.
+- Removed temporary diagnostic logging that was only used while locating Phantom Ascent and Vault compatibility issues.
+- Added the missing localization key for the Spider Techniques vertical wall-run config option.
 
 ### 1.1.0
 

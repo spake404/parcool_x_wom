@@ -1,37 +1,48 @@
 package dev.spake404.parcool_x_wom;
 
-import java.util.stream.Stream;
-
-import net.minecraft.resources.ResourceLocation;
-import reascer.wom.skill.mover.SpiderTechniquesSkill;
-import yesman.epicfight.skill.Skill;
-import yesman.epicfight.skill.SkillContainer;
+import net.minecraft.world.entity.player.Player;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 
 public final class SpiderTechniquesState {
-	private static final ResourceLocation SPIDER_TECHNIQUES_ID = ResourceLocation.fromNamespaceAndPath("wom", "spider_techniques");
-
 	private SpiderTechniquesState() {
 	}
 
 	public static boolean hasSpiderTechniques(PlayerPatch<?> playerPatch) {
-		if (playerPatch == null || playerPatch.getSkillCapability() == null) {
-			return false;
-		}
-
-		try (Stream<SkillContainer> containers = playerPatch.getSkillCapability().listSkillContainers()) {
-			return containers.anyMatch(SpiderTechniquesState::isSpiderTechniquesContainer);
-		} catch (RuntimeException | LinkageError ignored) {
-			return false;
-		}
+		return WomCompatBridge.instance().hasSpiderTechniques(playerPatch);
 	}
 
-	private static boolean isSpiderTechniquesContainer(SkillContainer container) {
-		if (container == null) {
-			return false;
+	public static boolean shouldBlockAttack(PlayerPatch<?> playerPatch) {
+		return WomCompatBridge.instance().shouldBlockSpiderTechniquesAttack(playerPatch);
+	}
+
+	public static void debugAttackState(PlayerPatch<?> playerPatch, String source, boolean originalExecutable) {
+		if (!ParcoolXWomConfig.debugSpiderTechniquesAttackState()) {
+			return;
 		}
 
-		Skill skill = container.getSkill();
-		return skill instanceof SpiderTechniquesSkill || skill != null && SPIDER_TECHNIQUES_ID.equals(skill.getRegistryName());
+		String playerState = describePlayer(playerPatch);
+		String spiderState = WomCompatBridge.instance().describeSpiderTechniquesState(playerPatch);
+		boolean blockAttack = WomCompatBridge.instance().shouldBlockSpiderTechniquesAttack(playerPatch);
+		ParcoolXWom.LOGGER.info("[SpiderTechniquesAttackDebug] source={}, originalExecutable={}, blockAttack={}, {}, {}",
+				source, Boolean.valueOf(originalExecutable), Boolean.valueOf(blockAttack), playerState, spiderState);
+	}
+
+	private static String describePlayer(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null) {
+			return "playerPatch=null";
+		}
+
+		Player player = playerPatch.getOriginal();
+		if (player == null) {
+			return "player=null, logicalClient=" + playerPatch.isLogicalClient() + ", epicFightMode=" + playerPatch.isEpicFightMode();
+		}
+
+		return "player=" + player.getScoreboardName()
+				+ ", side=" + (player.level().isClientSide() ? "client" : "server")
+				+ ", logicalClient=" + playerPatch.isLogicalClient()
+				+ ", epicFightMode=" + playerPatch.isEpicFightMode()
+				+ ", onGround=" + player.onGround()
+				+ ", fallDistance=" + player.fallDistance
+				+ ", inWater=" + player.isInWater();
 	}
 }

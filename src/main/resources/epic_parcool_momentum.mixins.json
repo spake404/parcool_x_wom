@@ -2,8 +2,9 @@
   "required": false,
   "minVersion": "0.8",
   "package": "dev.spake404.parcool_x_wom.mixin",
+  "plugin": "dev.spake404.parcool_x_wom.mixin.ParcoolXWomMixinPlugin",
   "compatibilityLevel": "JAVA_17",
-  "refmap": "parcool_x_wom.refmap.json",
+  "refmap": "epic_parcool_momentum.refmap.json",
   "mixins": [
     "AnimatorAccessor",
     "BasicAttackMixin",

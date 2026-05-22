@@ -13,4 +13,4 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
 }
 
-rootProject.name = 'parcool_x_wom'
+rootProject.name = 'epic_parcool_momentum'

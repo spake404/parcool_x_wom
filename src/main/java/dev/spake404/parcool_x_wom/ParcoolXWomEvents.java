@@ -5,7 +5,10 @@ import com.alrex.parcool.common.action.impl.CatLeap;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.Vault;
 import com.alrex.parcool.common.action.impl.WallJump;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import yesman.epicfight.api.animation.types.StaticAnimation;
@@ -51,9 +54,16 @@ public final class ParcoolXWomEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void markEpicParCoolWallJumpForPhantomAscent(ParCoolActionEvent.StartEvent event) {
-		if (ParcoolXWomConfig.wallJumpPrimesPhantomAscent() && event.getAction() instanceof WallJump) {
+		if (!(event.getAction() instanceof WallJump)) {
+			return;
+		}
+
+		if (ParcoolXWomConfig.wallJumpPrimesPhantomAscent()) {
 			ParcoolXWomClientHooks.markWallJumpForPhantomAscent(event.getPlayer());
 		}
+
+		MomentumAirAttackWindowState.markWallJump(event.getPlayer());
+		ParcoolXWomClientHooks.markAutoSprintAfterWallJump(event.getPlayer());
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
@@ -97,12 +107,23 @@ public final class ParcoolXWomEvents {
 			return;
 		}
 
-		if (PhantomAscentAirAttackState.hasTrackedState()) {
-			PhantomAscentAirAttackState.tick(event);
+		if (MomentumAirAttackWindowState.hasTrackedState()) {
+			MomentumAirAttackWindowState.tick(event);
 		}
 
 		if (event.player.level().isClientSide()) {
 			ParcoolXWomClientHooks.tickLocalPlayer(event);
+		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGH)
+	public static void protectWallJumpAirAttackFall(LivingHurtEvent event) {
+		if (!(event.getEntity() instanceof Player player) || !event.getSource().is(DamageTypeTags.IS_FALL)) {
+			return;
+		}
+
+		if (MomentumAirAttackWindowState.shouldProtectWallJumpFall(player, event.getAmount())) {
+			event.setCanceled(true);
 		}
 	}
 

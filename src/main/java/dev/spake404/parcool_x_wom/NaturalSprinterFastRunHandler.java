@@ -26,6 +26,10 @@ final class NaturalSprinterFastRunHandler {
 	}
 
 	static void registerFastRunAnimation(InitAnimatorEvent event) {
+		if (!ModCompat.isWomLoaded()) {
+			return;
+		}
+
 		AssetAccessor<? extends StaticAnimation> barehandSprint = WomAnimationRefs.bipedSprintBarehand();
 		if (barehandSprint != null) {
 			event.getAnimator().addLivingAnimation(ParcoolLivingMotions.FAST_RUN, barehandSprint);
@@ -33,6 +37,10 @@ final class NaturalSprinterFastRunHandler {
 	}
 
 	static void chooseFastRunAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
+		if (!ModCompat.isWomLoaded()) {
+			return;
+		}
+
 		if (event.getMotion() != ParcoolLivingMotions.FAST_RUN) {
 			clearFastRunState(event.getPlayerPatch());
 			return;

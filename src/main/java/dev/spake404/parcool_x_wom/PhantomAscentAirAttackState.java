@@ -36,6 +36,14 @@ public final class PhantomAscentAirAttackState {
 		}
 	}
 
+	public static void clear(Player player) {
+		if (player != null) {
+			AIR_ATTACK_SIGNALS.remove(player);
+			AIR_ATTACK_CONSUMED.remove(player);
+			PROTECT_NEXT_FALL_ACTIVE.remove(player);
+		}
+	}
+
 	public static boolean hasAirAttackSignal(Player player) {
 		return Boolean.TRUE.equals(AIR_ATTACK_SIGNALS.get(player));
 	}
@@ -49,9 +57,7 @@ public final class PhantomAscentAirAttackState {
 	public static void tick(TickEvent.PlayerTickEvent event) {
 		Player player = event.player;
 		if (player.onGround()) {
-			AIR_ATTACK_SIGNALS.remove(player);
-			AIR_ATTACK_CONSUMED.remove(player);
-			PROTECT_NEXT_FALL_ACTIVE.remove(player);
+			clear(player);
 		}
 	}
 
@@ -72,6 +78,7 @@ public final class PhantomAscentAirAttackState {
 
 		Player player = playerPatch.getOriginal();
 		return hasUnconsumedSignal(playerPatch)
+				&& !player.onGround()
 				&& !player.isSpectator()
 				&& !player.isInWater();
 	}
@@ -86,6 +93,11 @@ public final class PhantomAscentAirAttackState {
 		}
 
 		Player player = playerPatch.getOriginal();
+		if (player.onGround()) {
+			clear(player);
+			return false;
+		}
+
 		if (Boolean.TRUE.equals(AIR_ATTACK_CONSUMED.get(player))) {
 			return false;
 		}
@@ -107,6 +119,11 @@ public final class PhantomAscentAirAttackState {
 		}
 
 		Player player = playerPatch.getOriginal();
+		if (player.onGround()) {
+			clear(player);
+			return false;
+		}
+
 		boolean protectNextFall = readProtectNextFall(playerPatch);
 		if (protectNextFall && !Boolean.TRUE.equals(PROTECT_NEXT_FALL_ACTIVE.get(player))) {
 			AIR_ATTACK_CONSUMED.remove(player);

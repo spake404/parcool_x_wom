@@ -8,6 +8,7 @@ import com.alrex.parcool.client.input.KeyRecorder;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.Vault;
 import com.alrex.parcool.common.capability.Animation;
+import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.config.ParCoolConfig;
 import dev.spake404.parcool_x_wom.mixin.AnimatorControlPacketAccessor;
@@ -55,10 +56,12 @@ public final class ParcoolXWomClientHooks {
 	private static final WeakHashMap<Player, Boolean> PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> VAULT_HOLD_FAST_RUN = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_DEBUG_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> WALL_JUMP_AUTO_SPRINT_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, AssetAccessor<? extends StaticAnimation>> PENDING_FAST_RUN_DASHES = new WeakHashMap<>();
 	private static final ResourceLocation HF_MURASAMA = ResourceLocation.fromNamespaceAndPath("efn", "hf_murasama");
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS = 10;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
+	private static final int WALL_JUMP_AUTO_SPRINT_DURATION_TICKS = 12;
 	private static volatile boolean jumpSpeedModifierInstalled;
 	private static boolean phantomJumpWasDown;
 
@@ -189,6 +192,43 @@ public final class ParcoolXWomClientHooks {
 		return true;
 	}
 
+	public static void markAutoSprintAfterWallJump(Player player) {
+		if (player == null
+				|| !player.isLocalPlayer()
+				|| !ParcoolXWomConfig.autoSprintAfterWallJump()
+				|| hasHardVaultFastRunBlocker(player)) {
+			return;
+		}
+
+		WALL_JUMP_AUTO_SPRINT_TICKS.put(player, Integer.valueOf(WALL_JUMP_AUTO_SPRINT_DURATION_TICKS));
+		player.setSprinting(true);
+		ensureFastRunAnimator(player);
+	}
+
+	public static boolean shouldPreserveFastRunToggleAfterWallJump(Player player, IStamina stamina) {
+		return shouldKeepFastRunAfterWallJump(player, stamina);
+	}
+
+	public static boolean shouldKeepFastRunAfterWallJump(Player player, IStamina stamina) {
+		if (!WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(player)) {
+			return false;
+		}
+
+		if (stamina != null && stamina.isExhausted()) {
+			cancelAutoSprintAfterWallJump(player);
+			return false;
+		}
+
+		if (!ParcoolXWomConfig.autoSprintAfterWallJump() || hasHardVaultFastRunBlocker(player)) {
+			cancelAutoSprintAfterWallJump(player);
+			return false;
+		}
+
+		player.setSprinting(true);
+		ensureFastRunAnimator(player);
+		return true;
+	}
+
 	public static void markPhantomAscentAirAttackWindow(Player player) {
 		if (player == null || !player.isLocalPlayer() || isHoldingPhantomAscentBlockedWeapon(player) || Boolean.TRUE.equals(PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.get(player))) {
 			return;
@@ -290,6 +330,9 @@ public final class ParcoolXWomClientHooks {
 		if (VAULT_FAST_RUN_DEBUG_TICKS.containsKey(event.player)) {
 			tickVaultFastRunDebugWindow(event.player);
 		}
+		if (WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(event.player)) {
+			tickAutoSprintAfterWallJump(event.player);
+		}
 		if (!PENDING_FAST_RUN_DASHES.isEmpty()) {
 			playPendingFastRunDash(event.player);
 		}
@@ -306,11 +349,13 @@ public final class ParcoolXWomClientHooks {
 				|| NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(player)
 				|| VAULT_HOLD_FAST_RUN.containsKey(player)
 				|| VAULT_FAST_RUN_DEBUG_TICKS.containsKey(player)
+				|| WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(player)
 				|| !PENDING_FAST_RUN_DASHES.isEmpty();
 	}
 
 	private static boolean shouldProbeSpiderWallJump(Player player) {
-		return ParcoolXWomConfig.spiderWallJumpPrimesPhantomAscent()
+		return ModCompat.isWomLoaded()
+				&& ParcoolXWomConfig.spiderWallJumpPrimesPhantomAscent()
 				&& !PHANTOM_ASCENT_TICKS.containsKey(player)
 				&& !Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))
 				&& !player.onGround()
@@ -504,6 +549,7 @@ public final class ParcoolXWomClientHooks {
 		NaturalSprinterState.suppress(playerPatch);
 		PENDING_FAST_RUN_DASHES.remove(playerPatch);
 		clearVaultFastRunHold(player);
+		cancelAutoSprintAfterWallJump(player);
 		clearParCoolAnimator(player);
 	}
 
@@ -527,6 +573,7 @@ public final class ParcoolXWomClientHooks {
 			PENDING_FAST_RUN_DASHES.remove(playerPatch);
 		}
 		clearVaultFastRunHold(player);
+		cancelAutoSprintAfterWallJump(player);
 		clearParCoolAnimator(player);
 		PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
 	}
@@ -760,6 +807,26 @@ public final class ParcoolXWomClientHooks {
 		}
 
 		VAULT_FAST_RUN_DEBUG_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static void tickAutoSprintAfterWallJump(Player player) {
+		Integer ticks = WALL_JUMP_AUTO_SPRINT_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (ticks.intValue() <= 0 || !ParcoolXWomConfig.autoSprintAfterWallJump() || hasHardVaultFastRunBlocker(player)) {
+			cancelAutoSprintAfterWallJump(player);
+			return;
+		}
+
+		player.setSprinting(true);
+		ensureFastRunAnimator(player);
+		WALL_JUMP_AUTO_SPRINT_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static void cancelAutoSprintAfterWallJump(Player player) {
+		WALL_JUMP_AUTO_SPRINT_TICKS.remove(player);
 	}
 
 	private static boolean hasHardVaultFastRunBlocker(Player player) {

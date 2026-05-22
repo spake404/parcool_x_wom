@@ -1,11 +1,8 @@
 package dev.spake404.parcool_x_wom;
 
 import com.yesman.epicparcool.animations.ParCoolAnimations;
-import reascer.wom.gameasset.WOMAnimations;
-import reascer.wom.gameasset.colliders.WOMWeaponColliders;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
-import yesman.epicfight.api.collider.Collider;
 import yesman.epicfight.gameasset.Animations;
 
 final class WomAnimationRefs {
@@ -13,40 +10,40 @@ final class WomAnimationRefs {
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprint() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT);
+		return WomCompatBridge.instance().bipedSprint();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintBarehand() {
-		AssetAccessor<? extends StaticAnimation> animation = safe(() -> WOMAnimations.BIPED_SPRINT_BAREHAND);
+		AssetAccessor<? extends StaticAnimation> animation = WomCompatBridge.instance().bipedSprintBarehand();
 		return animation != null ? animation : epicParCoolFastRun();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintStop() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_STOP);
+		return WomCompatBridge.instance().bipedSprintStop();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintRightStep() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_RIGHT_STEP);
+		return WomCompatBridge.instance().bipedSprintRightStep();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintLeftStep() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_LEFT_STEP);
+		return WomCompatBridge.instance().bipedSprintLeftStep();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintRightStepBarehand() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_RIGHT_STEP_BAREHAND);
+		return WomCompatBridge.instance().bipedSprintRightStepBarehand();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintLeftStepBarehand() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_LEFT_STEP_BAREHAND);
+		return WomCompatBridge.instance().bipedSprintLeftStepBarehand();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintSlide() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_SLIDE);
+		return WomCompatBridge.instance().bipedSprintSlide();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintJump() {
-		return safe(() -> WOMAnimations.BIPED_SPRINT_JUMP);
+		return WomCompatBridge.instance().bipedSprintJump();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedIdle() {
@@ -62,7 +59,7 @@ final class WomAnimationRefs {
 	}
 
 	static AssetAccessor<? extends StaticAnimation> wallBackflip() {
-		return safe(() -> WOMAnimations.WALL_BACKFLIP);
+		return WomCompatBridge.instance().wallBackflip();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> epicParCoolFastRun() {
@@ -94,7 +91,7 @@ final class WomAnimationRefs {
 	}
 
 	static boolean isMoonlessCollider(Object collider) {
-		return collider != null && collider == safeCollider(() -> WOMWeaponColliders.MOONLESS);
+		return WomCompatBridge.instance().isMoonlessCollider(collider);
 	}
 
 	static boolean isAny(AssetAccessor<?> current, AssetAccessor<?>... candidates) {
@@ -119,21 +116,9 @@ final class WomAnimationRefs {
 		}
 	}
 
-	private static Collider safeCollider(ColliderSupplier supplier) {
-		try {
-			return supplier.get();
-		} catch (LinkageError ignored) {
-			return null;
-		}
-	}
-
 	@FunctionalInterface
 	private interface AnimationSupplier {
 		AssetAccessor<? extends StaticAnimation> get();
 	}
 
-	@FunctionalInterface
-	private interface ColliderSupplier {
-		Collider get();
-	}
 }

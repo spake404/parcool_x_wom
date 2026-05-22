@@ -18,7 +18,8 @@ public abstract class FastRunMixin {
 
 	@Inject(method = "canContinue", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$continueDuringVault(Player player, Parkourability parkourability, IStamina stamina, CallbackInfoReturnable<Boolean> cir) {
-		if (ParcoolXWomClientHooks.shouldKeepFastRunDuringVault(player)) {
+		if (ParcoolXWomClientHooks.shouldKeepFastRunDuringVault(player)
+				|| ParcoolXWomClientHooks.shouldKeepFastRunAfterWallJump(player, stamina)) {
 			this.toggleStatus = true;
 			cir.setReturnValue(Boolean.TRUE);
 		}
@@ -26,7 +27,8 @@ public abstract class FastRunMixin {
 
 	@Inject(method = "onClientTick", at = @At("RETURN"), require = 0)
 	private void parcoolxwom$keepToggleDuringVault(Player player, Parkourability parkourability, IStamina stamina, org.spongepowered.asm.mixin.injection.callback.CallbackInfo callback) {
-		if (ParcoolXWomClientHooks.shouldPreserveFastRunToggleDuringVault(player)) {
+		if (ParcoolXWomClientHooks.shouldPreserveFastRunToggleDuringVault(player)
+				|| ParcoolXWomClientHooks.shouldPreserveFastRunToggleAfterWallJump(player, stamina)) {
 			this.toggleStatus = true;
 		}
 	}

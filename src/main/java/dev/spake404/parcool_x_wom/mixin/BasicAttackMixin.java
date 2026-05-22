@@ -1,6 +1,7 @@
 package dev.spake404.parcool_x_wom.mixin;
 
-import dev.spake404.parcool_x_wom.PhantomAscentAirAttackState;
+import dev.spake404.parcool_x_wom.MomentumAirAttackWindowState;
+import dev.spake404.parcool_x_wom.SpiderTechniquesState;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -18,8 +19,14 @@ import yesman.epicfight.world.capabilities.entitypatch.player.ServerPlayerPatch;
 @Mixin(value = BasicAttack.class, remap = false)
 public abstract class BasicAttackMixin {
 	@Inject(method = "isExecutableState", at = @At("RETURN"), cancellable = true)
-	private void parcoolxwom$allowPhantomAscentAirAttack(PlayerPatch<?> playerPatch, CallbackInfoReturnable<Boolean> callback) {
-		if (!callback.getReturnValueZ() && PhantomAscentAirAttackState.canUseBasicAttackAfterPhantomAscent(playerPatch)) {
+	private void parcoolxwom$adjustAttackExecutableState(PlayerPatch<?> playerPatch, CallbackInfoReturnable<Boolean> callback) {
+		SpiderTechniquesState.debugAttackState(playerPatch, "BasicAttack.isExecutableState", callback.getReturnValueZ());
+		if (SpiderTechniquesState.shouldBlockAttack(playerPatch)) {
+			callback.setReturnValue(Boolean.FALSE);
+			return;
+		}
+
+		if (!callback.getReturnValueZ() && MomentumAirAttackWindowState.canUseBasicAttack(playerPatch)) {
 			callback.setReturnValue(Boolean.TRUE);
 		}
 	}
@@ -31,9 +38,9 @@ public abstract class BasicAttackMixin {
 					target = "Lnet/minecraft/world/entity/player/Player;onGround()Z"
 			)
 	)
-	private boolean parcoolxwom$forcePhantomAscentAirAttackOffGround(Player player, SkillContainer skillContainer, FriendlyByteBuf buffer) {
+	private boolean parcoolxwom$forceMomentumAirAttackOffGround(Player player, SkillContainer skillContainer, FriendlyByteBuf buffer) {
 		ServerPlayerPatch serverPlayerPatch = skillContainer.getServerExecutor();
-		return !PhantomAscentAirAttackState.isInPhantomAscentAirAttackWindow(serverPlayerPatch) && player.onGround();
+		return !MomentumAirAttackWindowState.isInAirAttackWindow(serverPlayerPatch) && player.onGround();
 	}
 
 	@Redirect(
@@ -43,16 +50,16 @@ public abstract class BasicAttackMixin {
 					target = "Lnet/minecraft/world/phys/Vec3;y()D"
 			)
 	)
-	private double parcoolxwom$relaxPhantomAscentAirAttackYVelocity(Vec3 movement, SkillContainer skillContainer, FriendlyByteBuf buffer) {
+	private double parcoolxwom$relaxMomentumAirAttackYVelocity(Vec3 movement, SkillContainer skillContainer, FriendlyByteBuf buffer) {
 		ServerPlayerPatch serverPlayerPatch = skillContainer.getServerExecutor();
-		return PhantomAscentAirAttackState.adjustAirAttackYVelocity(serverPlayerPatch, movement.y());
+		return MomentumAirAttackWindowState.adjustAirAttackYVelocity(serverPlayerPatch, movement.y());
 	}
 
 	@Inject(method = "executeOnServer", at = @At("RETURN"))
-	private void parcoolxwom$consumePhantomAscentAirAttackWindow(SkillContainer skillContainer, FriendlyByteBuf buffer, CallbackInfo callback) {
+	private void parcoolxwom$consumeMomentumAirAttackWindow(SkillContainer skillContainer, FriendlyByteBuf buffer, CallbackInfo callback) {
 		ServerPlayerPatch serverPlayerPatch = skillContainer.getServerExecutor();
-		if (serverPlayerPatch != null && PhantomAscentAirAttackState.isInPhantomAscentAirAttackWindow(serverPlayerPatch)) {
-			PhantomAscentAirAttackState.consume(serverPlayerPatch.getOriginal());
+		if (serverPlayerPatch != null && MomentumAirAttackWindowState.isInAirAttackWindow(serverPlayerPatch)) {
+			MomentumAirAttackWindowState.consume(serverPlayerPatch);
 		}
 	}
 }

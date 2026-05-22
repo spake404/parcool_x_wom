@@ -1,9 +1,12 @@
 package dev.spake404.parcool_x_wom.mixin;
 
+import dev.spake404.parcool_x_wom.ParcoolXWomConfig;
 import dev.spake404.parcool_x_wom.ParcoolXWomClientHooks;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import yesman.epicfight.api.client.input.InputManager;
 import yesman.epicfight.api.client.input.action.MinecraftInputAction;
@@ -33,6 +36,11 @@ public abstract class PhantomAscentSkillMixin {
 	)
 	private void parcoolxwom$markPhantomAscentAirAttackWindow(SkillContainer skillContainer, MovementInputEvent event, CallbackInfo callback) {
 		ParcoolXWomClientHooks.markPhantomAscentAirAttackWindow(event.getPlayerPatch().getOriginal());
+	}
+
+	@ModifyConstant(method = "lambda$onInitiate$2", constant = @Constant(floatValue = 2.5F), require = 0)
+	private static float parcoolxwom$useConfiguredPhantomAscentFallProtectionThreshold(float original) {
+		return ParcoolXWomConfig.phantomAscentFallProtectionDamageThreshold();
 	}
 
 	private static boolean isJumpPressed() {

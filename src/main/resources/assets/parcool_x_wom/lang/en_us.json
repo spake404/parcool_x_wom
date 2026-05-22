@@ -1,9 +1,0 @@
-{
-  "modmenu.descriptionTranslation.parcool_x_wom": "Bridges ParCool and Weapons of Miracles Natural Sprinter animations for Epic Fight.",
-  "parcool_x_wom.configuration.autoFastRunDash": "Auto FastRun dash",
-  "parcool_x_wom.configuration.catLeapPrimesPhantomAscent": "CatLeap primes Phantom Ascent",
-  "parcool_x_wom.configuration.wallJumpPrimesPhantomAscent": "WallJump primes Phantom Ascent",
-  "parcool_x_wom.configuration.spiderWallJumpPrimesPhantomAscent": "Spider wall jump primes Phantom Ascent",
-  "parcool_x_wom.configuration.disableVerticalWallRunWithSpiderTechniques": "Disable ParCool vertical wall run with Spider Techniques",
-  "parcool_x_wom.configuration.vaultHeightScale": "Vault height scale"
-}

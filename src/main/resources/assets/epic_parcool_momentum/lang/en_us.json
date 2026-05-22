@@ -1,0 +1,14 @@
+{
+  "modmenu.descriptionTranslation.epic_parcool_momentum": "Momentum-focused compatibility for Epic Fight, ParCool, EpicParCool, and optional addon integrations.",
+  "epic_parcool_momentum.configuration.autoFastRunDash": "Auto FastRun dash",
+  "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "CatLeap primes Phantom Ascent",
+  "epic_parcool_momentum.configuration.wallJumpPrimesPhantomAscent": "WallJump primes Phantom Ascent",
+  "epic_parcool_momentum.configuration.phantomAscentFallProtectionDamageThreshold": "Phantom Ascent fall protection damage threshold",
+  "epic_parcool_momentum.configuration.autoSprintAfterWallJump": "Auto sprint after WallJump",
+  "epic_parcool_momentum.configuration.wallJumpPrimesAirAttack": "WallJump primes air attack",
+  "epic_parcool_momentum.configuration.wallJumpAirAttackFallProtectionDamageThreshold": "WallJump air attack fall protection damage threshold",
+  "epic_parcool_momentum.configuration.spiderWallJumpPrimesPhantomAscent": "Spider wall jump primes Phantom Ascent",
+  "epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques": "Disable ParCool vertical wall run with Spider Techniques",
+  "epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState": "Debug Spider Techniques attack state",
+  "epic_parcool_momentum.configuration.vaultHeightScale": "Vault height scale"
+}

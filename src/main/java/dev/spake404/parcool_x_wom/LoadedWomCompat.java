@@ -1,6 +1,7 @@
 package dev.spake404.parcool_x_wom;
 
 import java.util.stream.Stream;
+import java.util.WeakHashMap;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -21,6 +22,8 @@ import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 final class LoadedWomCompat implements WomCompat {
 	private static final ResourceLocation NATURAL_SPRINTER_ID = ResourceLocation.fromNamespaceAndPath("wom", "natural_sprinter");
 	private static final ResourceLocation SPIDER_TECHNIQUES_ID = ResourceLocation.fromNamespaceAndPath("wom", "spider_techniques");
+	private final WeakHashMap<PlayerPatch<?>, SkillContainer> naturalSprinterCache = new WeakHashMap<>();
+	private final WeakHashMap<PlayerPatch<?>, SkillContainer> spiderTechniquesCache = new WeakHashMap<>();
 
 	@Override
 	public AssetAccessor<? extends StaticAnimation> bipedSprint() {
@@ -143,11 +146,20 @@ final class LoadedWomCompat implements WomCompat {
 			return null;
 		}
 
+		SkillContainer cached = spiderTechniquesCache.get(playerPatch);
+		if (isSpiderTechniquesContainer(cached)) {
+			return cached;
+		}
+
 		try (Stream<SkillContainer> containers = playerPatch.getSkillCapability().listSkillContainers()) {
-			return containers
+			SkillContainer found = containers
 					.filter(this::isSpiderTechniquesContainer)
 					.findFirst()
 					.orElse(null);
+			if (found != null) {
+				spiderTechniquesCache.put(playerPatch, found);
+			}
+			return found;
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
@@ -158,11 +170,20 @@ final class LoadedWomCompat implements WomCompat {
 			return null;
 		}
 
+		SkillContainer cached = naturalSprinterCache.get(playerPatch);
+		if (isNaturalSprinterContainer(cached)) {
+			return cached;
+		}
+
 		try (Stream<SkillContainer> containers = playerPatch.getSkillCapability().listSkillContainers()) {
-			return containers
+			SkillContainer found = containers
 					.filter(this::isNaturalSprinterContainer)
 					.findFirst()
 					.orElse(null);
+			if (found != null) {
+				naturalSprinterCache.put(playerPatch, found);
+			}
+			return found;
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}

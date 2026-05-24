@@ -13,6 +13,7 @@ public final class ParcoolXWomMixinPlugin implements IMixinConfigPlugin {
 	private static final String WOM = "wom";
 	private static final String INVINCIBLE = "invincible";
 	private static final String NIGHTFALL = "efn";
+	private static final String TACZ = "tacz";
 
 	@Override
 	public void onLoad(String mixinPackage) {
@@ -26,9 +27,10 @@ public final class ParcoolXWomMixinPlugin implements IMixinConfigPlugin {
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 		return switch (simpleName(mixinClassName)) {
-			case "NaturalSprinterSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
+			case "NaturalSprinterSkillMixin", "SpiderTechniquesSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
 			case "ComboBasicAttackMixin", "InvincibleJumpConditionMixin" -> isLoaded(INVINCIBLE);
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
+			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin", "MinecraftAttackMixin" -> isLoaded(TACZ);
 			default -> true;
 		};
 	}

@@ -3,6 +3,7 @@ package dev.spake404.parcool_x_wom.mixin;
 import com.p1nero.invincible.api.skill.ComboNode;
 import com.p1nero.invincible.skill.ComboBasicAttack;
 import dev.spake404.parcool_x_wom.MomentumAirAttackWindowState;
+import dev.spake404.parcool_x_wom.ModCompat;
 import dev.spake404.parcool_x_wom.SpiderTechniquesState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,10 +18,12 @@ import yesman.epicfight.world.capabilities.entitypatch.player.ServerPlayerPatch;
 public abstract class ComboBasicAttackMixin {
 	@Inject(method = "isExecutableState", at = @At("RETURN"), cancellable = true)
 	private void parcoolxwom$adjustComboAttackExecutableState(PlayerPatch<?> playerPatch, CallbackInfoReturnable<Boolean> callback) {
-		SpiderTechniquesState.debugAttackState(playerPatch, "ComboBasicAttack.isExecutableState", callback.getReturnValueZ());
-		if (SpiderTechniquesState.shouldBlockAttack(playerPatch)) {
-			callback.setReturnValue(Boolean.FALSE);
-			return;
+		if (ModCompat.isWomLoaded()) {
+			SpiderTechniquesState.debugAttackState(playerPatch, "ComboBasicAttack.isExecutableState", callback.getReturnValueZ());
+			if (SpiderTechniquesState.shouldBlockAttack(playerPatch)) {
+				callback.setReturnValue(Boolean.FALSE);
+				return;
+			}
 		}
 
 		if (!callback.getReturnValueZ() && MomentumAirAttackWindowState.canUseBasicAttack(playerPatch)) {

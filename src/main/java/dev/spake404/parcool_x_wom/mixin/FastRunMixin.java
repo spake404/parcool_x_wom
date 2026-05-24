@@ -18,8 +18,15 @@ public abstract class FastRunMixin {
 
 	@Inject(method = "canContinue", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$continueDuringVault(Player player, Parkourability parkourability, IStamina stamina, CallbackInfoReturnable<Boolean> cir) {
+		if (ParcoolXWomClientHooks.shouldStopFastRunForTaczShoot(player)) {
+			this.toggleStatus = false;
+			cir.setReturnValue(Boolean.FALSE);
+			return;
+		}
+
 		if (ParcoolXWomClientHooks.shouldKeepFastRunDuringVault(player)
-				|| ParcoolXWomClientHooks.shouldKeepFastRunAfterWallJump(player, stamina)) {
+				|| ParcoolXWomClientHooks.shouldKeepFastRunAfterWallJump(player, stamina)
+				|| ParcoolXWomClientHooks.shouldRestoreFastRunAfterTaczShoot(player, stamina)) {
 			this.toggleStatus = true;
 			cir.setReturnValue(Boolean.TRUE);
 		}
@@ -27,8 +34,14 @@ public abstract class FastRunMixin {
 
 	@Inject(method = "onClientTick", at = @At("RETURN"), require = 0)
 	private void parcoolxwom$keepToggleDuringVault(Player player, Parkourability parkourability, IStamina stamina, org.spongepowered.asm.mixin.injection.callback.CallbackInfo callback) {
+		if (ParcoolXWomClientHooks.shouldStopFastRunForTaczShoot(player)) {
+			this.toggleStatus = false;
+			return;
+		}
+
 		if (ParcoolXWomClientHooks.shouldPreserveFastRunToggleDuringVault(player)
-				|| ParcoolXWomClientHooks.shouldPreserveFastRunToggleAfterWallJump(player, stamina)) {
+				|| ParcoolXWomClientHooks.shouldPreserveFastRunToggleAfterWallJump(player, stamina)
+				|| ParcoolXWomClientHooks.shouldPreserveFastRunAfterTaczShoot(player, stamina)) {
 			this.toggleStatus = true;
 		}
 	}

@@ -16,6 +16,7 @@ public final class PhantomAscentAirAttackState {
 	private static final WeakHashMap<Player, Boolean> AIR_ATTACK_SIGNALS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> AIR_ATTACK_CONSUMED = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> PROTECT_NEXT_FALL_ACTIVE = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, SkillContainer> PHANTOM_ASCENT_CACHE = new WeakHashMap<>();
 
 	private PhantomAscentAirAttackState() {
 	}
@@ -161,11 +162,20 @@ public final class PhantomAscentAirAttackState {
 			return null;
 		}
 
+		SkillContainer cached = PHANTOM_ASCENT_CACHE.get(playerPatch);
+		if (isPhantomAscentContainer(cached)) {
+			return cached;
+		}
+
 		try (var containers = playerPatch.getSkillCapability().listSkillContainers()) {
-			return containers
+			SkillContainer found = containers
 					.filter(PhantomAscentAirAttackState::isPhantomAscentContainer)
 					.findFirst()
 					.orElse(null);
+			if (found != null) {
+				PHANTOM_ASCENT_CACHE.put(playerPatch, found);
+			}
+			return found;
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}

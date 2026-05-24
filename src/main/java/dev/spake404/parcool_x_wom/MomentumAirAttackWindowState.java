@@ -62,6 +62,14 @@ public final class MomentumAirAttackWindowState {
 				|| isInWallJumpAirAttackWindow(playerPatch);
 	}
 
+	public static boolean isInWallJumpWindow(Player player) {
+		return isInWallJumpAirAttackWindow(player);
+	}
+
+	public static void clearWallJumpWindow(Player player) {
+		clearWallJump(player);
+	}
+
 	public static double adjustAirAttackYVelocity(PlayerPatch<?> playerPatch, double yVelocity) {
 		return PhantomAscentAirAttackState.adjustAirAttackYVelocity(playerPatch, yVelocity);
 	}

@@ -1,10 +1,14 @@
 package dev.spake404.parcool_x_wom;
 
+import java.lang.reflect.Method;
+import java.util.Optional;
 import java.util.WeakHashMap;
 
 import com.yesman.epicparcool.ParcoolLivingMotions;
 import dev.spake404.parcool_x_wom.mixin.AnimatorAccessor;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
 import yesman.epicfight.api.animation.AnimationPlayer;
 import yesman.epicfight.api.animation.Animator;
 import yesman.epicfight.api.animation.LivingMotion;
@@ -21,6 +25,7 @@ final class NaturalSprinterFastRunHandler {
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> FAST_RUN_ACTIVE = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> MANUAL_FAST_RUN_KEY_CONSUMED = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> NEXT_FAST_RUN_STEP_RIGHT = new WeakHashMap<>();
+	private static TaczGunTypeResolver taczGunTypeResolver;
 
 	private NaturalSprinterFastRunHandler() {
 	}
@@ -91,7 +96,11 @@ final class NaturalSprinterFastRunHandler {
 	}
 
 	private static boolean shouldTriggerNaturalSprinterDash(PlayerPatch<?> playerPatch, boolean wasFastRunActive) {
-		return ParcoolXWomConfig.autoFastRunDash() ? !wasFastRunActive : shouldTriggerManualFastRunDash(playerPatch);
+		if (!ParcoolXWomConfig.autoFastRunDash()) {
+			return shouldTriggerManualFastRunDash(playerPatch);
+		}
+
+		return !wasFastRunActive && !ParcoolXWomClientHooks.shouldSuppressAutoFastRunDashForTacz(playerPatch);
 	}
 
 	private static boolean shouldTriggerManualFastRunDash(PlayerPatch<?> playerPatch) {
@@ -150,6 +159,11 @@ final class NaturalSprinterFastRunHandler {
 	}
 
 	private static SprintFamily chooseSprintFamily(PlayerPatch<?> playerPatch) {
+		SprintFamily taczFamily = chooseTaczSprintFamily(playerPatch);
+		if (taczFamily != null) {
+			return taczFamily;
+		}
+
 		CapabilityItem mainHand = playerPatch.getHoldingItemCapability(InteractionHand.MAIN_HAND);
 		Object category = mainHand.getWeaponCategory();
 		String categoryName = categoryName(category);
@@ -168,8 +182,75 @@ final class NaturalSprinterFastRunHandler {
 		return WomAnimationRefs.isMoonlessCollider(mainHand.getWeaponCollider()) ? SprintFamily.BAREHAND : SprintFamily.WEAPON;
 	}
 
+	private static SprintFamily chooseTaczSprintFamily(PlayerPatch<?> playerPatch) {
+		if (!ModCompat.isTaczLoaded() || playerPatch == null || playerPatch.getOriginal() == null) {
+			return null;
+		}
+
+		String gunType = taczGunType(playerPatch.getOriginal().getMainHandItem());
+		if (gunType == null) {
+			return null;
+		}
+
+		return ParcoolXWomConfig.isTaczBarehandSprintType(gunType) ? SprintFamily.BAREHAND : SprintFamily.WEAPON;
+	}
+
+	private static String taczGunType(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return null;
+		}
+
+		try {
+			if (taczGunTypeResolver == null) {
+				taczGunTypeResolver = new TaczGunTypeResolver();
+			}
+			return taczGunTypeResolver.type(stack);
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
 	private static String categoryName(Object category) {
 		return category instanceof Enum<?> enumCategory ? enumCategory.name() : String.valueOf(category);
+	}
+
+	private static final class TaczGunTypeResolver {
+		private final Class<?> gunClass;
+		private final Method getGunId;
+		private final Method getCommonGunIndex;
+		private final Method getType;
+
+		private TaczGunTypeResolver() throws ClassNotFoundException, NoSuchMethodException {
+			gunClass = Class.forName("com.tacz.guns.api.item.IGun");
+			getGunId = gunClass.getMethod("getGunId", ItemStack.class);
+			getCommonGunIndex = Class.forName("com.tacz.guns.api.TimelessAPI").getMethod("getCommonGunIndex", ResourceLocation.class);
+			getType = Class.forName("com.tacz.guns.resource.index.CommonGunIndex").getMethod("getType");
+		}
+
+		private String type(ItemStack stack) throws ReflectiveOperationException {
+			Object item = stack.getItem();
+			if (!gunClass.isInstance(item)) {
+				return null;
+			}
+
+			Object gunId = getGunId.invoke(item, stack);
+			if (!(gunId instanceof ResourceLocation resourceLocation)) {
+				return null;
+			}
+
+			Object optional = getCommonGunIndex.invoke(null, resourceLocation);
+			if (!(optional instanceof Optional<?> gunIndexOptional)) {
+				return null;
+			}
+
+			Object gunIndex = gunIndexOptional.orElse(null);
+			if (gunIndex == null) {
+				return null;
+			}
+
+			Object type = getType.invoke(gunIndex);
+			return type instanceof String typeName ? typeName : null;
+		}
 	}
 
 	private enum SprintFamily {

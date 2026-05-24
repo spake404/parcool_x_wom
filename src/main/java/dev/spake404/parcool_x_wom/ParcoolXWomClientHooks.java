@@ -6,7 +6,9 @@ import com.alrex.parcool.client.animation.impl.FastRunningAnimator;
 import com.alrex.parcool.client.input.KeyBindings;
 import com.alrex.parcool.client.input.KeyRecorder;
 import com.alrex.parcool.common.action.impl.FastRun;
+import com.alrex.parcool.common.action.impl.HangDown;
 import com.alrex.parcool.common.action.impl.Vault;
+import com.alrex.parcool.common.action.impl.WallJump;
 import com.alrex.parcool.common.capability.Animation;
 import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
@@ -18,6 +20,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -55,13 +58,25 @@ public final class ParcoolXWomClientHooks {
 	private static final WeakHashMap<Player, Integer> PENDING_FORCED_PHANTOM_ASCENT_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> VAULT_HOLD_FAST_RUN = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_DEBUG_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_GRACE_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> WALL_JUMP_AUTO_SPRINT_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_RESTORE_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Boolean> TACZ_SHOOT_ACTIVE = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, AssetAccessor<? extends StaticAnimation>> PENDING_FAST_RUN_DASHES = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, SkillContainer> PHANTOM_ASCENT_CONTAINERS = new WeakHashMap<>();
 	private static final ResourceLocation HF_MURASAMA = ResourceLocation.fromNamespaceAndPath("efn", "hf_murasama");
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS = 10;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
 	private static final int WALL_JUMP_AUTO_SPRINT_DURATION_TICKS = 12;
+	private static final int TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS = 40;
+	private static final int TACZ_SHOOT_FAST_RUN_SUPPRESS_DURATION_TICKS = 3;
+	private static final int TACZ_SHOOT_FAST_RUN_RESTORE_DURATION_TICKS = 12;
+	private static final int TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS = 30;
+	private static final int TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS = 20;
 	private static volatile boolean jumpSpeedModifierInstalled;
 	private static boolean phantomJumpWasDown;
 
@@ -152,12 +167,12 @@ public final class ParcoolXWomClientHooks {
 
 	public static void clearVaultFastRunHold(Player player) {
 		if (Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.remove(player))) {
-			VAULT_FAST_RUN_DEBUG_TICKS.put(player, Integer.valueOf(40));
+			VAULT_FAST_RUN_GRACE_TICKS.put(player, Integer.valueOf(40));
 		}
 	}
 
 	public static boolean wasHoldingFastRunDuringVault(Player player) {
-		return Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player)) || VAULT_FAST_RUN_DEBUG_TICKS.containsKey(player);
+		return Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player)) || VAULT_FAST_RUN_GRACE_TICKS.containsKey(player);
 	}
 
 	public static boolean shouldPreserveFastRunToggleDuringVault(Player player) {
@@ -205,6 +220,12 @@ public final class ParcoolXWomClientHooks {
 		ensureFastRunAnimator(player);
 	}
 
+	public static void markWallJumpForTaczShootCancel(Player player) {
+		if (player != null && player.isLocalPlayer() && ParcoolXWomConfig.taczShootDuringWallJump()) {
+			TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.put(player, Integer.valueOf(TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS));
+		}
+	}
+
 	public static boolean shouldPreserveFastRunToggleAfterWallJump(Player player, IStamina stamina) {
 		return shouldKeepFastRunAfterWallJump(player, stamina);
 	}
@@ -227,6 +248,158 @@ public final class ParcoolXWomClientHooks {
 		player.setSprinting(true);
 		ensureFastRunAnimator(player);
 		return true;
+	}
+
+	public static void suppressFastRunForTaczShoot(Player player, boolean restoreFastRunAfterShoot) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_FAST_RUN_SUPPRESS_DURATION_TICKS));
+		if (restoreFastRunAfterShoot) {
+			rememberFastRunBeforeTaczShoot(player);
+		} else {
+			TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.remove(player);
+		}
+		clearVaultFastRunHold(player);
+		cancelAutoSprintAfterWallJump(player);
+		stopLocalSprintAndFastRunAnimation(player);
+	}
+
+	public static void cancelWallJumpForTaczShoot(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
+			if (wallJump != null && wallJump.isDoing()) {
+				wallJump.finish(player);
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+
+		clearVaultFastRunHold(player);
+		cancelAutoSprintAfterWallJump(player);
+		cancelTaczWallJumpShootCancel(player);
+		clearParCoolAnimator(player);
+		player.setSprinting(false);
+
+		Vec3 movement = player.getDeltaMovement();
+		if (movement.y() > 0.0D) {
+			player.setDeltaMovement(movement.x(), 0.0D, movement.z());
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
+			PENDING_FAST_RUN_DASHES.remove(localPlayerPatch);
+			stopPlaying(localPlayerPatch,
+					WomAnimationRefs.epicParCoolWallJumpLeftStart(),
+					WomAnimationRefs.epicParCoolWallJumpRightStart(),
+					WomAnimationRefs.epicParCoolWallJumpLeft(),
+					WomAnimationRefs.epicParCoolWallJumpRight());
+			try {
+				localPlayerPatch.getClientAnimator().resetCompositeMotion();
+				localPlayerPatch.setModelYRot(player.getYRot(), true);
+			} catch (RuntimeException | LinkageError ignored) {
+			}
+		}
+	}
+
+	public static boolean isWallJumpActiveForTaczShoot(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return false;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
+			if (wallJump != null && wallJump.isDoing()) {
+				return true;
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+
+		return TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(player) || MomentumAirAttackWindowState.isInWallJumpWindow(player);
+	}
+
+	public static void rememberFastRunBeforeTaczShoot(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_FAST_RUN_RESTORE_DURATION_TICKS));
+	}
+
+	public static boolean shouldStopFastRunForTaczShoot(Player player) {
+		return player != null && TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player);
+	}
+
+	public static boolean shouldPreserveFastRunAfterTaczShoot(Player player, IStamina stamina) {
+		return shouldRestoreFastRunAfterTaczShoot(player, stamina);
+	}
+
+	public static boolean shouldRestoreFastRunAfterTaczShoot(Player player, IStamina stamina) {
+		if (!TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)) {
+			return false;
+		}
+
+		if (shouldKeepTaczShootFastRunSuppression(player)) {
+			return false;
+		}
+
+		if ((stamina != null && stamina.isExhausted()) || hasHardVaultFastRunBlocker(player) || !isHoldingTaczGun(player)) {
+			cancelTaczShootFastRunRestore(player);
+			return false;
+		}
+
+		ensureFastRunAnimator(player);
+		return true;
+	}
+
+	public static boolean shouldSuppressAutoFastRunDashForTacz(PlayerPatch<?> playerPatch) {
+		return playerPatch != null
+				&& (TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(playerPatch.getOriginal())
+				|| TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(playerPatch.getOriginal()));
+	}
+
+	public static void markTaczShootActive(Player player) {
+		if (player != null && player.isLocalPlayer() && isHoldingTaczGun(player)) {
+			TACZ_SHOOT_ACTIVE.put(player, Boolean.TRUE);
+		}
+	}
+
+	public static void suppressAutoFastRunDashForTaczReload(Player player) {
+		if (player != null
+				&& player.isLocalPlayer()
+				&& isHoldingTaczGun(player)) {
+			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
+			TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.put(player, Integer.valueOf(TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS));
+		}
+	}
+
+	public static boolean cancelWallJumpForTaczAttackInput(Player player) {
+		if (player == null || !player.isLocalPlayer() || !ParcoolXWomConfig.taczShootDuringWallJump() || !isHoldingTaczGun(player)) {
+			return false;
+		}
+
+		if (!isWallJumpActiveForTaczShoot(player)) {
+			return false;
+		}
+
+		cancelWallJumpForTaczShoot(player);
+		MomentumAirAttackWindowState.clearWallJumpWindow(player);
+		return true;
+	}
+
+	public static boolean cancelWallJumpForHeldTaczAttack(Player player) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft == null || minecraft.options == null || !minecraft.options.keyAttack.isDown()) {
+			return false;
+		}
+
+		return cancelWallJumpForTaczAttackInput(player);
 	}
 
 	public static void markPhantomAscentAirAttackWindow(Player player) {
@@ -304,18 +477,28 @@ public final class ParcoolXWomClientHooks {
 			return;
 		}
 
-		clearAirbornePhantomAscentLockIfLanded(event.player);
-		if (!hasClientTickWork(event.player) && !shouldProbeSpiderWallJump(event.player)) {
+		cancelWallJumpForHeldTaczAttack(event.player);
+		if (TACZ_SHOOT_ACTIVE.containsKey(event.player) || TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(event.player)) {
+			tickTaczShootStopFastRunDashSuppression(event.player);
+		}
+		if (TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(event.player)) {
+			tickTaczReloadFastRunDashSuppression(event.player);
+		}
+
+		boolean hasTickWork = hasClientTickWork(event.player);
+		boolean shouldProbeSpiderWallJump = shouldProbeSpiderWallJump(event.player);
+		if (!hasTickWork && !shouldProbeSpiderWallJump) {
 			return;
 		}
 
+		clearAirbornePhantomAscentLockIfLanded(event.player);
 		if (PENDING_FORCED_PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
 			tickPendingForcedPhantomAscent(event.player);
 		}
 		if (NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(event.player)) {
 			tickNaturalSprinterCatLeap(event.player);
 		}
-		if (shouldProbeSpiderWallJump(event.player)) {
+		if (shouldProbeSpiderWallJump) {
 			markSpiderWallJumpForPhantomAscent(event.player);
 		}
 		if (PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
@@ -327,11 +510,20 @@ public final class ParcoolXWomClientHooks {
 		if (PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.containsKey(event.player)) {
 			tickPhantomAscentAirAttackSprintSuppression(event.player);
 		}
-		if (VAULT_FAST_RUN_DEBUG_TICKS.containsKey(event.player)) {
-			tickVaultFastRunDebugWindow(event.player);
+		if (VAULT_FAST_RUN_GRACE_TICKS.containsKey(event.player)) {
+			tickVaultFastRunGraceWindow(event.player);
 		}
 		if (WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(event.player)) {
 			tickAutoSprintAfterWallJump(event.player);
+		}
+		if (TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(event.player)) {
+			tickTaczWallJumpShootCancel(event.player);
+		}
+		if (TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(event.player)) {
+			tickTaczShootFastRunSuppression(event.player);
+		}
+		if (TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(event.player)) {
+			tickTaczShootFastRunRestore(event.player);
 		}
 		if (!PENDING_FAST_RUN_DASHES.isEmpty()) {
 			playPendingFastRunDash(event.player);
@@ -348,8 +540,14 @@ public final class ParcoolXWomClientHooks {
 				|| PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.containsKey(player)
 				|| NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(player)
 				|| VAULT_HOLD_FAST_RUN.containsKey(player)
-				|| VAULT_FAST_RUN_DEBUG_TICKS.containsKey(player)
+				|| VAULT_FAST_RUN_GRACE_TICKS.containsKey(player)
 				|| WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(player)
+				|| TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(player)
+				|| TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player)
+				|| TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)
+				|| TACZ_SHOOT_ACTIVE.containsKey(player)
+				|| TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(player)
+				|| TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(player)
 				|| !PENDING_FAST_RUN_DASHES.isEmpty();
 	}
 
@@ -382,7 +580,7 @@ public final class ParcoolXWomClientHooks {
 	}
 
 	private static void markForPhantomAscent(Player player, PhantomAscentPrimeSource source) {
-		if (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player)) || isHoldingPhantomAscentBlockedWeapon(player)) {
+		if (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player)) || isHoldingPhantomAscentBlockedWeapon(player) || isParCoolHanging(player)) {
 			return;
 		}
 
@@ -398,7 +596,7 @@ public final class ParcoolXWomClientHooks {
 		}
 
 		int nextTick = ticks.intValue() + 1;
-		if (!isPhantomAscentPrimeEnabled(player) || isHoldingPhantomAscentBlockedWeapon(player) || nextTick > 80) {
+		if (!isPhantomAscentPrimeEnabled(player) || isHoldingPhantomAscentBlockedWeapon(player) || isParCoolHanging(player) || nextTick > 80) {
 			clearPhantomAscent(player);
 			return;
 		}
@@ -419,7 +617,7 @@ public final class ParcoolXWomClientHooks {
 	}
 
 	private static void markSpiderWallJumpForPhantomAscent(Player player) {
-		if (player == null || !player.isLocalPlayer() || !shouldProbeSpiderWallJump(player)) {
+		if (player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -688,11 +886,20 @@ public final class ParcoolXWomClientHooks {
 			return null;
 		}
 
+		SkillContainer cached = PHANTOM_ASCENT_CONTAINERS.get(playerPatch);
+		if (isPhantomAscentContainer(cached)) {
+			return cached;
+		}
+
 		try (var containers = playerPatch.getSkillCapability().listSkillContainers()) {
-			return containers
+			SkillContainer found = containers
 					.filter(ParcoolXWomClientHooks::isPhantomAscentContainer)
 					.findFirst()
 					.orElse(null);
+			if (found != null) {
+				PHANTOM_ASCENT_CONTAINERS.put(playerPatch, found);
+			}
+			return found;
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
@@ -795,18 +1002,18 @@ public final class ParcoolXWomClientHooks {
 		}
 	}
 
-	private static void tickVaultFastRunDebugWindow(Player player) {
-		Integer ticks = VAULT_FAST_RUN_DEBUG_TICKS.get(player);
+	private static void tickVaultFastRunGraceWindow(Player player) {
+		Integer ticks = VAULT_FAST_RUN_GRACE_TICKS.get(player);
 		if (ticks == null) {
 			return;
 		}
 
 		if (ticks.intValue() <= 0) {
-			VAULT_FAST_RUN_DEBUG_TICKS.remove(player);
+			VAULT_FAST_RUN_GRACE_TICKS.remove(player);
 			return;
 		}
 
-		VAULT_FAST_RUN_DEBUG_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+		VAULT_FAST_RUN_GRACE_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
 	}
 
 	private static void tickAutoSprintAfterWallJump(Player player) {
@@ -825,8 +1032,160 @@ public final class ParcoolXWomClientHooks {
 		WALL_JUMP_AUTO_SPRINT_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
 	}
 
+	private static void tickTaczWallJumpShootCancel(Player player) {
+		Integer ticks = TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (ticks.intValue() <= 0 || player.onGround() || player.isSpectator() || player.isInWater()) {
+			cancelTaczWallJumpShootCancel(player);
+			return;
+		}
+
+		TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static void tickTaczShootFastRunSuppression(Player player) {
+		Integer ticks = TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (shouldKeepTaczShootFastRunSuppression(player)) {
+			stopLocalSprintAndFastRunAnimation(player);
+			TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_FAST_RUN_SUPPRESS_DURATION_TICKS));
+			return;
+		}
+
+		TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.remove(player);
+		if (TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)) {
+			startTaczShootFastRunRestore(player);
+		}
+	}
+
+	private static void tickTaczShootFastRunRestore(Player player) {
+		Integer ticks = TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (shouldKeepTaczShootFastRunSuppression(player)) {
+			TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_FAST_RUN_RESTORE_DURATION_TICKS));
+			return;
+		}
+
+		if (ticks.intValue() <= 0) {
+			cancelTaczShootFastRunRestore(player);
+			return;
+		}
+
+		if (!isHoldingTaczGun(player) || hasHardVaultFastRunBlocker(player)) {
+			cancelTaczShootFastRunRestore(player);
+			return;
+		}
+
+		player.setSprinting(true);
+		ensureFastRunAnimator(player);
+		TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static void tickTaczShootStopFastRunDashSuppression(Player player) {
+		if (player == null || !player.isLocalPlayer() || !isHoldingTaczGun(player)) {
+			TACZ_SHOOT_ACTIVE.remove(player);
+			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
+			return;
+		}
+
+		if (TACZ_SHOOT_ACTIVE.containsKey(player)) {
+			Minecraft minecraft = Minecraft.getInstance();
+			boolean attackDown = minecraft != null && minecraft.options != null && minecraft.options.keyAttack.isDown();
+			if (attackDown) {
+				return;
+			}
+
+			TACZ_SHOOT_ACTIVE.remove(player);
+			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS));
+			return;
+		}
+
+		Integer ticks = TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (ticks.intValue() <= 0) {
+			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
+			return;
+		}
+
+		TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static void tickTaczReloadFastRunDashSuppression(Player player) {
+		Integer ticks = TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.get(player);
+		if (ticks == null) {
+			return;
+		}
+
+		if (ticks.intValue() <= 0 || player == null || !player.isLocalPlayer() || !isHoldingTaczGun(player)) {
+			TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
+			return;
+		}
+
+		TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+	}
+
+	private static boolean shouldKeepTaczShootFastRunSuppression(Player player) {
+		Minecraft minecraft = Minecraft.getInstance();
+		return player != null
+				&& player.isLocalPlayer()
+				&& minecraft != null
+				&& minecraft.options != null
+				&& minecraft.options.keyAttack.isDown()
+				&& isHoldingTaczGun(player);
+	}
+
+	private static boolean isHoldingTaczGun(Player player) {
+		return isTaczItem(player.getMainHandItem());
+	}
+
+	private static boolean isTaczItem(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return false;
+		}
+
+		ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+		return itemId != null && ModCompat.TACZ.equals(itemId.getNamespace());
+	}
+
+	private static void stopLocalSprintAndFastRunAnimation(Player player) {
+		player.setSprinting(false);
+		clearParCoolAnimator(player);
+	}
+
+	private static void startTaczShootFastRunRestore(Player player) {
+		if (!isHoldingTaczGun(player) || hasHardVaultFastRunBlocker(player)) {
+			cancelTaczShootFastRunRestore(player);
+			return;
+		}
+
+		TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.put(player, Integer.valueOf(TACZ_SHOOT_FAST_RUN_RESTORE_DURATION_TICKS));
+		player.setSprinting(true);
+		ensureFastRunAnimator(player);
+	}
+
+	private static void cancelTaczShootFastRunRestore(Player player) {
+		TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.remove(player);
+	}
+
+
 	private static void cancelAutoSprintAfterWallJump(Player player) {
 		WALL_JUMP_AUTO_SPRINT_TICKS.remove(player);
+	}
+
+	private static void cancelTaczWallJumpShootCancel(Player player) {
+		TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.remove(player);
 	}
 
 	private static boolean hasHardVaultFastRunBlocker(Player player) {
@@ -837,6 +1196,19 @@ public final class ParcoolXWomClientHooks {
 				|| player.isInWaterOrBubble()
 				|| player.isFallFlying()
 				|| player.getVehicle() != null;
+	}
+
+	private static boolean isParCoolHanging(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return false;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			return parkourability != null && parkourability.get(HangDown.class).isDoing();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
 	}
 
 	private static void ensureFastRunAnimator(Player player) {

@@ -38,9 +38,12 @@ public final class ParcoolXWomEvents {
 			return;
 		}
 
-		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(event.getPlayer(), PlayerPatch.class);
 		ParcoolXWomClientHooks.markCatLeapForPhantomAscent(event.getPlayer());
+		if (!event.getPlayer().isLocalPlayer() || !ModCompat.isWomLoaded()) {
+			return;
+		}
 
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(event.getPlayer(), PlayerPatch.class);
 		if (playerPatch != null && playerPatch.isLogicalClient() && playerPatch.isEpicFightMode() && NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
 			ParcoolXWomClientHooks.reduceNaturalSprinterCatLeapMotion(event.getPlayer());
 			ParcoolXWomClientHooks.startNaturalSprinterCatLeap(event.getPlayer());
@@ -63,6 +66,7 @@ public final class ParcoolXWomEvents {
 		}
 
 		MomentumAirAttackWindowState.markWallJump(event.getPlayer());
+		ParcoolXWomClientHooks.markWallJumpForTaczShootCancel(event.getPlayer());
 		ParcoolXWomClientHooks.markAutoSprintAfterWallJump(event.getPlayer());
 	}
 
@@ -128,6 +132,10 @@ public final class ParcoolXWomEvents {
 	}
 
 	private static void syncAndSuppressNaturalSprinter(ParCoolActionEvent event) {
+		if (!ModCompat.isWomLoaded()) {
+			return;
+		}
+
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(event.getPlayer(), PlayerPatch.class);
 		if (playerPatch != null && NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
 			NaturalSprinterState.suppress(playerPatch);

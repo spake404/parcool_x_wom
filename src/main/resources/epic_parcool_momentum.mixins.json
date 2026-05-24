@@ -18,8 +18,12 @@
   "client": [
     "AnimatorControlPacketAccessor",
     "FastRunMixin",
+    "LocalPlayerReloadMixin",
+    "LocalPlayerShootMixin",
+    "MinecraftAttackMixin",
     "NaturalSprinterSkillMixin",
     "PhantomAscentSkillMixin",
+    "SpiderTechniquesSkillMixin",
     "SPAnimatorControlAccessor",
     "SPAnimatorControlMixin"
   ],

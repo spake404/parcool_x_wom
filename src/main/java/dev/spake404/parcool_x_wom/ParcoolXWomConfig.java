@@ -1,15 +1,20 @@
 package dev.spake404.parcool_x_wom;
 
+import java.util.List;
+import java.util.Locale;
+
 import net.minecraftforge.common.ForgeConfigSpec;
 
 public final class ParcoolXWomConfig {
 	public static final ForgeConfigSpec SPEC;
 	private static final ForgeConfigSpec.BooleanValue AUTO_FAST_RUN_DASH;
+	private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TACZ_BAREHAND_SPRINT_TYPES;
 	private static final ForgeConfigSpec.BooleanValue CAT_LEAP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.DoubleValue PHANTOM_ASCENT_FALL_PROTECTION_DAMAGE_THRESHOLD;
 	private static final ForgeConfigSpec.BooleanValue AUTO_SPRINT_AFTER_WALL_JUMP;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_AIR_ATTACK;
+	private static final ForgeConfigSpec.BooleanValue TACZ_SHOOT_DURING_WALL_JUMP;
 	private static final ForgeConfigSpec.DoubleValue WALL_JUMP_AIR_ATTACK_FALL_PROTECTION_DAMAGE_THRESHOLD;
 	private static final ForgeConfigSpec.BooleanValue SPIDER_WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
@@ -25,6 +30,13 @@ public final class ParcoolXWomConfig {
 						"true: auto trigger dash when entering EpicParCool FastRun.",
 						"false: only trigger dash when pressing ParCool's FastRun key.")
 				.define("autoFastRunDash", true);
+		TACZ_BAREHAND_SPRINT_TYPES = builder
+				.translation("epic_parcool_momentum.configuration.taczBarehandSprintTypes")
+				.comment(
+						"TaCZ gun index types that use WOM barehand sprint.",
+						"Common types include: pistol, smg, rifle, shotgun, sniper, mg.",
+						"Types not listed here use WOM weapon sprint. Set to [] to make all TaCZ gun types use WOM weapon sprint.")
+				.defineList("taczBarehandSprintTypes", List.of("pistol"), ParcoolXWomConfig::isStringValue);
 		builder.pop();
 
 		builder.push("Phantom Ascent");
@@ -55,6 +67,10 @@ public final class ParcoolXWomConfig {
 				.translation("epic_parcool_momentum.configuration.wallJumpPrimesAirAttack")
 				.comment("true: ParCool WallJump opens a short window for Epic Fight air attacks.")
 				.define("wallJumpPrimesAirAttack", true);
+		TACZ_SHOOT_DURING_WALL_JUMP = builder
+				.translation("epic_parcool_momentum.configuration.taczShootDuringWallJump")
+				.comment("true: TaCZ guns can cancel ParCool WallJump and fire immediately.")
+				.define("taczShootDuringWallJump", true);
 		WALL_JUMP_AIR_ATTACK_FALL_PROTECTION_DAMAGE_THRESHOLD = builder
 				.translation("epic_parcool_momentum.configuration.wallJumpAirAttackFallProtectionDamageThreshold")
 				.comment("Maximum fall damage canceled after a ParCool WallJump air-attack window. Matches Phantom Ascent's default value.")
@@ -91,6 +107,20 @@ public final class ParcoolXWomConfig {
 		return AUTO_FAST_RUN_DASH.get();
 	}
 
+	public static boolean isTaczBarehandSprintType(String gunType) {
+		if (gunType == null) {
+			return false;
+		}
+
+		String normalizedGunType = normalizeType(gunType);
+		for (String configuredType : TACZ_BAREHAND_SPRINT_TYPES.get()) {
+			if (normalizedGunType.equals(normalizeType(configuredType))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static boolean catLeapPrimesPhantomAscent() {
 		return CAT_LEAP_PRIMES_PHANTOM_ASCENT.get();
 	}
@@ -111,6 +141,10 @@ public final class ParcoolXWomConfig {
 		return WALL_JUMP_PRIMES_AIR_ATTACK.get();
 	}
 
+	public static boolean taczShootDuringWallJump() {
+		return TACZ_SHOOT_DURING_WALL_JUMP.get();
+	}
+
 	public static float wallJumpAirAttackFallProtectionDamageThreshold() {
 		return WALL_JUMP_AIR_ATTACK_FALL_PROTECTION_DAMAGE_THRESHOLD.get().floatValue();
 	}
@@ -129,5 +163,13 @@ public final class ParcoolXWomConfig {
 
 	public static double vaultHeightScale() {
 		return VAULT_HEIGHT_SCALE.get();
+	}
+
+	private static boolean isStringValue(Object value) {
+		return value instanceof String;
+	}
+
+	private static String normalizeType(String type) {
+		return type.trim().toLowerCase(Locale.ROOT);
 	}
 }

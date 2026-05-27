@@ -1,5 +1,7 @@
 {
   "modmenu.descriptionTranslation.epic_parcool_momentum": "Momentum-focused compatibility for Epic Fight, ParCool, EpicParCool, and optional addon integrations.",
+  "epic_parcool_momentum.configuration.naturalSprinterAnimations": "Natural Sprinter animations",
+  "epic_parcool_momentum.configuration.naturalSprinterManualStep": "Natural Sprinter R-key step",
   "epic_parcool_momentum.configuration.autoFastRunDash": "Auto FastRun dash",
   "epic_parcool_momentum.configuration.taczBarehandSprintTypes": "TaCZ barehand sprint gun types",
   "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "CatLeap primes Phantom Ascent",
@@ -12,5 +14,11 @@
   "epic_parcool_momentum.configuration.spiderWallJumpPrimesPhantomAscent": "Spider wall jump primes Phantom Ascent",
   "epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques": "Disable ParCool vertical wall run with Spider Techniques",
   "epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState": "Debug Spider Techniques attack state",
-  "epic_parcool_momentum.configuration.vaultHeightScale": "Vault height scale"
+  "epic_parcool_momentum.configuration.vaultHeightScale": "Vault height scale",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpVerticalVelocity": "EpicParCool ClimbUp vertical velocity",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlVelocity": "EpicParCool ClimbUp lateral air-control velocity",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlTicks": "EpicParCool ClimbUp lateral air-control ticks",
+  "key.categories.epic_parcool_momentum": "Epic ParCool Momentum",
+  "key.epic_parcool_momentum.natural_sprinter_step": "Natural Sprinter Step",
+  "epic_parcool_momentum.parcool.dodge_disabled": "§mDodge§r (Disabled! Maybe Epic Fight's dodge skill is a better choice?)"
 }

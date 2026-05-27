@@ -1,6 +1,8 @@
 # Epic ParCool: Momentum
 
-Momentum-focused compatibility mod for ParCool, Epic Fight, EpicParCool, and optional Weapons of Miracles integrations on Minecraft Forge 1.20.1.
+Epic ParCool: Momentum is an action-flow compatibility mod for Minecraft Forge 1.20.1.
+
+It improves the way ParCool, Epic Fight, EpicParCool, Weapons of Miracles, TaCZ, Tijn's Epic Arsenal, and related Epic Fight add-ons work together. The goal is to make sprinting, parkour, climbing, shooting, reloading, aerial attacks, Phantom Ascent, and wall actions transition more naturally without forcing every optional add-on to be installed.
 
 ## Dependencies
 
@@ -14,6 +16,8 @@ Required:
 Optional compatibility:
 
 - Weapons of Miracles
+- TaCZ
+- Tijn's Epic Arsenal
 - Epic Fight Invincible
 - EpicFight Nightfall
 - Epic Fight Avalon
@@ -23,14 +27,16 @@ Optional compatibility:
 
 | Feature | Description |
 | --- | --- |
-| Phantom Ascent follow-ups | Allows Cat Leap and ParCool wall jump to prime Phantom Ascent follow-ups; adds Spider Techniques wall jump support when Weapons of Miracles is installed. |
-| Phantom Ascent air attacks | Lets Phantom Ascent transition into air attacks while preserving normal ground attack behavior. |
-| Natural Sprinter support | Integrates WOM Natural Sprinter sprint and sprint-jump animations with ParCool actions when Weapons of Miracles is installed. |
-| Vault sprint compatibility | Preserves ParCool FastRun behavior through Vault with control-mode-specific handling, even without WOM Natural Sprinter. |
-| Vault height tuning | Adds a configurable ParCool Vault height scale, defaulting to 1.5 for stable three-block air vaults. |
-| Spider Techniques compatibility | Optionally disables ParCool vertical wall run after learning WOM Spider Techniques to avoid animation conflicts when Weapons of Miracles is installed. |
-| Weapon compatibility | Adds handling for Epic Fight, optional WOM, optional Epic Fight Invincible, and optional EpicFight Nightfall style air-attack conditions. |
-| Runtime performance | Limits per-tick compatibility checks to active states and keeps temporary diagnostics out of normal runtime paths. |
+| Natural Sprinter compatibility | Integrates WOM Natural Sprinter with EpicParCool FastRun, supports optional animation replacement, TaCZ gun-type sprint animation rules, and an optional R-key manual dash step. |
+| TaCZ compatibility | Lets TaCZ shooting interrupt sprint and WallJump, restores FastRun after shooting when appropriate, and avoids unwanted Natural Sprinter dash steps around reload/shoot timing. |
+| Phantom Ascent follow-ups | Allows CatLeap, WallJump, and Spider Techniques wall jump to open a short Phantom Ascent follow-up window. |
+| Aerial attack transitions | Lets CatLeap, WallJump, Spider Techniques wall jump, and Phantom Ascent flow into Epic Fight aerial attacks while preserving normal ground attack behavior. |
+| ClingToCliff / ClimbUp improvements | Makes EpicParCool ClimbUp more reliable after cling movement and corner movement, with configurable vertical and lateral compensation. |
+| WallJump improvements | Adds configurable sprint restoration, TaCZ shooting interruption, aerial attack windows, Phantom Ascent chaining, and fall-protection thresholds. |
+| Vault tuning | Adds a configurable ParCool Vault height scale for more stable three-block-air vaults. |
+| Spider Techniques compatibility | Reduces conflicts between WOM Spider Techniques and ParCool wall actions, including optional ParCool vertical wall-run disabling. |
+| ParCool Dodge handling | Forcibly disables ParCool's built-in Dodge and hides its key binding so Epic Fight dodge skills can own combat dodging. |
+| Runtime performance | Keeps compatibility checks scoped to active states and avoids unnecessary per-tick work where possible. |
 
 ## Changelog
 

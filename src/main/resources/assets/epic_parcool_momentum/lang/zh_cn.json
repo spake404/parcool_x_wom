@@ -1,5 +1,7 @@
 {
   "modmenu.descriptionTranslation.epic_parcool_momentum": "面向 Epic Fight、ParCool、EpicParCool 和可选附属模组的动量衔接兼容。",
+  "epic_parcool_momentum.configuration.naturalSprinterAnimations": "Natural Sprinter Animation \u52a8\u753b",
+  "epic_parcool_momentum.configuration.naturalSprinterManualStep": "Natural Sprinter R \u952e\u4e3b\u52a8\u8de8\u6b65",
   "epic_parcool_momentum.configuration.autoFastRunDash": "自动触发疾跑冲刺",
   "epic_parcool_momentum.configuration.taczBarehandSprintTypes": "TaCZ 使用空手疾跑的枪种",
   "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "猫跳后可触发幻影跃升",
@@ -12,5 +14,11 @@
   "epic_parcool_momentum.configuration.spiderWallJumpPrimesPhantomAscent": "Spider Techniques 墙跳后可触发幻影跃升",
   "epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques": "学会 Spider Techniques 后禁用 ParCool 垂直蹬墙跑",
   "epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState": "调试 Spider Techniques 攻击状态",
-  "epic_parcool_momentum.configuration.vaultHeightScale": "撑越高度乘数"
+  "epic_parcool_momentum.configuration.vaultHeightScale": "撑越高度乘数",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpVerticalVelocity": "EpicParCool ClimbUp 垂直速度",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlVelocity": "EpicParCool ClimbUp 横向空中移动速度",
+  "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlTicks": "EpicParCool ClimbUp 横向空中移动持续时间",
+  "key.categories.epic_parcool_momentum": "Epic ParCool Momentum",
+  "key.epic_parcool_momentum.natural_sprinter_step": "Natural Sprinter \u4e3b\u52a8\u8de8\u6b65",
+  "epic_parcool_momentum.parcool.dodge_disabled": "§m躲闪§r（已禁用！也许使用史诗战斗的闪避技能是更好的选择？）"
 }

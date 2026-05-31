@@ -20,5 +20,5 @@
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlTicks": "EpicParCool ClimbUp 横向空中移动持续时间",
   "key.categories.epic_parcool_momentum": "Epic ParCool Momentum",
   "key.epic_parcool_momentum.natural_sprinter_step": "Natural Sprinter \u4e3b\u52a8\u8de8\u6b65",
-  "epic_parcool_momentum.parcool.dodge_disabled": "§m躲闪§r（已禁用！也许使用史诗战斗的闪避技能是更好的选择？）"
+  "epic_parcool_momentum.parcool.dodge_notice": "躲闪（默认禁用，可以手动开启，但是为了防止冲突，请不要把跨步改为和躲闪同一个快捷键。）"
 }

@@ -21,11 +21,13 @@ import dev.spake404.epm.mixin.AnimatorControlPacketAccessor;
 import dev.spake404.epm.mixin.SPAnimatorControlAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import yesman.epicfight.api.animation.AnimationManager;
@@ -72,6 +74,8 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> EPIC_PARCOOL_CLING_MOVE_CLIMB_UP_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> EPIC_PARCOOL_CLIMB_UP_AIR_CONTROL_START_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Float> WOM_SPIDER_WALL_CLIMB_BODY_YAWS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Boolean> WOM_SPIDER_WALL_CLIMB_LOGGED = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, AssetAccessor<? extends StaticAnimation>> PENDING_FAST_RUN_DASHES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> NATURAL_SPRINTER_BREAKFALL_START_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, AssetAccessor<? extends StaticAnimation>> NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES = new WeakHashMap<>();
@@ -464,6 +468,10 @@ public final class EPMClientHooks {
 		return ModCompat.isTaczLoaded() && player != null && isHoldingTaczGun(player);
 	}
 
+	public static boolean shouldSuppressJumpChargingForTacz(Player player) {
+		return ModCompat.isTaczLoaded() && isHoldingTaczGun(player);
+	}
+
 	public static boolean cancelWallJumpForTaczAttackInput(Player player) {
 		if (player == null || !player.isLocalPlayer() || !EPMConfig.taczShootDuringWallJump() || !isHoldingTaczGun(player)) {
 			return false;
@@ -566,6 +574,7 @@ public final class EPMClientHooks {
 		NaturalSprinterFastRunHandler.tickManualFastRunStepKey(event.player);
 		restoreClingMoveClimbUpVelocity(event.player, true);
 		tickEpicParCoolClimbUpAirControl(event.player);
+		tickWomSpiderWallClimbBodyYawLock(event.player);
 
 		cancelWallJumpForHeldTaczAttack(event.player);
 		if (TACZ_SHOOT_ACTIVE.containsKey(event.player) || TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(event.player)) {
@@ -1473,6 +1482,134 @@ public final class EPMClientHooks {
 		return new Vec3(-Math.sin(radians), 0.0D, Math.cos(radians)).normalize();
 	}
 
+	private static void tickWomSpiderWallClimbBodyYawLock(Player player) {
+		if (!ModCompat.isWomLoaded() || ModCompat.isSsrCameraFixesLoaded()) {
+			WOM_SPIDER_WALL_CLIMB_BODY_YAWS.remove(player);
+			return;
+		}
+
+		if (player == null || !player.isLocalPlayer() || player.isDeadOrDying()) {
+			WOM_SPIDER_WALL_CLIMB_BODY_YAWS.remove(player);
+			return;
+		}
+
+		if (player.onGround() && !WOM_SPIDER_WALL_CLIMB_BODY_YAWS.containsKey(player)) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		AssetAccessor<?> currentAnimation = playerPatch == null ? null : currentBaseAnimation(playerPatch);
+		if (playerPatch == null || !isWomSpiderWallClimbAnimation(currentAnimation)) {
+			WOM_SPIDER_WALL_CLIMB_BODY_YAWS.remove(player);
+			WOM_SPIDER_WALL_CLIMB_LOGGED.remove(player);
+			return;
+		}
+
+		Float lockedYaw = WOM_SPIDER_WALL_CLIMB_BODY_YAWS.get(player);
+		if (lockedYaw == null) {
+			Direction wallDirection = detectAdjacentWallDirection(player, true);
+			lockedYaw = Float.valueOf(womSpiderWallFacingYaw(player, wallDirection));
+			WOM_SPIDER_WALL_CLIMB_BODY_YAWS.put(player, lockedYaw);
+			logWomSpiderWallClimbLock(player, currentAnimation, wallDirection, lockedYaw.floatValue());
+		}
+
+		float yaw = lockedYaw.floatValue();
+		player.yBodyRot = yaw;
+		player.yBodyRotO = yaw;
+		player.yHeadRot = yaw;
+		player.yHeadRotO = yaw;
+		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
+			localPlayerPatch.setModelYRot(yaw, true);
+		}
+	}
+
+	private static float womSpiderWallFacingYaw(Player player, Direction wallDirection) {
+		if (wallDirection == null) {
+			return player.yBodyRot;
+		}
+
+		Vec3 normal = Vec3.atLowerCornerOf(wallDirection.getNormal());
+		return (float) Math.toDegrees(Math.atan2(-normal.x(), normal.z()));
+	}
+
+	private static Direction detectAdjacentWallDirection(Player player, boolean logProbe) {
+		Direction bestDirection = null;
+		double bestScore = Double.MAX_VALUE;
+		Vec3 look = player.getLookAngle();
+		Vec3 horizontalLook = new Vec3(look.x(), 0.0D, look.z());
+		if (horizontalLook.lengthSqr() < 1.0E-6D) {
+			horizontalLook = Vec3.directionFromRotation(0.0F, player.getYRot());
+			horizontalLook = new Vec3(horizontalLook.x(), 0.0D, horizontalLook.z());
+		}
+		horizontalLook = horizontalLook.normalize();
+
+		for (Direction direction : Direction.Plane.HORIZONTAL) {
+			AABB probeBox = womSpiderWallProbeBox(player.getBoundingBox(), direction);
+			boolean collided = !player.level().noCollision(player, probeBox);
+			if (logProbe) {
+				EPM.LOGGER.info("[WomSpiderWallYaw] probe direction={} collided={} boxMin=({}, {}, {}) boxMax=({}, {}, {})",
+						direction,
+						Boolean.valueOf(collided),
+						Double.valueOf(probeBox.minX),
+						Double.valueOf(probeBox.minY),
+						Double.valueOf(probeBox.minZ),
+						Double.valueOf(probeBox.maxX),
+						Double.valueOf(probeBox.maxY),
+						Double.valueOf(probeBox.maxZ));
+			}
+			if (!collided) {
+				continue;
+			}
+
+			Vec3 normal = Vec3.atLowerCornerOf(direction.getNormal());
+			double score = 1.0D - horizontalLook.dot(normal);
+			if (score < bestScore) {
+				bestScore = score;
+				bestDirection = direction;
+			}
+		}
+
+		return bestDirection;
+	}
+
+	private static AABB womSpiderWallProbeBox(AABB box, Direction direction) {
+		double reach = 0.62D;
+		double thickness = 0.06D;
+		double minY = box.minY + 0.05D;
+		double maxY = box.maxY - 0.05D;
+		return switch (direction) {
+			case NORTH -> new AABB(box.minX, minY, box.minZ - reach, box.maxX, maxY, box.minZ + thickness);
+			case SOUTH -> new AABB(box.minX, minY, box.maxZ - thickness, box.maxX, maxY, box.maxZ + reach);
+			case WEST -> new AABB(box.minX - reach, minY, box.minZ, box.minX + thickness, maxY, box.maxZ);
+			case EAST -> new AABB(box.maxX - thickness, minY, box.minZ, box.maxX + reach, maxY, box.maxZ);
+			default -> box;
+		};
+	}
+
+	private static void logWomSpiderWallClimbLock(Player player, AssetAccessor<?> currentAnimation, Direction wallDirection, float lockedYaw) {
+		if (Boolean.TRUE.equals(WOM_SPIDER_WALL_CLIMB_LOGGED.get(player))) {
+			return;
+		}
+
+		WOM_SPIDER_WALL_CLIMB_LOGGED.put(player, Boolean.TRUE);
+		ResourceLocation animationId = safeRegistryName(currentAnimation);
+		EPM.LOGGER.info("[WomSpiderWallYaw] lock animation={} wallDirection={} lockedYaw={} playerYRot={} yBodyRot={} yHeadRot={} pos=({}, {}, {}) delta=({}, {}, {}) onGround={} ssrCameraFixesLoaded={}",
+				animationId,
+				wallDirection,
+				Float.valueOf(lockedYaw),
+				Float.valueOf(player.getYRot()),
+				Float.valueOf(player.yBodyRot),
+				Float.valueOf(player.yHeadRot),
+				Double.valueOf(player.getX()),
+				Double.valueOf(player.getY()),
+				Double.valueOf(player.getZ()),
+				Double.valueOf(player.getDeltaMovement().x()),
+				Double.valueOf(player.getDeltaMovement().y()),
+				Double.valueOf(player.getDeltaMovement().z()),
+				Boolean.valueOf(player.onGround()),
+				Boolean.valueOf(ModCompat.isSsrCameraFixesLoaded()));
+	}
+
 	private static boolean hasHardVaultFastRunBlocker(Player player) {
 		return player == null
 				|| !player.isLocalPlayer()
@@ -1516,6 +1653,21 @@ public final class EPMClientHooks {
 		return registryName != null
 				&& "epicparcool".equals(registryName.getNamespace())
 				&& registryName.getPath().startsWith("biped/cling_move_");
+	}
+
+	private static boolean isWomSpiderWallClimbAnimation(AssetAccessor<?> animation) {
+		ResourceLocation registryName = safeRegistryName(animation);
+		if (registryName == null || !"wom".equals(registryName.getNamespace())) {
+			return false;
+		}
+
+		return switch (registryName.getPath()) {
+			case "biped/living/wall_run",
+					"biped/living/wall_glide",
+					"biped/living/wall_run_left_side",
+					"biped/living/wall_run_right_side" -> true;
+			default -> false;
+		};
 	}
 
 	private static boolean isEpicParCoolClimbUpNoActionAnimation(AssetAccessor<?> animation) {

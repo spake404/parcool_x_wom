@@ -20,5 +20,5 @@
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlTicks": "EpicParCool ClimbUp lateral air-control ticks",
   "key.categories.epic_parcool_momentum": "Epic ParCool Momentum",
   "key.epic_parcool_momentum.natural_sprinter_step": "Natural Sprinter Step",
-  "epic_parcool_momentum.parcool.dodge_disabled": "§mDodge§r (Disabled! Maybe Epic Fight's dodge skill is a better choice?)"
+  "epic_parcool_momentum.parcool.dodge_notice": "Dodge (Disabled by default and can be enabled manually. To prevent conflicts, do not bind Step and Dodge to the same key.)"
 }

@@ -25,6 +25,7 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY;
 	private static final ForgeConfigSpec.IntValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS;
+	private static final ForgeConfigSpec.BooleanValue PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED;
 
 	static {
 		ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -135,6 +136,12 @@ public final class EPMConfig {
 						"Set to 0 to disable.")
 				.defineInRange("epicParCoolClimbUpLateralAirControlTicks", 6, 0, 20);
 		builder.pop();
+
+		builder.push("Internal");
+		PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED = builder
+				.comment("Internal marker. Prevents Epic ParCool: Momentum from overriding a player-enabled ParCool Dodge setting after the default-off migration has run once.")
+				.define("parCoolDodgeDefaultMigrationApplied", false);
+		builder.pop();
 		SPEC = builder.build();
 	}
 
@@ -221,6 +228,15 @@ public final class EPMConfig {
 
 	public static int epicParCoolClimbUpLateralAirControlTicks() {
 		return EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS.get();
+	}
+
+	public static boolean parCoolDodgeDefaultMigrationApplied() {
+		return PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED.get();
+	}
+
+	public static void markParCoolDodgeDefaultMigrationApplied() {
+		PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED.set(true);
+		SPEC.save();
 	}
 
 	private static boolean isStringValue(Object value) {

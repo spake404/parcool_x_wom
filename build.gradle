@@ -84,6 +84,7 @@ dependencies {
     implementation fg.deobf("curse.maven:configured-457570:5180900")
     implementation fg.deobf("curse.maven:tijons-epic-arsenal-tacz-1426104:7750789")
     implementation fg.deobf("curse.maven:timeless-and-classics-zero-1028108:8055552")
+    implementation fg.deobf("curse.maven:epicfight-extra-1434276:7961244")
 
     // Add mod dependencies here when implementation starts.
     // Example:

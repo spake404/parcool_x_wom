@@ -13,45 +13,21 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = SettingActionLimitationScreen.class, remap = false)
 public abstract class SettingActionLimitationScreenMixin {
-	private static final Component DODGE_DISABLED_MESSAGE = Component.translatable("epic_parcool_momentum.parcool.dodge_disabled");
+	private static final Component DODGE_NOTICE_MESSAGE = Component.translatable("epic_parcool_momentum.parcool.dodge_notice");
 
 	@Shadow
 	@Final
 	private Checkbox[] actionButtons;
 
 	@Inject(method = "<init>", at = @At("RETURN"))
-	private void parcoolxwom$disableDodgeButton(Component title, ActionInfo actionInfo, ColorTheme colorTheme, CallbackInfo callback) {
+	private void epm$addDodgeNotice(Component title, ActionInfo actionInfo, ColorTheme colorTheme, CallbackInfo callback) {
 		Checkbox dodgeButton = parcoolxwom$getDodgeButton();
 		if (dodgeButton != null) {
-			parcoolxwom$disableDodgeButton(dodgeButton);
+			dodgeButton.setMessage(DODGE_NOTICE_MESSAGE);
 		}
-	}
-
-	@Inject(method = "m_6375_", at = @At("HEAD"), cancellable = true, remap = true)
-	private void parcoolxwom$blockDodgeClick(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> callback) {
-		Checkbox dodgeButton = parcoolxwom$getDodgeButton();
-		if (dodgeButton != null && dodgeButton.isMouseOver(mouseX, mouseY)) {
-			parcoolxwom$disableDodgeButton(dodgeButton);
-			callback.setReturnValue(true);
-		}
-	}
-
-	@Inject(method = "save", at = @At("HEAD"))
-	private void parcoolxwom$keepDodgeDisabled(CallbackInfo callback) {
-		Checkbox dodgeButton = parcoolxwom$getDodgeButton();
-		if (dodgeButton != null) {
-			parcoolxwom$disableDodgeButton(dodgeButton);
-		}
-	}
-
-	private void parcoolxwom$disableDodgeButton(Checkbox dodgeButton) {
-		((CheckboxAccessor) dodgeButton).parcoolxwom$setSelected(false);
-		dodgeButton.setMessage(DODGE_DISABLED_MESSAGE);
-		dodgeButton.active = false;
 	}
 
 	private Checkbox parcoolxwom$getDodgeButton() {

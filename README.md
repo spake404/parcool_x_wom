@@ -22,6 +22,7 @@ Optional compatibility:
 - EpicFight Nightfall
 - Epic Fight Avalon
 - EpicFight Skill ExtraSlots
+- Epic Fight Extra
 
 ## Features
 

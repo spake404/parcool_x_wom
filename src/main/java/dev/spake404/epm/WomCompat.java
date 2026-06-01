@@ -25,6 +25,14 @@ interface WomCompat {
 
 	AssetAccessor<? extends StaticAnimation> wallBackflip();
 
+	AssetAccessor<? extends StaticAnimation> wallRunning();
+
+	AssetAccessor<? extends StaticAnimation> wallRunLeftSide();
+
+	AssetAccessor<? extends StaticAnimation> wallRunRightSide();
+
+	AssetAccessor<? extends StaticAnimation> wallGlide();
+
 	boolean isMoonlessCollider(Object collider);
 
 	boolean hasNaturalSprinter(PlayerPatch<?> playerPatch);
@@ -34,6 +42,12 @@ interface WomCompat {
 	boolean consumeNaturalSprinterStep(PlayerPatch<?> playerPatch);
 
 	boolean hasSpiderTechniques(PlayerPatch<?> playerPatch);
+
+	boolean setSpiderWallRunState(PlayerPatch<?> playerPatch, int wallRunning, boolean wallGlide, int timerRefresh, boolean jumpKeyUp);
+
+	void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot);
+
+	void clearSpiderWallRunState(PlayerPatch<?> playerPatch);
 
 	boolean shouldBlockSpiderTechniquesAttack(PlayerPatch<?> playerPatch);
 

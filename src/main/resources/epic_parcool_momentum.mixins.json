@@ -11,6 +11,7 @@
     "ComboBasicAttackMixin",
     "EFNAirborneConditionMixin",
     "EFNOnGroundConditionMixin",
+    "HorizontalWallRunMixin",
     "InvincibleJumpConditionMixin",
     "VerticalWallRunMixin",
     "WorldUtilMixin"

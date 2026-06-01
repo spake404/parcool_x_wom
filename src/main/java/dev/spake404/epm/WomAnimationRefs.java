@@ -62,6 +62,22 @@ final class WomAnimationRefs {
 		return WomCompatBridge.instance().wallBackflip();
 	}
 
+	static AssetAccessor<? extends StaticAnimation> wallRunning() {
+		return WomCompatBridge.instance().wallRunning();
+	}
+
+	static AssetAccessor<? extends StaticAnimation> wallRunLeftSide() {
+		return WomCompatBridge.instance().wallRunLeftSide();
+	}
+
+	static AssetAccessor<? extends StaticAnimation> wallRunRightSide() {
+		return WomCompatBridge.instance().wallRunRightSide();
+	}
+
+	static AssetAccessor<? extends StaticAnimation> wallGlide() {
+		return WomCompatBridge.instance().wallGlide();
+	}
+
 	static AssetAccessor<? extends StaticAnimation> epicParCoolFastRun() {
 		return safe(() -> ParCoolAnimations.BIPED_FAST_RUN);
 	}

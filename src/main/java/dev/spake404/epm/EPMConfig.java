@@ -19,6 +19,8 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue TACZ_SHOOT_DURING_WALL_JUMP;
 	private static final ForgeConfigSpec.DoubleValue WALL_JUMP_AIR_ATTACK_FALL_PROTECTION_DAMAGE_THRESHOLD;
 	private static final ForgeConfigSpec.BooleanValue SPIDER_WALL_JUMP_PRIMES_PHANTOM_ASCENT;
+	private static final ForgeConfigSpec.EnumValue<SpiderTechniquesWallRunMode> SPIDER_TECHNIQUES_WALL_RUN_MODE;
+	private static final ForgeConfigSpec.DoubleValue PARCOOL_WALL_RUN_ANIMATION_TRANSITION;
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE;
 	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
@@ -96,6 +98,21 @@ public final class EPMConfig {
 		builder.pop();
 
 		builder.push("Spider Techniques");
+		SPIDER_TECHNIQUES_WALL_RUN_MODE = builder
+				.translation("epic_parcool_momentum.configuration.spiderTechniquesWallRunMode")
+				.comment(
+						"Wall-run mode used after learning WOM Spider Techniques.",
+						"default: Default wall-run mode. This mod does not replace ParCool/WOM wall-run triggers.",
+						"parcool: ParCool wall-run mode. ParCool's HorizontalWallRun key triggers this mod's WOM-style wall run replacement.",
+						"wom: WOM wall-run mode placeholder. Currently falls back to default behavior until implemented.",
+						"Modes that need WOM do nothing when WOM is not installed or Spider Techniques is not learned.")
+				.defineEnum("spiderTechniquesWallRunMode", SpiderTechniquesWallRunMode.PARCOOL);
+		PARCOOL_WALL_RUN_ANIMATION_TRANSITION = builder
+				.translation("epic_parcool_momentum.configuration.parCoolWallRunAnimationTransition")
+				.comment(
+						"Animation transition time used when ParCool wall-run mode switches WOM Spider Techniques wall-run animations.",
+						"Higher values feel heavier but make direction changes slower.")
+				.defineInRange("parCoolWallRunAnimationTransition", 0.12D, 0.0D, 0.5D);
 		DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES = builder
 				.translation("epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques")
 				.comment("true: disables ParCool VerticalWallRun after learning WOM Spider Techniques.")
@@ -206,6 +223,18 @@ public final class EPMConfig {
 		return SPIDER_WALL_JUMP_PRIMES_PHANTOM_ASCENT.get();
 	}
 
+	public static SpiderTechniquesWallRunMode spiderTechniquesWallRunMode() {
+		return SPIDER_TECHNIQUES_WALL_RUN_MODE.get();
+	}
+
+	public static boolean parCoolSpiderWallRunMode() {
+		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.PARCOOL;
+	}
+
+	public static float parCoolWallRunAnimationTransition() {
+		return PARCOOL_WALL_RUN_ANIMATION_TRANSITION.get().floatValue();
+	}
+
 	public static boolean disableVerticalWallRunWithSpiderTechniques() {
 		return DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES.get();
 	}
@@ -245,5 +274,11 @@ public final class EPMConfig {
 
 	private static String normalizeType(String type) {
 		return type.trim().toLowerCase(Locale.ROOT);
+	}
+
+	public enum SpiderTechniquesWallRunMode {
+		DEFAULT,
+		PARCOOL,
+		WOM
 	}
 }

@@ -120,6 +120,12 @@ final class NaturalSprinterFastRunHandler {
 		}
 	}
 
+	static void cancelManualFastRunStepKey(Player player) {
+		if (player != null) {
+			MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player);
+		}
+	}
+
 	private static void clearFastRunState(PlayerPatch<?> playerPatch) {
 		FAST_RUN_ACTIVE.remove(playerPatch);
 		MANUAL_FAST_RUN_KEY_CONSUMED.remove(playerPatch);

@@ -571,6 +571,7 @@ public final class EPMClientHooks {
 		}
 
 		ClingToCliffDebug.logClingInputTick(event.player);
+		WomSpiderWallRunHandler.tick(event.player);
 		NaturalSprinterFastRunHandler.tickManualFastRunStepKey(event.player);
 		restoreClingMoveClimbUpVelocity(event.player, true);
 		tickEpicParCoolClimbUpAirControl(event.player);

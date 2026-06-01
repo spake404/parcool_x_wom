@@ -13,6 +13,7 @@ import reascer.wom.skill.mover.NaturalSprinterSkill;
 import reascer.wom.skill.mover.SpiderTechniquesSkill;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
+import yesman.epicfight.api.utils.math.Vec3f;
 import yesman.epicfight.skill.Skill;
 import yesman.epicfight.skill.SkillContainer;
 import yesman.epicfight.skill.SkillDataKey;
@@ -77,6 +78,26 @@ final class LoadedWomCompat implements WomCompat {
 	}
 
 	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunning() {
+		return safe(() -> WOMAnimations.WALL_RUNNING);
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunLeftSide() {
+		return safe(() -> WOMAnimations.WALL_RUN_LEFT_SIDE);
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunRightSide() {
+		return safe(() -> WOMAnimations.WALL_RUN_RIGHT_SIDE);
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallGlide() {
+		return safe(() -> WOMAnimations.WALL_GLIDE);
+	}
+
+	@Override
 	public boolean isMoonlessCollider(Object collider) {
 		return collider != null && collider == WOMWeaponColliders.MOONLESS;
 	}
@@ -126,6 +147,51 @@ final class LoadedWomCompat implements WomCompat {
 	@Override
 	public boolean hasSpiderTechniques(PlayerPatch<?> playerPatch) {
 		return findSpiderTechniques(playerPatch) != null;
+	}
+
+	@Override
+	public boolean setSpiderWallRunState(PlayerPatch<?> playerPatch, int wallRunning, boolean wallGlide, int timerRefresh, boolean jumpKeyUp) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return false;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		setData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(wallRunning));
+		setData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.valueOf(wallGlide));
+		setData(dataManager, key(WOMSkillDataKeys.TIMER_REFRESH), Integer.valueOf(timerRefresh));
+		setData(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.valueOf(jumpKeyUp));
+		return true;
+	}
+
+	@Override
+	public void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		setData(dataManager, key(WOMSkillDataKeys.ANGLE), new Vec3f(xRot, yRot, 0.0F));
+		setData(dataManager, key(WOMSkillDataKeys.TIMER), Integer.valueOf(15));
+		setData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(-3));
+		setData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.FALSE);
+		setData(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.TRUE);
+	}
+
+	@Override
+	public void clearSpiderWallRunState(PlayerPatch<?> playerPatch) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		setData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(-2));
+		setData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.FALSE);
+		setData(dataManager, key(WOMSkillDataKeys.TIMER), Integer.valueOf(0));
+		setData(dataManager, key(WOMSkillDataKeys.TIMER_REFRESH), Integer.valueOf(0));
+		setData(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.TRUE);
 	}
 
 	@Override

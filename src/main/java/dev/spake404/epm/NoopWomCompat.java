@@ -56,6 +56,26 @@ final class NoopWomCompat implements WomCompat {
 	}
 
 	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunning() {
+		return null;
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunLeftSide() {
+		return null;
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallRunRightSide() {
+		return null;
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> wallGlide() {
+		return null;
+	}
+
+	@Override
 	public boolean isMoonlessCollider(Object collider) {
 		return false;
 	}
@@ -77,6 +97,19 @@ final class NoopWomCompat implements WomCompat {
 	@Override
 	public boolean hasSpiderTechniques(PlayerPatch<?> playerPatch) {
 		return false;
+	}
+
+	@Override
+	public boolean setSpiderWallRunState(PlayerPatch<?> playerPatch, int wallRunning, boolean wallGlide, int timerRefresh, boolean jumpKeyUp) {
+		return false;
+	}
+
+	@Override
+	public void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot) {
+	}
+
+	@Override
+	public void clearSpiderWallRunState(PlayerPatch<?> playerPatch) {
 	}
 
 	@Override

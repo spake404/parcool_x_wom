@@ -572,6 +572,7 @@ public final class EPMClientHooks {
 
 		ClingToCliffDebug.logClingInputTick(event.player);
 		WomSpiderWallRunHandler.tick(event.player);
+		WomSpiderWallSlideHandler.tick(event.player);
 		NaturalSprinterFastRunHandler.tickManualFastRunStepKey(event.player);
 		restoreClingMoveClimbUpVelocity(event.player, true);
 		tickEpicParCoolClimbUpAirControl(event.player);
@@ -1508,7 +1509,7 @@ public final class EPMClientHooks {
 
 		Float lockedYaw = WOM_SPIDER_WALL_CLIMB_BODY_YAWS.get(player);
 		if (lockedYaw == null) {
-			Direction wallDirection = detectAdjacentWallDirection(player, true);
+			Direction wallDirection = detectAdjacentWallDirection(player, false);
 			lockedYaw = Float.valueOf(womSpiderWallFacingYaw(player, wallDirection));
 			WOM_SPIDER_WALL_CLIMB_BODY_YAWS.put(player, lockedYaw);
 			logWomSpiderWallClimbLock(player, currentAnimation, wallDirection, lockedYaw.floatValue());
@@ -1548,7 +1549,7 @@ public final class EPMClientHooks {
 			AABB probeBox = womSpiderWallProbeBox(player.getBoundingBox(), direction);
 			boolean collided = !player.level().noCollision(player, probeBox);
 			if (logProbe) {
-				EPM.LOGGER.info("[WomSpiderWallYaw] probe direction={} collided={} boxMin=({}, {}, {}) boxMax=({}, {}, {})",
+				EPM.LOGGER.debug("[WomSpiderWallYaw] probe direction={} collided={} boxMin=({}, {}, {}) boxMax=({}, {}, {})",
 						direction,
 						Boolean.valueOf(collided),
 						Double.valueOf(probeBox.minX),
@@ -1594,7 +1595,7 @@ public final class EPMClientHooks {
 
 		WOM_SPIDER_WALL_CLIMB_LOGGED.put(player, Boolean.TRUE);
 		ResourceLocation animationId = safeRegistryName(currentAnimation);
-		EPM.LOGGER.info("[WomSpiderWallYaw] lock animation={} wallDirection={} lockedYaw={} playerYRot={} yBodyRot={} yHeadRot={} pos=({}, {}, {}) delta=({}, {}, {}) onGround={} ssrCameraFixesLoaded={}",
+		EPM.LOGGER.debug("[WomSpiderWallYaw] lock animation={} wallDirection={} lockedYaw={} playerYRot={} yBodyRot={} yHeadRot={} pos=({}, {}, {}) delta=({}, {}, {}) onGround={} ssrCameraFixesLoaded={}",
 				animationId,
 				wallDirection,
 				Float.valueOf(lockedYaw),

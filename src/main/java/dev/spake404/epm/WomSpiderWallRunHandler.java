@@ -11,10 +11,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BushBlock;
@@ -23,7 +21,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.registries.ForgeRegistries;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 import yesman.epicfight.client.world.capabilites.entitypatch.player.LocalPlayerPatch;
@@ -45,8 +42,11 @@ public final class WomSpiderWallRunHandler {
 	private static final int HORIZONTAL_WALL_CONTACT_GRACE_TICKS = 2;
 	private static final int WALL_RUN_MODE_STICK_TICKS = 5;
 	private static final int WALL_RUN_MODE_SWITCH_CONFIRM_TICKS = 3;
+	private static final int GROUND_START_GRACE_TICKS = 2;
+	private static final int STALE_STATE_PROBE_INTERVAL_TICKS = 5;
 	private static final WeakHashMap<Player, WallRunState> ACTIVE_WALL_RUNS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> WALL_RUN_KEY_RELEASE_REQUIRED = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> LAST_MOVEMENT_INPUT_TICK = new WeakHashMap<>();
 
 	private WomSpiderWallRunHandler() {
 	}
@@ -57,7 +57,7 @@ public final class WomSpiderWallRunHandler {
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		boolean wallRunKeyDown = isWallRunKeyDown();
+		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
 		if (!WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch)) {
 			stop(player, playerPatch, wallRunKeyDown);
@@ -75,8 +75,20 @@ public final class WomSpiderWallRunHandler {
 			return;
 		}
 
-		if (!wallRunKeyDown || shouldLetTaczReloadUseWallRunKey(player) || !canRunNow(player, playerPatch)) {
+		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
+		if (!wallRunKeyDown || !canAttemptWallRun(player, playerPatch)) {
 			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_inactive");
+			return;
+		}
+
+		if (shouldStopBecauseLanded(player, previous)) {
+			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_landed");
+			return;
+		}
+
+		if (handledMovementInputThisTick(player)) {
 			return;
 		}
 
@@ -85,17 +97,18 @@ public final class WomSpiderWallRunHandler {
 		}
 
 		DecisionResult decisionResult = resolveWallRunDecision(player);
-		if (decisionResult == null) {
+		if (decisionResult == null || !canUseDecisionFromInput(player, decisionResult.decision())) {
 			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_no_wall");
 			return;
 		}
 
 		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch)) {
 			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_missing_local_patch");
 			return;
 		}
 
-		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
 		boolean jumpHeld = previous == null ? isJumpKeyDown() : previous.jumpHeld();
 		applyWallRun(player, localPlayerPatch, decisionResult.decision(), jumpHeld);
 		ACTIVE_WALL_RUNS.put(player, nextWallRunState(player, previous, decisionResult, jumpHeld));
@@ -109,11 +122,12 @@ public final class WomSpiderWallRunHandler {
 
 		PlayerPatch<?> playerPatch = event.getPlayerPatch();
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
-		boolean wallRunKeyDown = isWallRunKeyDown();
+		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
 		if (!WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch)) {
 			return false;
 		}
+		markMovementInputHandled(player);
 
 		if (isWomWallBackflipAnimation(playerPatch)) {
 			removeActiveWallRun(player, wallRunKeyDown);
@@ -126,8 +140,16 @@ public final class WomSpiderWallRunHandler {
 			return true;
 		}
 
-		if (!wallRunKeyDown || shouldLetTaczReloadUseWallRunKey(player) || !canRunNow(player, playerPatch)) {
+		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
+		if (!wallRunKeyDown || !canAttemptWallRun(player, playerPatch)) {
 			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_inactive");
+			return true;
+		}
+
+		if (shouldStopBecauseLanded(player, previous)) {
+			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_landed");
 			return true;
 		}
 
@@ -136,13 +158,13 @@ public final class WomSpiderWallRunHandler {
 		}
 
 		DecisionResult decisionResult = resolveWallRunDecision(player);
-		if (decisionResult == null) {
+		if (decisionResult == null || !canUseDecisionFromInput(player, decisionResult.decision())) {
 			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_no_wall");
 			return true;
 		}
 
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			WallRunState previous = ACTIVE_WALL_RUNS.get(player);
 			boolean jumping = event.getMovementInput() != null && event.getMovementInput().jumping;
 			if (jumping && previous != null && !previous.jumpHeld()) {
 				triggerWallBackflip(player, localPlayerPatch, decisionResult.decision());
@@ -167,14 +189,53 @@ public final class WomSpiderWallRunHandler {
 		return WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch);
 	}
 
-	private static boolean canRunNow(Player player, PlayerPatch<?> playerPatch) {
+	public static boolean isHorizontalWallRunActive(Player player) {
+		WallRunState state = player == null ? null : ACTIVE_WALL_RUNS.get(player);
+		return state != null && state.decision().mode() == WallRunMode.HORIZONTAL;
+	}
+
+	public static boolean isWallRunActive(Player player) {
+		return player != null && ACTIVE_WALL_RUNS.containsKey(player);
+	}
+
+	private static boolean canAttemptWallRun(Player player, PlayerPatch<?> playerPatch) {
 		return player instanceof LocalPlayer
-				&& !player.onGround()
 				&& !player.isInWaterOrBubble()
 				&& !player.isFallFlying()
 				&& player.getVehicle() == null
 				&& playerPatch instanceof LocalPlayerPatch localPlayerPatch
 				&& localPlayerPatch.hasStamina(WALL_RUN_STAMINA_COST);
+	}
+
+	private static boolean canUseDecisionFromInput(Player player, WallRunDecision decision) {
+		if (decision == null) {
+			return false;
+		}
+		if (decision.mode() == WallRunMode.VERTICAL) {
+			return true;
+		}
+		return !player.onGround() && isForwardKeyDown();
+	}
+
+	private static boolean shouldStopBecauseLanded(Player player, WallRunState previous) {
+		return previous != null
+				&& player.onGround()
+				&& player.tickCount - previous.lastUpdateTick() > GROUND_START_GRACE_TICKS;
+	}
+
+	private static void markMovementInputHandled(Player player) {
+		if (player != null) {
+			LAST_MOVEMENT_INPUT_TICK.put(player, Integer.valueOf(player.tickCount));
+		}
+	}
+
+	private static boolean handledMovementInputThisTick(Player player) {
+		Integer tick = player == null ? null : LAST_MOVEMENT_INPUT_TICK.get(player);
+		return tick != null && tick.intValue() == player.tickCount;
+	}
+
+	private static boolean isWallRunControlDown() {
+		return isWallRunKeyDown() && isForwardKeyDown();
 	}
 
 	private static boolean isWallRunKeyDown() {
@@ -185,17 +246,9 @@ public final class WomSpiderWallRunHandler {
 		}
 	}
 
-	private static boolean shouldLetTaczReloadUseWallRunKey(Player player) {
-		return isTaczItem(player.getMainHandItem()) || isTaczItem(player.getOffhandItem());
-	}
-
-	private static boolean isTaczItem(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return false;
-		}
-
-		ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
-		return itemId != null && ModCompat.TACZ.equals(itemId.getNamespace());
+	private static boolean isForwardKeyDown() {
+		Minecraft minecraft = Minecraft.getInstance();
+		return minecraft != null && minecraft.options != null && minecraft.options.keyUp.isDown();
 	}
 
 	private static DecisionResult resolveWallRunDecision(Player player) {
@@ -602,7 +655,14 @@ public final class WomSpiderWallRunHandler {
 		}
 
 		WallRunState removed = removeActiveWallRun(player, wallRunKeyDown);
-		if (removed == null) {
+		if (removed == null && WomSpiderWallSlideHandler.shouldOwnWallState(player)) {
+			return;
+		}
+
+		boolean wallRunAnimation = isWomWallRunAnimation(playerPatch);
+		boolean wallMovementData = (removed != null || wallRunAnimation || shouldProbePassiveWallState(player))
+				&& WomCompatBridge.instance().isSpiderWallMovementActive(playerPatch);
+		if (removed == null && !wallRunAnimation && !wallMovementData) {
 			return;
 		}
 
@@ -649,6 +709,19 @@ public final class WomSpiderWallRunHandler {
 
 	private static boolean isWomWallBackflipAnimation(PlayerPatch<?> playerPatch) {
 		return WomAnimationRefs.isAny(currentBaseAnimation(playerPatch), WomAnimationRefs.wallBackflip());
+	}
+
+	private static boolean isWomWallRunAnimation(PlayerPatch<?> playerPatch) {
+		return WomAnimationRefs.isAny(
+				currentBaseAnimation(playerPatch),
+				WomAnimationRefs.wallRunning(),
+				WomAnimationRefs.wallRunLeftSide(),
+				WomAnimationRefs.wallRunRightSide(),
+				WomAnimationRefs.wallGlide());
+	}
+
+	private static boolean shouldProbePassiveWallState(Player player) {
+		return player != null && player.tickCount % STALE_STATE_PROBE_INTERVAL_TICKS == 0;
 	}
 
 	private static boolean isEpicParCoolWallJumpAnimation(PlayerPatch<?> playerPatch) {
@@ -715,7 +788,7 @@ public final class WomSpiderWallRunHandler {
 			return;
 		}
 
-		EPM.LOGGER.info("[WomSpiderWallRun] mode={} womSide={} wallDirection={} runDirection={} yRot={} delta={} block={} pos={}",
+		EPM.LOGGER.debug("[WomSpiderWallRun] mode={} womSide={} wallDirection={} runDirection={} yRot={} delta={} block={} pos={}",
 				decision.mode(),
 				Integer.valueOf(decision.womSide()),
 				decision.wallDirection(),

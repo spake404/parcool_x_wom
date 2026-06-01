@@ -110,7 +110,7 @@ public final class EPMEvents {
 	@SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
 	public static void allowClimbUpFromEpicParCoolClingMove(ParCoolActionEvent.TryToStartEvent event) {
 		if (event.getAction() instanceof ClimbUp && EPMClientHooks.shouldAllowClimbUpFromEpicParCoolClingMove(event.getPlayer())) {
-			EPM.LOGGER.info("[ClingToCliffDebug] allowClimbUpFromEpicParCoolClingMove tick={}", Integer.valueOf(event.getPlayer().tickCount));
+			EPM.LOGGER.debug("[ClingToCliffDebug] allowClimbUpFromEpicParCoolClingMove tick={}", Integer.valueOf(event.getPlayer().tickCount));
 			EPMClientHooks.markClimbUpFromEpicParCoolClingMove(event.getPlayer());
 			event.setCanceled(false);
 		}

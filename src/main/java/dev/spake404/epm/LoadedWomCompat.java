@@ -1,5 +1,6 @@
 package dev.spake404.epm;
 
+import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.WeakHashMap;
 
@@ -115,9 +116,9 @@ final class LoadedWomCompat implements WomCompat {
 		}
 
 		SkillDataManager dataManager = naturalSprinter.getDataManager();
-		setData(dataManager, key(WOMSkillDataKeys.ACTIVE), Boolean.FALSE);
-		setData(dataManager, key(WOMSkillDataKeys.BUFFING), Boolean.FALSE);
-		setData(dataManager, key(WOMSkillDataKeys.TIMER), Integer.valueOf(0));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.ACTIVE), Boolean.FALSE);
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.BUFFING), Boolean.FALSE);
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.TIMER), Integer.valueOf(0));
 	}
 
 	@Override
@@ -157,11 +158,57 @@ final class LoadedWomCompat implements WomCompat {
 		}
 
 		SkillDataManager dataManager = spiderTechniques.getDataManager();
-		setData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(wallRunning));
-		setData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.valueOf(wallGlide));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(wallRunning));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.valueOf(wallGlide));
 		setData(dataManager, key(WOMSkillDataKeys.TIMER_REFRESH), Integer.valueOf(timerRefresh));
-		setData(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.valueOf(jumpKeyUp));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.valueOf(jumpKeyUp));
 		return true;
+	}
+
+	@Override
+	public boolean setSpiderWallGlideState(PlayerPatch<?> playerPatch, boolean started, boolean slowGlide, float yRot, boolean jumpKeyUp) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return false;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		if (started) {
+			setData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(-2));
+			setData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.TRUE);
+			setData(dataManager, key(WOMSkillDataKeys.TIMER), Integer.valueOf(20));
+		} else {
+			setDataIfChanged(dataManager, key(WOMSkillDataKeys.WALL_RUNNING), Integer.valueOf(-2));
+			setDataIfChanged(dataManager, key(WOMSkillDataKeys.WALL_GLIDE), Boolean.TRUE);
+		}
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.TIMER_REFRESH), Integer.valueOf(0));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.JUMP_KEY_UP), Boolean.valueOf(jumpKeyUp));
+		setDataIfChanged(dataManager, key(WOMSkillDataKeys.ANGLE), new Vec3f(slowGlide ? 0.0F : -20.0F, yRot, 0.0F));
+		return true;
+	}
+
+	@Override
+	public boolean isSpiderWallGlideActive(PlayerPatch<?> playerPatch) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return false;
+		}
+
+		Boolean wallGlide = getData(spiderTechniques.getDataManager(), key(WOMSkillDataKeys.WALL_GLIDE));
+		return Boolean.TRUE.equals(wallGlide);
+	}
+
+	@Override
+	public boolean isSpiderWallMovementActive(PlayerPatch<?> playerPatch) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return false;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		Boolean wallGlide = getData(dataManager, key(WOMSkillDataKeys.WALL_GLIDE));
+		Integer wallRunning = getData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING));
+		return Boolean.TRUE.equals(wallGlide) || wallRunning != null && wallRunning.intValue() > -2;
 	}
 
 	@Override
@@ -317,6 +364,19 @@ final class LoadedWomCompat implements WomCompat {
 
 		try {
 			dataManager.setDataSync(key, value);
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+	}
+
+	private static <T> void setDataIfChanged(SkillDataManager dataManager, SkillDataKey<T> key, T value) {
+		if (dataManager == null || key == null) {
+			return;
+		}
+
+		try {
+			if (!Objects.equals(dataManager.getDataValue(key), value)) {
+				dataManager.setDataSync(key, value);
+			}
 		} catch (RuntimeException | LinkageError ignored) {
 		}
 	}

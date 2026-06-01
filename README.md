@@ -41,6 +41,15 @@ Optional compatibility:
 
 ## Changelog
 
+### 3.2.0
+
+- Improved ParCool wall-run mode for WOM Spider Techniques.
+- Added WOM-style wall-glide support through both the ParCool horizontal wall-run key and the original ParCool WallSlide key.
+- Kept `W+R` reserved for wall running while allowing `R` without forward input to trigger wall-glide.
+- Added slow wall-glide support through `Shift+R` and `Shift+WallSlide`.
+- Fixed stale WOM wall-run/wall-glide state after landing or leaving a wall.
+- Reduced unnecessary Spider Techniques state sync and moved temporary diagnostic logging out of normal info logs.
+
 ### 1.3.0
 
 - Added automatic sprint recovery after ParCool WallJump, with an independent configuration option.

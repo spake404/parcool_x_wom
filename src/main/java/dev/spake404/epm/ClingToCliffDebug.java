@@ -34,6 +34,7 @@ public final class ClingToCliffDebug {
 	private static final int CAN_START_LOG_INTERVAL_TICKS = 5;
 	private static final int CAN_CONTINUE_LOG_INTERVAL_TICKS = 10;
 	private static final int CLIMB_UP_CAN_START_LOG_INTERVAL_TICKS = 2;
+	private static final boolean ENABLED = Boolean.getBoolean("epm.debugClingToCliff");
 
 	private ClingToCliffDebug() {
 	}
@@ -161,7 +162,7 @@ public final class ClingToCliffDebug {
 	}
 
 	private static boolean shouldInspect(Player player) {
-		return player != null && player.isLocalPlayer() && player.level().isClientSide();
+		return ENABLED && player != null && player.isLocalPlayer() && player.level().isClientSide();
 	}
 
 	private static boolean shouldLog(Player player, WeakHashMap<Player, Integer> lastLogTicks, int intervalTicks, boolean force) {

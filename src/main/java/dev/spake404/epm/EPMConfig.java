@@ -104,7 +104,7 @@ public final class EPMConfig {
 						"Wall-run mode used after learning WOM Spider Techniques.",
 						"default: Default wall-run mode. This mod does not replace ParCool/WOM wall-run triggers.",
 						"parcool: ParCool wall-run mode. ParCool's HorizontalWallRun key triggers this mod's WOM-style wall run replacement.",
-						"wom: WOM wall-run mode placeholder. Currently falls back to default behavior until implemented.",
+						"wom: WOM wall-run mode. WOM's original sprint input owns Spider Techniques wall run, while ParCool HorizontalWallRun and its key input are disabled.",
 						"Modes that need WOM do nothing when WOM is not installed or Spider Techniques is not learned.")
 				.defineEnum("spiderTechniquesWallRunMode", SpiderTechniquesWallRunMode.PARCOOL);
 		PARCOOL_WALL_RUN_ANIMATION_TRANSITION = builder
@@ -229,6 +229,10 @@ public final class EPMConfig {
 
 	public static boolean parCoolSpiderWallRunMode() {
 		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.PARCOOL;
+	}
+
+	public static boolean womSpiderWallRunMode() {
+		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.WOM;
 	}
 
 	public static float parCoolWallRunAnimationTransition() {

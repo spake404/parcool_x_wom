@@ -1,6 +1,7 @@
 .gradle/
 .idea/
 .aiassistant/
+.codex_backups/
 build/
 run/
 run-data/

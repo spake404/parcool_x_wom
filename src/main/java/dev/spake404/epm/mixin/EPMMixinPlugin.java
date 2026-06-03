@@ -14,6 +14,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	private static final String INVINCIBLE = "invincible";
 	private static final String NIGHTFALL = "efn";
 	private static final String TACZ = "tacz";
+	private static final String PARCOOL = "parcool";
 
 	@Override
 	public void onLoad(String mixinPackage) {
@@ -28,6 +29,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 		return switch (simpleName(mixinClassName)) {
 			case "NaturalSprinterSkillMixin", "SpiderTechniquesSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
+			case "WallJumpMixin" -> isLoaded(PARCOOL);
 			case "ComboBasicAttackMixin", "InvincibleJumpConditionMixin" -> isLoaded(INVINCIBLE);
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
 			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin", "MinecraftAttackMixin" -> isLoaded(TACZ);

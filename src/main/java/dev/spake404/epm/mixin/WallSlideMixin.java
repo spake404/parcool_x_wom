@@ -2,7 +2,7 @@ package dev.spake404.epm.mixin;
 
 import java.nio.ByteBuffer;
 
-import com.alrex.parcool.common.action.impl.HorizontalWallRun;
+import com.alrex.parcool.common.action.impl.WallSlide;
 import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
 import dev.spake404.epm.WomSpiderWallRunModeGate;
@@ -12,11 +12,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(value = HorizontalWallRun.class, remap = false)
-public abstract class HorizontalWallRunMixin {
+@Mixin(value = WallSlide.class, remap = false)
+public abstract class WallSlideMixin {
 	@Inject(method = "canStart", at = @At("HEAD"), cancellable = true)
-	private void parcoolxwom$replaceWithWomSpiderWallRun(Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo, CallbackInfoReturnable<Boolean> cir) {
-		if (WomSpiderWallRunModeGate.shouldDisableParCoolHorizontalWallRun(player)) {
+	private void parcoolxwom$disableParCoolWallSlideInWomMode(Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo, CallbackInfoReturnable<Boolean> cir) {
+		if (WomSpiderWallRunModeGate.shouldDisableParCoolWallSlide(player)) {
 			cir.setReturnValue(Boolean.FALSE);
 		}
 	}

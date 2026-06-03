@@ -41,9 +41,19 @@ Optional compatibility:
 
 ## Changelog
 
+### 3.2.1
+
+- Stabilized `spiderTechniquesWallRunMode=WOM` so WOM keeps its original Spider Techniques wall-run ownership while ParCool side wall-run, WallSlide, and their key conflicts are suppressed after learning the skill.
+- Added camera-guided 90-degree wall transfer for WOM Spider Techniques side wall-run without letting camera yaw reverse the actual A/D run direction.
+- Fixed side wall-run direction so `A` and `D` are resolved from the active wall face instead of camera-facing direction.
+- Restored reliable WOM wall jump and ParCool WallJump bridge behavior from WOM side wall-run, including animation cleanup after jump and landing.
+- Matched WOM wall-glide hand particles in ParCool replacement mode and kept slow wall-glide behavior compatible with `Ctrl+Shift`.
+- Split WOM wall-run mode gates, wall contact detection, corner transfer, yaw lock, diagnostics, and hook dispatch into focused helper classes.
+
 ### 3.2.0
 
 - Improved ParCool wall-run mode for WOM Spider Techniques.
+- Implemented `spiderTechniquesWallRunMode=WOM`, where WOM's original sprint input owns Spider Techniques wall running while ParCool HorizontalWallRun and its key input are disabled after learning the skill.
 - Added WOM-style wall-glide support through both the ParCool horizontal wall-run key and the original ParCool WallSlide key.
 - Kept `W+R` reserved for wall running while allowing `R` without forward input to trigger wall-glide.
 - Added slow wall-glide support through `Shift+R` and `Shift+WallSlide`.

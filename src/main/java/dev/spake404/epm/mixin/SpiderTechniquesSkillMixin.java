@@ -1,11 +1,15 @@
 package dev.spake404.epm.mixin;
 
 import dev.spake404.epm.ModCompat;
+import dev.spake404.epm.WomOriginalSpiderWallRunDirectionFix;
+import dev.spake404.epm.WomOriginalSpiderWallRunDiagnostics;
 import dev.spake404.epm.WomSpiderWallRunHandler;
+import dev.spake404.epm.WomSpiderWallRunModeGate;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,29 +29,50 @@ import yesman.epicfight.world.entity.eventlistener.MovementInputEvent;
 public abstract class SpiderTechniquesSkillMixin {
 	@Inject(method = "lambda$onInitiate$1", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$replaceWallRunInput(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
-		if (WomSpiderWallRunHandler.handleMovementInput(event)) {
+		if (WomSpiderWallRunHandler.handleMovementInput(event)
+				|| WomOriginalSpiderWallRunDirectionFix.beforeOriginalInput(container, event)) {
 			ci.cancel();
 		}
 	}
 
+	@Inject(method = "lambda$onInitiate$1", at = @At("TAIL"), require = 0)
+	private void parcoolxwom$stabilizeOriginalWomSideWallRun(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
+		WomOriginalSpiderWallRunDiagnostics.logAfterOriginalInput(container, event);
+	}
+
 	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lyesman/epicfight/api/client/input/InputManager;isActionActive(Lyesman/epicfight/api/client/input/action/InputAction;)Z"), require = 0)
 	private boolean parcoolxwom$disableOriginalSprintWallRunTrigger(InputAction action, SkillContainer container, MovementInputEvent event) {
-		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunHandler.shouldDisableOriginalWomSprintTrigger(event.getPlayerPatch())) {
+		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunModeGate.shouldDisableOriginalWomSprintTrigger(event.getPlayerPatch())) {
 			return false;
 		}
 		return InputManager.isActionActive(action);
 	}
 
+	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "FIELD", target = "Lnet/minecraft/world/entity/player/Player;yHeadRot:F", opcode = Opcodes.GETFIELD), require = 0)
+	private float parcoolxwom$useWallFacingYawForOriginalWallProbe(Player player) {
+		return WomOriginalSpiderWallRunDirectionFix.wallProbeYaw(player);
+	}
+
 	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;getViewYRot(F)F"), require = 0)
 	private float parcoolxwom$useModelYawForEpicArsenalGunWallRun(Player player, float partialTick) {
+		float vanillaViewYaw = player.getViewYRot(partialTick);
+		float wallRunYaw = WomOriginalSpiderWallRunDirectionFix.wallRunMovementYaw(player, partialTick, vanillaViewYaw);
+		if (wallRunYaw != vanillaViewYaw) {
+			WomOriginalSpiderWallRunDiagnostics.logViewYawRedirect(player, vanillaViewYaw, wallRunYaw);
+			return wallRunYaw;
+		}
+
 		if (!ModCompat.isEpicArsenalLoaded() || !isHoldingTaczGun(player)) {
-			return player.getViewYRot(partialTick);
+			return vanillaViewYaw;
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			return localPlayerPatch.getModelYRot();
+			float modelYaw = localPlayerPatch.getModelYRot();
+			WomOriginalSpiderWallRunDiagnostics.logViewYawRedirect(player, vanillaViewYaw, modelYaw);
+			return modelYaw;
 		}
+		WomOriginalSpiderWallRunDiagnostics.logViewYawRedirect(player, vanillaViewYaw, player.yBodyRot);
 		return player.yBodyRot;
 	}
 

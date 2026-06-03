@@ -79,7 +79,7 @@ dependencies {
     implementation fg.deobf("curse.maven:weapons-of-miracles-epicfight-918614:7517612")
     implementation fg.deobf("curse.maven:epicfight-nightfall-1307848:8082392")
     implementation fg.deobf("curse.maven:epic-fight-avalon-1268823:7619938")
-    implementation fg.deobf("libs:epicfight_skill_extraslots:1.0.2")
+    implementation fg.deobf("curse.maven:epicfight-skill-extraslots-1544455:8152635")
     implementation fg.deobf("curse.maven:epic-fight-invincible-1184379:7679941")
     implementation fg.deobf("curse.maven:configured-457570:5180900")
     implementation fg.deobf("curse.maven:tijons-epic-arsenal-tacz-1426104:7750789")

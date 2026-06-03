@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.input.KeyBindings;
-import com.alrex.parcool.common.action.impl.WallJump;
 import com.alrex.parcool.common.capability.Parkourability;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -42,8 +41,11 @@ public final class WomSpiderWallRunHandler {
 	private static final int HORIZONTAL_WALL_CONTACT_GRACE_TICKS = 2;
 	private static final int WALL_RUN_MODE_STICK_TICKS = 5;
 	private static final int WALL_RUN_MODE_SWITCH_CONFIRM_TICKS = 3;
+	private static final int PARCOOL_CORNER_TRANSFER_COOLDOWN_TICKS = 6;
 	private static final int GROUND_START_GRACE_TICKS = 2;
 	private static final int STALE_STATE_PROBE_INTERVAL_TICKS = 5;
+	private static final double PARCOOL_CAMERA_SIDE_SWITCH_DOT = 0.35D;
+	private static final double PARCOOL_CAMERA_SIDE_SWITCH_MARGIN = 0.1D;
 	private static final WeakHashMap<Player, WallRunState> ACTIVE_WALL_RUNS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> WALL_RUN_KEY_RELEASE_REQUIRED = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> LAST_MOVEMENT_INPUT_TICK = new WeakHashMap<>();
@@ -59,8 +61,8 @@ public final class WomSpiderWallRunHandler {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
-		if (!WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch)) {
-			stop(player, playerPatch, wallRunKeyDown);
+		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
+			stopOwnedWallRun(player, playerPatch, wallRunKeyDown);
 			return;
 		}
 
@@ -124,7 +126,7 @@ public final class WomSpiderWallRunHandler {
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
 		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
-		if (!WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch)) {
+		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
 			return false;
 		}
 		markMovementInputHandled(player);
@@ -179,16 +181,6 @@ public final class WomSpiderWallRunHandler {
 		return true;
 	}
 
-	public static boolean shouldReplaceParCoolHorizontalWallRun(Player player) {
-		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		return WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch);
-	}
-
-	public static boolean shouldDisableOriginalWomSprintTrigger(PlayerPatch<?> playerPatch) {
-		Player player = playerPatch == null ? null : playerPatch.getOriginal();
-		return WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch);
-	}
-
 	public static boolean isHorizontalWallRunActive(Player player) {
 		WallRunState state = player == null ? null : ACTIVE_WALL_RUNS.get(player);
 		return state != null && state.decision().mode() == WallRunMode.HORIZONTAL;
@@ -196,6 +188,14 @@ public final class WomSpiderWallRunHandler {
 
 	public static boolean isWallRunActive(Player player) {
 		return player != null && ACTIVE_WALL_RUNS.containsKey(player);
+	}
+
+	static Direction activeWallDirection(Player player) {
+		WallRunState state = player == null ? null : ACTIVE_WALL_RUNS.get(player);
+		if (state == null) {
+			return null;
+		}
+		return state.lockedWall() == null ? wallDirectionForDecision(state.decision()) : state.lockedWall();
 	}
 
 	private static boolean canAttemptWallRun(Player player, PlayerPatch<?> playerPatch) {
@@ -253,20 +253,151 @@ public final class WomSpiderWallRunHandler {
 
 	private static DecisionResult resolveWallRunDecision(Player player) {
 		WallRunState active = ACTIVE_WALL_RUNS.get(player);
-		Vec3 preferredWallDirection = active == null ? null : active.decision().wallDirection();
-		WallRunCandidates candidates = findWallRunCandidates(player, preferredWallDirection);
-		WallRunSelection detected = selectWallRunDecision(player, active, candidates);
-		if (detected != null) {
-			return new DecisionResult(detected.decision(), 0, detected.pendingMode(), detected.pendingModeTicks());
+		if (active != null && active.decision().mode() == WallRunMode.HORIZONTAL) {
+			return resolveForwardCornerHorizontalDecision(player, active);
 		}
 
-		if (active != null
-				&& active.decision().mode() == WallRunMode.HORIZONTAL
-				&& active.missedContactTicks() < HORIZONTAL_WALL_CONTACT_GRACE_TICKS) {
-			return new DecisionResult(active.decision(), active.missedContactTicks() + 1, null, 0);
+		List<WallContact> contacts = detectWallContacts(player);
+		Vec3 preferredWallDirection = active == null ? null : active.decision().wallDirection();
+		WallRunCandidates candidates = findWallRunCandidates(player, preferredWallDirection, contacts);
+		WallRunSelection detected = selectWallRunDecision(player, active, candidates);
+		if (detected != null) {
+			return new DecisionResult(detected.decision(), 0, detected.pendingMode(), detected.pendingModeTicks(), wallDirectionForDecision(detected.decision()), null, false);
 		}
 
 		return null;
+	}
+
+	private static DecisionResult resolveForwardCornerHorizontalDecision(Player player, WallRunState active) {
+		Direction lockedWall = active.lockedWall() == null ? wallDirectionForDecision(active.decision()) : active.lockedWall();
+		if (lockedWall == null || active.decision().womSide() == 0) {
+			return null;
+		}
+
+		WallContact lockedContact = adjacentWallContact(player, lockedWall);
+		DecisionResult verticalSwitch = resolveLockedHorizontalVerticalSwitch(player, active, lockedWall, lockedContact);
+		if (verticalSwitch != null) {
+			return verticalSwitch;
+		}
+
+		int womSide = cameraControlledWomSide(player, lockedWall, active.decision().womSide());
+		if (womSide != active.decision().womSide()) {
+			logParCoolCameraSideSwitch(player, lockedWall, active.decision().womSide(), womSide);
+		}
+
+		Vec3 forwardRunDirection = WomSpiderWallCornerTransfer.targetRunDirection(lockedWall, womSide);
+		int cooldownTicks = Math.max(0, active.cornerCooldownTicks() - tickIncrement(player, active));
+		ForwardCornerContact cornerContact = findForwardAdjacentCornerContact(player, lockedWall, forwardRunDirection, active.previousWall(), cooldownTicks <= 0);
+		if (cornerContact != null) {
+			WallRunDecision decision = horizontalDecisionForLockedWall(cornerContact.wallDirection(), womSide, cornerContact.contact());
+			logParCoolForwardCornerTransfer(player, lockedWall, cornerContact.wallDirection(), womSide, forwardRunDirection, decision);
+			return new DecisionResult(decision, 0, null, 0, cornerContact.wallDirection(), lockedWall, true);
+		}
+
+		if (lockedContact == null) {
+			logParCoolLockedWallLost(player, lockedWall, forwardRunDirection);
+			return null;
+		}
+
+		WallRunDecision decision = horizontalDecisionForLockedWall(lockedWall, womSide, lockedContact);
+		return new DecisionResult(decision, 0, null, 0, lockedWall, active.previousWall(), false);
+	}
+
+	private static DecisionResult resolveLockedHorizontalVerticalSwitch(Player player, WallRunState active, Direction lockedWall, WallContact lockedContact) {
+		WallRunDecision verticalDecision = verticalDecisionForLockedWall(player, lockedWall, lockedContact);
+		if (verticalDecision == null) {
+			return null;
+		}
+
+		int pendingTicks = active.pendingMode() == WallRunMode.VERTICAL ? active.pendingModeTicks() + tickIncrement(player, active) : 1;
+		if (active.modeTicks() < WALL_RUN_MODE_STICK_TICKS || pendingTicks < WALL_RUN_MODE_SWITCH_CONFIRM_TICKS) {
+			WallRunDecision horizontalDecision = horizontalDecisionForLockedWall(lockedWall, active.decision().womSide(), lockedContact);
+			if (pendingTicks == 1) {
+				logParCoolVerticalSwitchPending(player, lockedWall, pendingTicks);
+			}
+			return new DecisionResult(horizontalDecision, 0, WallRunMode.VERTICAL, pendingTicks, lockedWall, active.previousWall(), false);
+		}
+
+		logParCoolVerticalSwitch(player, lockedWall, verticalDecision);
+		return new DecisionResult(verticalDecision, 0, null, 0, null, null, false);
+	}
+
+	private static WallRunDecision verticalDecisionForLockedWall(Player player, Direction lockedWall, WallContact lockedContact) {
+		if (lockedContact == null) {
+			return null;
+		}
+
+		Vec3 lookDirection = horizontalLook(player);
+		Vec3 wallDirection = WomSpiderWallCornerTransfer.wallVector(lockedWall);
+		if (wallDirection.dot(lookDirection) < VERTICAL_FACING_DOT) {
+			return null;
+		}
+
+		return new WallRunDecision(WallRunMode.VERTICAL, 0, wallDirection, lookDirection, lockedContact.blockState(), lockedContact.blockPos());
+	}
+
+	private static int cameraControlledWomSide(Player player, Direction lockedWall, int currentSide) {
+		if (currentSide != -1 && currentSide != 1) {
+			return currentSide;
+		}
+
+		Vec3 lookDirection = horizontalLook(player);
+		Vec3 currentDirection = WomSpiderWallCornerTransfer.targetRunDirection(lockedWall, currentSide);
+		int oppositeSide = -currentSide;
+		Vec3 oppositeDirection = WomSpiderWallCornerTransfer.targetRunDirection(lockedWall, oppositeSide);
+		double currentScore = currentDirection.dot(lookDirection);
+		double oppositeScore = oppositeDirection.dot(lookDirection);
+		if (oppositeScore > PARCOOL_CAMERA_SIDE_SWITCH_DOT
+				&& oppositeScore > currentScore + PARCOOL_CAMERA_SIDE_SWITCH_MARGIN) {
+			return oppositeSide;
+		}
+		return currentSide;
+	}
+
+	private static ForwardCornerContact findForwardAdjacentCornerContact(Player player, Direction activeWall, Vec3 runDirection, Direction previousWall, boolean allowAnyCorner) {
+		Direction bestDirection = null;
+		WallContact bestContact = null;
+		double bestScore = 0.65D;
+		for (Direction direction : Direction.Plane.HORIZONTAL) {
+			if (!allowAnyCorner && direction != previousWall) {
+				continue;
+			}
+			if (!WomSpiderWallCornerTransfer.canTransferTo(activeWall, runDirection, direction)) {
+				continue;
+			}
+			WallContact contact = adjacentWallContact(player, direction);
+			if (contact == null) {
+				continue;
+			}
+
+			double score = WomSpiderWallContactResolver.wallNormalDirection(direction).dot(runDirection);
+			if (score > bestScore) {
+				bestScore = score;
+				bestDirection = direction;
+				bestContact = contact;
+			}
+		}
+		return bestDirection == null ? null : new ForwardCornerContact(bestDirection, bestContact);
+	}
+
+	private static WallRunDecision horizontalDecisionForLockedWall(Direction wallDirection, int womSide, WallContact contact) {
+		Vec3 wallVector = WomSpiderWallCornerTransfer.wallVector(wallDirection);
+		Vec3 runDirection = WomSpiderWallCornerTransfer.targetRunDirection(wallDirection, womSide);
+		return new WallRunDecision(WallRunMode.HORIZONTAL, womSide, wallVector, runDirection, contact.blockState(), contact.blockPos());
+	}
+
+	private static WallContact adjacentWallContact(Player player, Direction direction) {
+		if (player == null || direction == null || !WomSpiderWallContactResolver.hasAdjacentWallDirection(player, direction)) {
+			return null;
+		}
+
+		Level level = player.level();
+		BlockPos blockPos = adjacentWallBlockPos(player, direction);
+		BlockState blockState = level.getBlockState(blockPos);
+		if (!isValidWomWallBlock(blockState, blockPos, level)) {
+			return null;
+		}
+		return new WallContact(Vec3.atLowerCornerOf(direction.getNormal()), blockState, blockPos);
 	}
 
 	private static WallRunSelection selectWallRunDecision(Player player, WallRunState active, WallRunCandidates candidates) {
@@ -303,21 +434,23 @@ public final class WomSpiderWallRunHandler {
 		return applyModeSwitchWeight(player, active, candidates, decision);
 	}
 
-	private static WallRunCandidates findWallRunCandidates(Player player, Vec3 preferredWallDirection) {
-		List<WallContact> contacts = detectWallContacts(player);
+	private static WallRunCandidates findWallRunCandidates(Player player, Vec3 preferredWallDirection, List<WallContact> contacts) {
 		if (contacts.isEmpty()) {
 			return null;
 		}
 
 		if (preferredWallDirection != null) {
-			List<WallContact> preferredContacts = new ArrayList<>(contacts.size());
+			List<WallContact> preferredContacts = null;
 			for (WallContact contact : contacts) {
 				if (sameWallDirection(contact.wallDirection(), preferredWallDirection)) {
+					if (preferredContacts == null) {
+						preferredContacts = new ArrayList<>(contacts.size());
+					}
 					preferredContacts.add(contact);
 				}
 			}
 
-			if (!preferredContacts.isEmpty()) {
+			if (preferredContacts != null) {
 				WallRunCandidates preferredCandidates = buildWallRunCandidates(player, preferredContacts);
 				if (hasAnyCandidate(preferredCandidates)) {
 					return preferredCandidates;
@@ -359,7 +492,7 @@ public final class WomSpiderWallRunHandler {
 				runDirection = runDirection.reverse();
 			}
 			int womSide = sideScore > 0.0D ? 1 : -1;
-			WallRunDecision horizontalCandidate = new WallRunDecision(WallRunMode.HORIZONTAL, womSide, wallDirection, runDirection.normalize(), contact.blockState(), contact.blockPos());
+			WallRunDecision horizontalCandidate = new WallRunDecision(WallRunMode.HORIZONTAL, womSide, wallDirection, runDirection, contact.blockState(), contact.blockPos());
 			if (absSideScore > bestHorizontalScore) {
 				bestHorizontalScore = absSideScore;
 				horizontal = horizontalCandidate;
@@ -383,6 +516,12 @@ public final class WomSpiderWallRunHandler {
 
 	private static boolean sameWallDirection(Vec3 left, Vec3 right) {
 		return left.distanceToSqr(right) < 1.0E-6D;
+	}
+
+	private static Direction wallDirectionForDecision(WallRunDecision decision) {
+		return decision == null || decision.mode() != WallRunMode.HORIZONTAL
+				? null
+				: WomSpiderWallCornerTransfer.directionFromWallVector(decision.wallDirection());
 	}
 
 	private static WallRunSelection applyModeSwitchWeight(Player player, WallRunState active, WallRunCandidates candidates, WallRunDecision decision) {
@@ -415,6 +554,13 @@ public final class WomSpiderWallRunHandler {
 		int modeTicks = previous != null && previous.decision().mode() == decisionResult.decision().mode()
 				? previous.modeTicks() + tickIncrement
 				: 1;
+		Direction lockedWall = decisionResult.decision().mode() == WallRunMode.HORIZONTAL ? decisionResult.lockedWall() : null;
+		Direction previousWall = decisionResult.decision().mode() == WallRunMode.HORIZONTAL ? decisionResult.previousWall() : null;
+		int cornerCooldownTicks = decisionResult.cornerTransfer()
+				? PARCOOL_CORNER_TRANSFER_COOLDOWN_TICKS
+				: previous != null && decisionResult.decision().mode() == WallRunMode.HORIZONTAL
+				? Math.max(0, previous.cornerCooldownTicks() - tickIncrement)
+				: 0;
 		return new WallRunState(
 				decisionResult.decision(),
 				decisionResult.missedContactTicks(),
@@ -422,6 +568,9 @@ public final class WomSpiderWallRunHandler {
 				modeTicks,
 				decisionResult.pendingMode(),
 				decisionResult.pendingModeTicks(),
+				lockedWall,
+				previousWall,
+				cornerCooldownTicks,
 				player.tickCount);
 	}
 
@@ -430,7 +579,6 @@ public final class WomSpiderWallRunHandler {
 	}
 
 	private static List<WallContact> detectWallContacts(Player player) {
-		List<WallContact> contacts = new ArrayList<>(7);
 		Level level = player.level();
 		Vec3 forward = horizontalLook(player);
 		Vec3 right = rightDirection(forward);
@@ -439,9 +587,10 @@ public final class WomSpiderWallRunHandler {
 		BlockPos lower = BlockPos.containing(player.getX(), player.getY() - 0.5D, player.getZ());
 		if (!isFreeForWomWallRun(level.getBlockState(center), center, level, false)
 				|| !isFreeForWomWallRun(level.getBlockState(lower), lower, level, player.isInWater())) {
-			return contacts;
+			return List.of();
 		}
 
+		List<WallContact> contacts = new ArrayList<>(7);
 		addContact(player, contacts, forward.scale(0.7D));
 		addContact(player, contacts, forward.scale(0.6D).subtract(right.scale(0.3D)));
 		addContact(player, contacts, forward.scale(0.6D).add(right.scale(0.3D)));
@@ -558,11 +707,11 @@ public final class WomSpiderWallRunHandler {
 		if (look.lengthSqr() < 1.0E-6D) {
 			return new Vec3(0.0D, 0.0D, 1.0D);
 		}
-		return look.normalize();
+		return look;
 	}
 
 	private static Vec3 rightDirection(Vec3 forward) {
-		return new Vec3(forward.z(), 0.0D, -forward.x()).normalize();
+		return new Vec3(forward.z(), 0.0D, -forward.x());
 	}
 
 	private static double parCoolSideScore(Vec3 wallDirection, Vec3 lookDirection) {
@@ -671,6 +820,21 @@ public final class WomSpiderWallRunHandler {
 		stopWallRunAnimation(playerPatch);
 	}
 
+	private static void stopOwnedWallRun(Player player, PlayerPatch<?> playerPatch, boolean wallRunKeyDown) {
+		if (player == null) {
+			return;
+		}
+
+		WallRunState removed = removeActiveWallRun(player, wallRunKeyDown);
+		if (removed == null) {
+			return;
+		}
+
+		NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
+		WomCompatBridge.instance().clearSpiderWallRunState(playerPatch);
+		stopWallRunAnimation(playerPatch);
+	}
+
 	private static WallRunState removeActiveWallRun(Player player, boolean wallRunKeyDown) {
 		if (player == null) {
 			return null;
@@ -736,9 +900,36 @@ public final class WomSpiderWallRunHandler {
 	private static boolean isParCoolWallJumpActive(Player player) {
 		try {
 			Parkourability parkourability = Parkourability.get(player);
-			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
-			return wallJump != null && wallJump.isDoing();
+			Class<?> wallJumpClass = parCoolActionClass("com.alrex.parcool.common.action.impl.WallJump");
+			Object wallJump = parkourability == null || wallJumpClass == null ? null : parCoolAction(parkourability, wallJumpClass);
+			return isParCoolActionDoing(wallJump);
 		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static Object parCoolAction(Parkourability parkourability, Class<?> actionClass) {
+		return parkourability.get((Class) actionClass);
+	}
+
+	private static Class<?> parCoolActionClass(String className) {
+		try {
+			return Class.forName(className, false, WomSpiderWallRunHandler.class.getClassLoader());
+		} catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
+			return null;
+		}
+	}
+
+	private static boolean isParCoolActionDoing(Object action) {
+		if (action == null) {
+			return false;
+		}
+
+		try {
+			Object value = action.getClass().getMethod("isDoing").invoke(action);
+			return value instanceof Boolean doing && doing.booleanValue();
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
 			return false;
 		}
 	}
@@ -784,6 +975,9 @@ public final class WomSpiderWallRunHandler {
 	}
 
 	private static void logDecisionChange(Player player, WallRunDecision previous, WallRunDecision decision) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
 		if (decision.equals(previous)) {
 			return;
 		}
@@ -799,6 +993,71 @@ public final class WomSpiderWallRunHandler {
 				player.position());
 	}
 
+	private static void logParCoolCameraSideSwitch(Player player, Direction lockedWall, int fromSide, int toSide) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomSpiderWallRun] parCoolCameraSideSwitch wall={} fromSide={} toSide={} yRot={} pos={} delta={}",
+				lockedWall,
+				Integer.valueOf(fromSide),
+				Integer.valueOf(toSide),
+				Float.valueOf(player.getYRot()),
+				player.position(),
+				player.getDeltaMovement());
+	}
+
+	private static void logParCoolForwardCornerTransfer(Player player, Direction fromWall, Direction toWall, int womSide, Vec3 forwardRunDirection, WallRunDecision decision) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomSpiderWallRun] parCoolForwardCornerTransfer fromWall={} toWall={} womSide={} forwardRun={} newRun={} block={} pos={} delta={}",
+				fromWall,
+				toWall,
+				Integer.valueOf(womSide),
+				forwardRunDirection,
+				decision.runDirection(),
+				decision.blockPos(),
+				player.position(),
+				player.getDeltaMovement());
+	}
+
+	private static void logParCoolVerticalSwitchPending(Player player, Direction lockedWall, int pendingTicks) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomSpiderWallRun] parCoolVerticalSwitchPending wall={} pendingTicks={} yRot={} pos={} delta={}",
+				lockedWall,
+				Integer.valueOf(pendingTicks),
+				Float.valueOf(player.getYRot()),
+				player.position(),
+				player.getDeltaMovement());
+	}
+
+	private static void logParCoolVerticalSwitch(Player player, Direction lockedWall, WallRunDecision decision) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomSpiderWallRun] parCoolVerticalSwitch wall={} runDirection={} block={} yRot={} pos={} delta={}",
+				lockedWall,
+				decision.runDirection(),
+				decision.blockPos(),
+				Float.valueOf(player.getYRot()),
+				player.position(),
+				player.getDeltaMovement());
+	}
+
+	private static void logParCoolLockedWallLost(Player player, Direction lockedWall, Vec3 forwardRunDirection) {
+		if (!EPM.LOGGER.isDebugEnabled()) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomSpiderWallRun] parCoolLockedWallLost wall={} forwardRun={} detected={} pos={} delta={}",
+				lockedWall,
+				forwardRunDirection,
+				WomSpiderWallContactResolver.detectAdjacentWallDirection(player),
+				player.position(),
+				player.getDeltaMovement());
+	}
+
 	private enum WallRunMode {
 		VERTICAL,
 		HORIZONTAL
@@ -807,10 +1066,13 @@ public final class WomSpiderWallRunHandler {
 	private record WallContact(Vec3 wallDirection, BlockState blockState, BlockPos blockPos) {
 	}
 
-	private record WallRunState(WallRunDecision decision, int missedContactTicks, boolean jumpHeld, int modeTicks, WallRunMode pendingMode, int pendingModeTicks, int lastUpdateTick) {
+	private record ForwardCornerContact(Direction wallDirection, WallContact contact) {
 	}
 
-	private record DecisionResult(WallRunDecision decision, int missedContactTicks, WallRunMode pendingMode, int pendingModeTicks) {
+	private record WallRunState(WallRunDecision decision, int missedContactTicks, boolean jumpHeld, int modeTicks, WallRunMode pendingMode, int pendingModeTicks, Direction lockedWall, Direction previousWall, int cornerCooldownTicks, int lastUpdateTick) {
+	}
+
+	private record DecisionResult(WallRunDecision decision, int missedContactTicks, WallRunMode pendingMode, int pendingModeTicks, Direction lockedWall, Direction previousWall, boolean cornerTransfer) {
 	}
 
 	private record WallRunSelection(WallRunDecision decision, WallRunMode pendingMode, int pendingModeTicks) {

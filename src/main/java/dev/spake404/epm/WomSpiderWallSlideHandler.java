@@ -3,13 +3,19 @@ package dev.spake404.epm;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.input.KeyBindings;
-import com.alrex.parcool.common.action.impl.WallSlide;
 import com.alrex.parcool.common.capability.Animation;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.utilities.WorldUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
@@ -21,6 +27,7 @@ public final class WomSpiderWallSlideHandler {
 	private static final float WALL_BACKFLIP_STAMINA_COST = 0.5F;
 	private static final double WOM_GLIDE_FALL_SPEED = -0.2D;
 	private static final double WOM_SLOW_GLIDE_FALL_SPEED = -0.01D;
+	private static final double WOM_GLIDE_PARTICLE_HEIGHT = 1.7000000476837158D;
 	private static final int STALE_STATE_PROBE_INTERVAL_TICKS = 5;
 	private static final WeakHashMap<Player, WallSlideState> ACTIVE_WALL_SLIDES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> LAST_STALE_STATE_CLEAR_LOG_TICK = new WeakHashMap<>();
@@ -34,8 +41,8 @@ public final class WomSpiderWallSlideHandler {
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (!WomSpiderWallRunReplacementGate.canUseReplacement(player, playerPatch)) {
-			clearStaleWallState(player, playerPatch, "replacement_disabled", false);
+		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
+			clearOwnedWallSlide(player, playerPatch, "replacement_disabled");
 			return;
 		}
 
@@ -111,18 +118,23 @@ public final class WomSpiderWallSlideHandler {
 				&& player.getVehicle() == null;
 	}
 
-	private static WallSlide wallSlideAction(Player player) {
+	private static Object wallSlideAction(Player player) {
 		try {
 			Parkourability parkourability = Parkourability.get(player);
-			return parkourability == null ? null : parkourability.get(WallSlide.class);
+			Class<?> wallSlideClass = parCoolActionClass("com.alrex.parcool.common.action.impl.WallSlide");
+			return parkourability == null || wallSlideClass == null ? null : parCoolAction(parkourability, wallSlideClass);
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
 	}
 
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static Object parCoolAction(Parkourability parkourability, Class<?> actionClass) {
+		return parkourability.get((Class) actionClass);
+	}
+
 	private static Vec3 wallDirection(Player player) {
-		WallSlide wallSlide = wallSlideAction(player);
-		Vec3 wallDirection = wallSlide == null ? null : wallSlide.getLeanedWallDirection();
+		Vec3 wallDirection = leanedWallDirection(wallSlideAction(player));
 		if (wallDirection != null) {
 			return wallDirection;
 		}
@@ -130,6 +142,27 @@ public final class WomSpiderWallSlideHandler {
 		try {
 			return WorldUtil.getWall(player);
 		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
+	private static Class<?> parCoolActionClass(String className) {
+		try {
+			return Class.forName(className, false, WomSpiderWallSlideHandler.class.getClassLoader());
+		} catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
+			return null;
+		}
+	}
+
+	private static Vec3 leanedWallDirection(Object wallSlide) {
+		if (wallSlide == null) {
+			return null;
+		}
+
+		try {
+			Object value = wallSlide.getClass().getMethod("getLeanedWallDirection").invoke(wallSlide);
+			return value instanceof Vec3 vec3 ? vec3 : null;
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
 			return null;
 		}
 	}
@@ -182,6 +215,7 @@ public final class WomSpiderWallSlideHandler {
 		playWallGlideAnimation(playerPatch);
 		clearParCoolAnimator(player);
 		applyWomGlideMotion(player, slowGlide);
+		spawnWallGlideParticle(player, wallDirection);
 
 		playerPatch.setModelYRot(wallFacingYaw(wallDirection), true);
 
@@ -207,6 +241,88 @@ public final class WomSpiderWallSlideHandler {
 		double fallSpeed = slowGlide ? WOM_SLOW_GLIDE_FALL_SPEED : WOM_GLIDE_FALL_SPEED;
 		player.setDeltaMovement(movement.x(), fallSpeed, movement.z());
 		player.fallDistance = 0.0F;
+	}
+
+	private static void spawnWallGlideParticle(Player player, Vec3 wallDirection) {
+		if (player == null || wallDirection == null) {
+			return;
+		}
+
+		Vec3 particleWallDirection = cardinalWallDirection(wallDirection);
+		if (particleWallDirection == null) {
+			return;
+		}
+
+		WallParticleContact contact = wallParticleContact(player, particleWallDirection);
+		if (contact == null) {
+			particleWallDirection = particleWallDirection.reverse();
+			contact = wallParticleContact(player, particleWallDirection);
+			if (contact == null) {
+				return;
+			}
+		}
+
+		Level level = player.level();
+		RandomSource random = player.getRandom();
+		level.addParticle(
+				new BlockParticleOption(ParticleTypes.BLOCK, contact.blockState()),
+				player.getX(),
+				player.getY() + WOM_GLIDE_PARTICLE_HEIGHT,
+				player.getZ(),
+				(random.nextFloat() - 0.5F) * 0.005D,
+				random.nextFloat() * -0.02D,
+				(random.nextFloat() - 0.5F) * 0.005D);
+	}
+
+	private static WallParticleContact wallParticleContact(Player player, Vec3 wallDirection) {
+		WallParticleContact contact = wallParticleContact(player, wallDirection, 0.3D);
+		if (contact != null) {
+			return contact;
+		}
+
+		contact = wallParticleContact(player, wallDirection, 1.0D);
+		if (contact != null) {
+			return contact;
+		}
+
+		return wallParticleContact(player, wallDirection, 1.6D);
+	}
+
+	private static WallParticleContact wallParticleContact(Player player, Vec3 wallDirection, double yOffset) {
+		Level level = player.level();
+		BlockPos blockPos = wallParticleBlockPos(player, wallDirection, yOffset);
+		BlockState blockState = level.getBlockState(blockPos);
+		if (!isParticleWallBlock(blockState, blockPos, level)) {
+			return null;
+		}
+		return new WallParticleContact(blockState);
+	}
+
+	private static BlockPos wallParticleBlockPos(Player player, Vec3 wallDirection, double yOffset) {
+		AABB box = player.getBoundingBox();
+		if (Math.abs(wallDirection.x()) > Math.abs(wallDirection.z())) {
+			double x = wallDirection.x() > 0.0D ? box.maxX + 0.35D : box.minX - 0.35D;
+			return BlockPos.containing(x, player.getY() + yOffset, player.getZ());
+		}
+
+		double z = wallDirection.z() > 0.0D ? box.maxZ + 0.35D : box.minZ - 0.35D;
+		return BlockPos.containing(player.getX(), player.getY() + yOffset, z);
+	}
+
+	private static boolean isParticleWallBlock(BlockState blockState, BlockPos blockPos, Level level) {
+		return !blockState.isAir() && !blockState.getCollisionShape(level, blockPos).isEmpty();
+	}
+
+	private static Vec3 cardinalWallDirection(Vec3 wallDirection) {
+		double absX = Math.abs(wallDirection.x());
+		double absZ = Math.abs(wallDirection.z());
+		if (absX < 1.0E-6D && absZ < 1.0E-6D) {
+			return null;
+		}
+		if (absX > absZ) {
+			return new Vec3(Math.signum(wallDirection.x()), 0.0D, 0.0D);
+		}
+		return new Vec3(0.0D, 0.0D, Math.signum(wallDirection.z()));
 	}
 
 	private static void clearParCoolAnimator(Player player) {
@@ -269,6 +385,18 @@ public final class WomSpiderWallSlideHandler {
 		logWallStateClear(player, playerPatch, reason, wasActive, wallMovementData, wallGlideAnimation);
 	}
 
+	private static void clearOwnedWallSlide(Player player, PlayerPatch<?> playerPatch, String reason) {
+		if (player == null || ACTIVE_WALL_SLIDES.remove(player) == null) {
+			return;
+		}
+
+		WomCompatBridge.instance().clearSpiderWallRunState(playerPatch);
+		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
+			stopWallSlideAnimation(localPlayerPatch);
+		}
+		logWallStateClear(player, playerPatch, reason, true, false, false);
+	}
+
 	private static void handoffToWallBackflip(Player player, PlayerPatch<?> playerPatch) {
 		if (player == null || ACTIVE_WALL_SLIDES.remove(player) == null) {
 			return;
@@ -318,7 +446,7 @@ public final class WomSpiderWallSlideHandler {
 	}
 
 	private static void logWallStateClear(Player player, PlayerPatch<?> playerPatch, String reason, boolean wasActive, boolean wallMovementData, boolean wallGlideAnimation) {
-		if (wasActive) {
+		if (wasActive || !EPM.LOGGER.isDebugEnabled()) {
 			return;
 		}
 
@@ -328,7 +456,7 @@ public final class WomSpiderWallSlideHandler {
 		}
 
 		LAST_STALE_STATE_CLEAR_LOG_TICK.put(player, Integer.valueOf(player.tickCount));
-		EPM.LOGGER.info("[WomSpiderWallSlide] clearWallState reason={} wasActive={} dataWallState={} animationWallGlide={} onGround={} wallRunKeyDown={} wallSlideKeyDown={} forwardDown={} shiftDown={} delta={} state={}",
+		EPM.LOGGER.debug("[WomSpiderWallSlide] clearWallState reason={} wasActive={} dataWallState={} animationWallGlide={} onGround={} wallRunKeyDown={} wallSlideKeyDown={} forwardDown={} shiftDown={} delta={} state={}",
 				reason,
 				Boolean.valueOf(wasActive),
 				Boolean.valueOf(wallMovementData),
@@ -343,5 +471,8 @@ public final class WomSpiderWallSlideHandler {
 	}
 
 	private record WallSlideState(boolean slowGlide, boolean jumpKeyUp) {
+	}
+
+	private record WallParticleContact(BlockState blockState) {
 	}
 }

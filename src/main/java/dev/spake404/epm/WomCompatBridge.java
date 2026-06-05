@@ -1,5 +1,7 @@
 package dev.spake404.epm;
 
+import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
+
 public final class WomCompatBridge {
 	private static final WomCompat INSTANCE = create();
 
@@ -8,6 +10,10 @@ public final class WomCompatBridge {
 
 	static WomCompat instance() {
 		return INSTANCE;
+	}
+
+	public static boolean hasAquaManeuvre(PlayerPatch<?> playerPatch) {
+		return INSTANCE.hasAquaManeuvre(playerPatch);
 	}
 
 	private static WomCompat create() {

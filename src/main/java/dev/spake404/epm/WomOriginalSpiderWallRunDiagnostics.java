@@ -84,7 +84,7 @@ public final class WomOriginalSpiderWallRunDiagnostics {
 		if (!EPM.LOGGER.isDebugEnabled()) {
 			return;
 		}
-		if (player == null || !EPMConfig.womSpiderWallRunMode()) {
+		if (player == null) {
 			return;
 		}
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);

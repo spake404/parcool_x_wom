@@ -51,6 +51,11 @@ final class NoopWomCompat implements WomCompat {
 	}
 
 	@Override
+	public AssetAccessor<? extends StaticAnimation> bipedSwimCrawl() {
+		return null;
+	}
+
+	@Override
 	public AssetAccessor<? extends StaticAnimation> wallBackflip() {
 		return null;
 	}
@@ -96,6 +101,11 @@ final class NoopWomCompat implements WomCompat {
 
 	@Override
 	public boolean hasSpiderTechniques(PlayerPatch<?> playerPatch) {
+		return false;
+	}
+
+	@Override
+	public boolean hasAquaManeuvre(PlayerPatch<?> playerPatch) {
 		return false;
 	}
 

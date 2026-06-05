@@ -7,6 +7,7 @@ import com.alrex.parcool.common.action.impl.ClingToCliff;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.Vault;
 import com.alrex.parcool.common.action.impl.WallJump;
+import dev.spake404.epm.aqua.AquaManeuvreFastSwimHandler;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.TickEvent;
@@ -27,11 +28,13 @@ public final class EPMEvents {
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void primeEpicParCoolFastRun(InitAnimatorEvent event) {
 		NaturalSprinterFastRunHandler.registerFastRunAnimation(event);
+		AquaManeuvreFastSwimHandler.registerFastSwimAnimation(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void chooseFastRunAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
 		NaturalSprinterFastRunHandler.chooseFastRunAnimation(event);
+		AquaManeuvreFastSwimHandler.chooseFastSwimAnimation(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)

@@ -45,7 +45,7 @@ public final class WomSpiderWallRunModeGate {
 
 	public static boolean canStabilizeOriginalWomWallRun(Player player, PlayerPatch<?> playerPatch) {
 		return hasSpiderWallRunModeContext(player, playerPatch)
-				&& EPMConfig.womSpiderWallRunMode();
+				&& (EPMConfig.defaultSpiderWallRunMode() || EPMConfig.womSpiderWallRunMode());
 	}
 
 	static boolean canUseParCoolReplacement(Player player, PlayerPatch<?> playerPatch) {

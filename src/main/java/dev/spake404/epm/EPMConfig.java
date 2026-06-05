@@ -24,6 +24,8 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE;
 	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
+	private static final ForgeConfigSpec.BooleanValue AQUA_MANEUVRE_FAST_SWIM_ANIMATION;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY;
 	private static final ForgeConfigSpec.IntValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS;
@@ -102,7 +104,7 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.spiderTechniquesWallRunMode")
 				.comment(
 						"Wall-run mode used after learning WOM Spider Techniques.",
-						"default: Default wall-run mode. This mod does not replace ParCool/WOM wall-run triggers.",
+						"default: Default wall-run mode. This mod does not replace ParCool/WOM wall-run triggers, but keeps original WOM side wall-run direction and corner-transfer fixes.",
 						"parcool: ParCool wall-run mode. ParCool's HorizontalWallRun key triggers this mod's WOM-style wall run replacement.",
 						"wom: WOM wall-run mode. WOM's original sprint input owns Spider Techniques wall run, while ParCool HorizontalWallRun and its key input are disabled.",
 						"Modes that need WOM do nothing when WOM is not installed or Spider Techniques is not learned.")
@@ -121,6 +123,19 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState")
 				.comment("Temporary debug option. true: logs Spider Techniques state when attack executability is checked.")
 				.define("debugSpiderTechniquesAttackState", false);
+		builder.pop();
+
+		builder.push("Aqua Maneuvre");
+		AQUA_MANEUVRE_FAST_SWIM_ANIMATION = builder
+				.translation("epic_parcool_momentum.configuration.aquaManeuvreFastSwimAnimation")
+				.comment(
+						"true: without Aqua Maneuvre, maps ParCool FastSwimAnimator to WOM's Mermaid animation in Epic Fight mode.",
+						"After learning Aqua Maneuvre, ParCool's FastRun control mode only drives WOM's original Mermaid fast-swim input; WOM owns movement, speed, animation start, and animation exit.")
+				.define("aquaManeuvreFastSwimAnimation", true);
+		DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugAquaManeuvreFastSwimState")
+				.comment("Temporary debug option. true: logs detailed Aqua Maneuvre fast-swim state.")
+				.define("debugAquaManeuvreFastSwimState", false);
 		builder.pop();
 
 		builder.push("Vault");
@@ -231,6 +246,10 @@ public final class EPMConfig {
 		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.PARCOOL;
 	}
 
+	public static boolean defaultSpiderWallRunMode() {
+		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.DEFAULT;
+	}
+
 	public static boolean womSpiderWallRunMode() {
 		return spiderTechniquesWallRunMode() == SpiderTechniquesWallRunMode.WOM;
 	}
@@ -245,6 +264,14 @@ public final class EPMConfig {
 
 	public static boolean debugSpiderTechniquesAttackState() {
 		return DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE.get();
+	}
+
+	public static boolean aquaManeuvreFastSwimAnimation() {
+		return AQUA_MANEUVRE_FAST_SWIM_ANIMATION.get();
+	}
+
+	public static boolean debugAquaManeuvreFastSwimState() {
+		return DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE.get();
 	}
 
 	public static double vaultHeightScale() {

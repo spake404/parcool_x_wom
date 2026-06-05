@@ -10,8 +10,10 @@ import net.minecraftforge.registries.RegistryObject;
 import reascer.wom.gameasset.WOMAnimations;
 import reascer.wom.gameasset.colliders.WOMWeaponColliders;
 import reascer.wom.skill.WOMSkillDataKeys;
+import reascer.wom.skill.mover.AquaManeuvreSkill;
 import reascer.wom.skill.mover.NaturalSprinterSkill;
 import reascer.wom.skill.mover.SpiderTechniquesSkill;
+import yesman.epicfight.api.animation.AnimationPlayer;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 import yesman.epicfight.api.utils.math.Vec3f;
@@ -24,9 +26,11 @@ import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 final class LoadedWomCompat implements WomCompat {
 	private static final ResourceLocation NATURAL_SPRINTER_ID = ResourceLocation.fromNamespaceAndPath("wom", "natural_sprinter");
 	private static final ResourceLocation SPIDER_TECHNIQUES_ID = ResourceLocation.fromNamespaceAndPath("wom", "spider_techniques");
+	private static final ResourceLocation AQUA_MANEUVRE_ID = ResourceLocation.fromNamespaceAndPath("wom", "aqua_maneuvre");
 	private static final float NATURAL_SPRINTER_STEP_FALLBACK_CONSUMPTION = 2.0F;
 	private final WeakHashMap<PlayerPatch<?>, SkillContainer> naturalSprinterCache = new WeakHashMap<>();
 	private final WeakHashMap<PlayerPatch<?>, SkillContainer> spiderTechniquesCache = new WeakHashMap<>();
+	private final WeakHashMap<PlayerPatch<?>, SkillContainer> aquaManeuvreCache = new WeakHashMap<>();
 
 	@Override
 	public AssetAccessor<? extends StaticAnimation> bipedSprint() {
@@ -71,6 +75,11 @@ final class LoadedWomCompat implements WomCompat {
 	@Override
 	public AssetAccessor<? extends StaticAnimation> bipedSprintJump() {
 		return safe(() -> WOMAnimations.BIPED_SPRINT_JUMP);
+	}
+
+	@Override
+	public AssetAccessor<? extends StaticAnimation> bipedSwimCrawl() {
+		return safe(() -> WOMAnimations.BIPED_SWIM_CRAWL);
 	}
 
 	@Override
@@ -148,6 +157,11 @@ final class LoadedWomCompat implements WomCompat {
 	@Override
 	public boolean hasSpiderTechniques(PlayerPatch<?> playerPatch) {
 		return findSpiderTechniques(playerPatch) != null;
+	}
+
+	@Override
+	public boolean hasAquaManeuvre(PlayerPatch<?> playerPatch) {
+		return findAquaManeuvre(playerPatch) != null;
 	}
 
 	@Override
@@ -327,6 +341,30 @@ final class LoadedWomCompat implements WomCompat {
 		}
 	}
 
+	private SkillContainer findAquaManeuvre(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null || playerPatch.getSkillCapability() == null) {
+			return null;
+		}
+
+		SkillContainer cached = aquaManeuvreCache.get(playerPatch);
+		if (isAquaManeuvreContainer(cached)) {
+			return cached;
+		}
+
+		try (Stream<SkillContainer> containers = playerPatch.getSkillCapability().listSkillContainers()) {
+			SkillContainer found = containers
+					.filter(this::isAquaManeuvreContainer)
+					.findFirst()
+					.orElse(null);
+			if (found != null) {
+				aquaManeuvreCache.put(playerPatch, found);
+			}
+			return found;
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
 	private boolean isNaturalSprinterContainer(SkillContainer container) {
 		if (container == null) {
 			return false;
@@ -343,6 +381,15 @@ final class LoadedWomCompat implements WomCompat {
 
 		Skill skill = container.getSkill();
 		return skill instanceof SpiderTechniquesSkill || skill != null && SPIDER_TECHNIQUES_ID.equals(skill.getRegistryName());
+	}
+
+	private boolean isAquaManeuvreContainer(SkillContainer container) {
+		if (container == null) {
+			return false;
+		}
+
+		Skill skill = container.getSkill();
+		return skill instanceof AquaManeuvreSkill || skill != null && AQUA_MANEUVRE_ID.equals(skill.getRegistryName());
 	}
 
 	private float naturalSprinterStepConsumption(SkillContainer naturalSprinter) {
@@ -391,6 +438,23 @@ final class LoadedWomCompat implements WomCompat {
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
+	}
+
+	private static AssetAccessor<?> currentAnimation(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null || playerPatch.getAnimator() == null) {
+			return null;
+		}
+
+		try {
+			AnimationPlayer animationPlayer = playerPatch.getAnimator().getPlayerFor(null);
+			return animationPlayer == null ? null : animationPlayer.getRealAnimation();
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
+	private static boolean sameAnimation(AssetAccessor<?> left, AssetAccessor<?> right) {
+		return left != null && right != null && left.equals(right);
 	}
 
 	private static AssetAccessor<? extends StaticAnimation> safe(AnimationSupplier supplier) {

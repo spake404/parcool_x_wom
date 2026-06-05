@@ -23,6 +23,8 @@ interface WomCompat {
 
 	AssetAccessor<? extends StaticAnimation> bipedSprintJump();
 
+	AssetAccessor<? extends StaticAnimation> bipedSwimCrawl();
+
 	AssetAccessor<? extends StaticAnimation> wallBackflip();
 
 	AssetAccessor<? extends StaticAnimation> wallRunning();
@@ -42,6 +44,8 @@ interface WomCompat {
 	boolean consumeNaturalSprinterStep(PlayerPatch<?> playerPatch);
 
 	boolean hasSpiderTechniques(PlayerPatch<?> playerPatch);
+
+	boolean hasAquaManeuvre(PlayerPatch<?> playerPatch);
 
 	boolean setSpiderWallRunState(PlayerPatch<?> playerPatch, int wallRunning, boolean wallGlide, int timerRefresh, boolean jumpKeyUp);
 

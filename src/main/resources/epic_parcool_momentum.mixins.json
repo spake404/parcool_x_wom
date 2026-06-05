@@ -13,12 +13,14 @@
     "EFNOnGroundConditionMixin",
     "HorizontalWallRunMixin",
     "InvincibleJumpConditionMixin",
+    "FastSwimMixin",
     "VerticalWallRunMixin",
     "WallJumpMixin",
     "WallSlideMixin",
     "WorldUtilMixin"
   ],
   "client": [
+    "AquaManeuvreSkillMixin",
     "AnimatorControlPacketAccessor",
     "BreakfallReadyMixin",
     "ClimbUpDebugMixin",

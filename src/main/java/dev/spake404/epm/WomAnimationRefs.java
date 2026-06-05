@@ -5,7 +5,7 @@ import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 import yesman.epicfight.gameasset.Animations;
 
-final class WomAnimationRefs {
+public final class WomAnimationRefs {
 	private WomAnimationRefs() {
 	}
 
@@ -44,6 +44,10 @@ final class WomAnimationRefs {
 
 	static AssetAccessor<? extends StaticAnimation> bipedSprintJump() {
 		return WomCompatBridge.instance().bipedSprintJump();
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> bipedSwimCrawl() {
+		return WomCompatBridge.instance().bipedSwimCrawl();
 	}
 
 	static AssetAccessor<? extends StaticAnimation> bipedIdle() {

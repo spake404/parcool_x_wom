@@ -7,6 +7,7 @@
   "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "CatLeap primes Phantom Ascent",
   "epic_parcool_momentum.configuration.wallJumpPrimesPhantomAscent": "WallJump primes Phantom Ascent",
   "epic_parcool_momentum.configuration.phantomAscentFallProtectionDamageThreshold": "Phantom Ascent fall protection damage threshold",
+  "epic_parcool_momentum.configuration.disablePhantomAscentUnderwaterSwimming": "Disable Phantom Ascent while swimming underwater",
   "epic_parcool_momentum.configuration.autoSprintAfterWallJump": "Auto sprint after WallJump",
   "epic_parcool_momentum.configuration.wallJumpPrimesAirAttack": "WallJump primes air attack",
   "epic_parcool_momentum.configuration.taczShootDuringWallJump": "TaCZ shoot during WallJump",

@@ -14,6 +14,7 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue CAT_LEAP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.DoubleValue PHANTOM_ASCENT_FALL_PROTECTION_DAMAGE_THRESHOLD;
+	private static final ForgeConfigSpec.BooleanValue DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING;
 	private static final ForgeConfigSpec.BooleanValue AUTO_SPRINT_AFTER_WALL_JUMP;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_AIR_ATTACK;
 	private static final ForgeConfigSpec.BooleanValue TACZ_SHOOT_DURING_WALL_JUMP;
@@ -78,6 +79,12 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.phantomAscentFallProtectionDamageThreshold")
 				.comment("Maximum fall damage canceled by Phantom Ascent's next-fall protection. Epic Fight original default is 2.5.")
 				.defineInRange("phantomAscentFallProtectionDamageThreshold", 2.5D, 0.0D, 100.0D);
+		DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING = builder
+				.translation("epic_parcool_momentum.configuration.disablePhantomAscentUnderwaterSwimming")
+				.comment(
+						"true: blocks Epic Fight Phantom Ascent while the player is swimming underwater.",
+						"false: keeps Epic Fight's original Phantom Ascent behavior underwater.")
+				.define("disablePhantomAscentUnderwaterSwimming", true);
 		builder.pop();
 
 		builder.push("WallJump");
@@ -216,6 +223,10 @@ public final class EPMConfig {
 
 	public static float phantomAscentFallProtectionDamageThreshold() {
 		return PHANTOM_ASCENT_FALL_PROTECTION_DAMAGE_THRESHOLD.get().floatValue();
+	}
+
+	public static boolean disablePhantomAscentUnderwaterSwimming() {
+		return DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING.get();
 	}
 
 	public static boolean autoSprintAfterWallJump() {

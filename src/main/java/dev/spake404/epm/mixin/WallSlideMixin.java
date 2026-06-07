@@ -15,8 +15,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = WallSlide.class, remap = false)
 public abstract class WallSlideMixin {
 	@Inject(method = "canStart", at = @At("HEAD"), cancellable = true)
-	private void parcoolxwom$disableParCoolWallSlideInWomMode(Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo, CallbackInfoReturnable<Boolean> cir) {
-		if (WomSpiderWallRunModeGate.shouldDisableParCoolWallSlide(player)) {
+	private void parcoolxwom$disableParCoolWallSlideInSpiderReplacementMode(Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo, CallbackInfoReturnable<Boolean> cir) {
+		if (WomSpiderWallRunModeGate.shouldDisableParCoolWallSlideAction(player)) {
+			cir.setReturnValue(Boolean.FALSE);
+		}
+	}
+
+	@Inject(method = "canContinue", at = @At("HEAD"), cancellable = true)
+	private void parcoolxwom$stopParCoolWallSlideInSpiderReplacementMode(Player player, Parkourability parkourability, IStamina stamina, CallbackInfoReturnable<Boolean> cir) {
+		if (WomSpiderWallRunModeGate.shouldDisableParCoolWallSlideAction(player)) {
 			cir.setReturnValue(Boolean.FALSE);
 		}
 	}

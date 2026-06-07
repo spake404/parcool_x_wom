@@ -76,6 +76,7 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> NATURAL_SPRINTER_BREAKFALL_START_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, AssetAccessor<? extends StaticAnimation>> NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, SkillContainer> PHANTOM_ASCENT_CONTAINERS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, ExhaustionPoseSnapshot> EXHAUSTION_POSE_SNAPSHOTS = new WeakHashMap<>();
 	private static final ResourceLocation HF_MURASAMA = ResourceLocation.fromNamespaceAndPath("efn", "hf_murasama");
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS = 10;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
@@ -572,6 +573,7 @@ public final class EPMClientHooks {
 		restoreClingMoveClimbUpVelocity(event.player, true);
 		tickEpicParCoolClimbUpAirControl(event.player);
 		WomSpiderWallHooks.tickYawLock(event.player);
+		logExhaustionPose(event.player);
 
 		cancelWallJumpForHeldTaczAttack(event.player);
 		if (TACZ_SHOOT_ACTIVE.containsKey(event.player) || TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(event.player)) {
@@ -1444,6 +1446,106 @@ public final class EPMClientHooks {
 		return true;
 	}
 
+	private static void logExhaustionPose(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		IStamina parcoolStamina = safeParCoolStamina(player);
+		float epicFightStamina = safeEpicFightStamina(playerPatch);
+		int parcoolStaminaValue = parcoolStamina == null ? -1 : parcoolStamina.get();
+		boolean parcoolExhausted = parcoolStamina != null && parcoolStamina.isExhausted();
+		boolean epicFightExhausted = epicFightStamina >= 0.0F && epicFightStamina < 0.1F;
+		AssetAccessor<?> animation = playerPatch == null ? null : currentBaseAnimation(playerPatch);
+		ResourceLocation animationId = safeRegistryName(animation);
+		String animationName = animationId == null ? String.valueOf(animation) : animationId.toString();
+		boolean efxIdle = animationId != null
+				&& "epicfightx".equals(animationId.getNamespace())
+				&& "biped/living/idle".equals(animationId.getPath());
+		boolean lowStaminaWindow = epicFightStamina >= 0.0F && epicFightStamina <= 1.0F
+				|| parcoolStaminaValue >= 0 && parcoolStaminaValue <= 5
+				|| parcoolExhausted
+				|| epicFightExhausted;
+
+		ExhaustionPoseSnapshot previous = EXHAUSTION_POSE_SNAPSHOTS.get(player);
+		boolean wasRecentlyLow = previous != null && previous.recentLowTicks() > 0;
+		if (!lowStaminaWindow && !wasRecentlyLow) {
+			EXHAUSTION_POSE_SNAPSHOTS.remove(player);
+			return;
+		}
+
+		int recentLowTicks = lowStaminaWindow ? 20 : previous.recentLowTicks() - 1;
+		boolean animationChanged = previous == null || !animationName.equals(previous.animationName());
+		boolean stateChanged = previous == null
+				|| previous.parcoolExhausted() != parcoolExhausted
+				|| previous.epicFightExhausted() != epicFightExhausted
+				|| previous.sprinting() != player.isSprinting()
+				|| previous.crouching() != player.isCrouching()
+				|| previous.swimming() != player.isSwimming();
+		boolean periodic = previous == null || player.tickCount - previous.lastLogTick() >= 10;
+		boolean shouldLog = lowStaminaWindow && (animationChanged || stateChanged || periodic);
+		int lastLogTick = previous == null ? player.tickCount : previous.lastLogTick();
+
+		if (shouldLog) {
+			lastLogTick = player.tickCount;
+			Vec3 movement = player.getDeltaMovement();
+			EPM.LOGGER.info(
+					"[EPM/ExhaustionPose] tick={} lowWindow={} efMode={} efStamina={} efExhausted={} parcoolStamina={} parcoolExhausted={} sprinting={} crouching={} swimming={} onGround={} inWater={} inWaterOrBubble={} inaction={} animation={} efxIdle={} delta=({}, {}, {})",
+					Integer.valueOf(player.tickCount),
+					Boolean.valueOf(lowStaminaWindow),
+					Boolean.valueOf(playerPatch != null && playerPatch.isEpicFightMode()),
+					Float.valueOf(epicFightStamina),
+					Boolean.valueOf(epicFightExhausted),
+					Integer.valueOf(parcoolStaminaValue),
+					Boolean.valueOf(parcoolExhausted),
+					Boolean.valueOf(player.isSprinting()),
+					Boolean.valueOf(player.isCrouching()),
+					Boolean.valueOf(player.isSwimming()),
+					Boolean.valueOf(player.onGround()),
+					Boolean.valueOf(player.isInWater()),
+					Boolean.valueOf(player.isInWaterOrBubble()),
+					Boolean.valueOf(playerPatch != null && playerPatch.getEntityState().inaction()),
+					animationName,
+					Boolean.valueOf(efxIdle),
+					Double.valueOf(movement.x()),
+					Double.valueOf(movement.y()),
+					Double.valueOf(movement.z())
+			);
+		}
+
+		EXHAUSTION_POSE_SNAPSHOTS.put(player, new ExhaustionPoseSnapshot(
+				animationName,
+				parcoolExhausted,
+				epicFightExhausted,
+				player.isSprinting(),
+				player.isCrouching(),
+				player.isSwimming(),
+				recentLowTicks,
+				lastLogTick
+		));
+	}
+
+	private static IStamina safeParCoolStamina(Player player) {
+		try {
+			return IStamina.get(player);
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
+	private static float safeEpicFightStamina(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null) {
+			return -1.0F;
+		}
+
+		try {
+			return playerPatch.getStamina();
+		} catch (RuntimeException | LinkageError ignored) {
+			return -1.0F;
+		}
+	}
+
 	private static void applyClimbUpLateralAirControl(Player player, int direction) {
 		double velocity = EPMConfig.epicParCoolClimbUpLateralAirControlVelocity();
 		if (velocity <= 0.0D) {
@@ -1618,5 +1720,16 @@ public final class EPMClientHooks {
 			boolean pause,
 			AnimatorControlPacket.Layer layer,
 			AnimatorControlPacket.Priority priority) {
+	}
+
+	private record ExhaustionPoseSnapshot(
+			String animationName,
+			boolean parcoolExhausted,
+			boolean epicFightExhausted,
+			boolean sprinting,
+			boolean crouching,
+			boolean swimming,
+			int recentLowTicks,
+			int lastLogTick) {
 	}
 }

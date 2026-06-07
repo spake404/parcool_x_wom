@@ -24,6 +24,7 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.DoubleValue PARCOOL_WALL_RUN_ANIMATION_TRANSITION;
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_WALL_RUN_STATE;
 	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
 	private static final ForgeConfigSpec.BooleanValue AQUA_MANEUVRE_FAST_SWIM_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE;
@@ -130,6 +131,10 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState")
 				.comment("Temporary debug option. true: logs Spider Techniques state when attack executability is checked.")
 				.define("debugSpiderTechniquesAttackState", false);
+		DEBUG_SPIDER_WALL_RUN_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugSpiderWallRunState")
+				.comment("Temporary debug option. true: logs detailed Spider Techniques wall-run state.")
+				.define("debugSpiderWallRunState", false);
 		builder.pop();
 
 		builder.push("Aqua Maneuvre");
@@ -275,6 +280,10 @@ public final class EPMConfig {
 
 	public static boolean debugSpiderTechniquesAttackState() {
 		return DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE.get();
+	}
+
+	public static boolean debugSpiderWallRunState() {
+		return DEBUG_SPIDER_WALL_RUN_STATE.get();
 	}
 
 	public static boolean aquaManeuvreFastSwimAnimation() {

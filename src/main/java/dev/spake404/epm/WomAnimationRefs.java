@@ -94,6 +94,18 @@ public final class WomAnimationRefs {
 		return safe(() -> ParCoolAnimations.BIPED_CAT_LEAP_PREPARATION);
 	}
 
+	static AssetAccessor<? extends StaticAnimation> epicParCoolFlipForward() {
+		return safe(() -> ParCoolAnimations.BIPED_FLIP_FOWARD);
+	}
+
+	static AssetAccessor<? extends StaticAnimation> epicParCoolClimbUp() {
+		return safe(() -> ParCoolAnimations.BIPED_CLIMB_UP);
+	}
+
+	static AssetAccessor<? extends StaticAnimation> epicParCoolClimbUpNoAction() {
+		return safe(() -> ParCoolAnimations.BIPED_CLIMB_UP_NO_ACTION);
+	}
+
 	static AssetAccessor<? extends StaticAnimation> epicParCoolWallJumpLeftStart() {
 		return safe(() -> ParCoolAnimations.BIPED_WALL_JUMP_LEFT_START);
 	}

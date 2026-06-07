@@ -110,8 +110,23 @@ public final class EPMEvents {
 		}
 	}
 
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void blockClimbUpDuringSpiderWallRun(ParCoolActionEvent.TryToStartEvent event) {
+		if (!(event.getAction() instanceof ClimbUp)) {
+			return;
+		}
+
+		if (WomSpiderWallRunHandler.shouldBlockParCoolClimbUp(event.getPlayer())) {
+			event.setCanceled(true);
+		}
+	}
+
 	@SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
 	public static void allowClimbUpFromEpicParCoolClingMove(ParCoolActionEvent.TryToStartEvent event) {
+		if (event.getAction() instanceof ClimbUp && WomSpiderWallRunHandler.shouldBlockParCoolClimbUp(event.getPlayer())) {
+			return;
+		}
+
 		if (event.getAction() instanceof ClimbUp && EPMClientHooks.shouldAllowClimbUpFromEpicParCoolClingMove(event.getPlayer())) {
 			EPM.LOGGER.debug("[ClingToCliffDebug] allowClimbUpFromEpicParCoolClingMove tick={}", Integer.valueOf(event.getPlayer().tickCount));
 			EPMClientHooks.markClimbUpFromEpicParCoolClingMove(event.getPlayer());

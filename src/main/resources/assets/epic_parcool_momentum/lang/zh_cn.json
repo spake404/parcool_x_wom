@@ -19,6 +19,7 @@
   "epic_parcool_momentum.configuration.parCoolWallRunAnimationTransition": "ParCool 跑墙动画过渡时间",
   "epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques": "学会 Spider Techniques 后禁用 ParCool 垂直蹬墙跑",
   "epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState": "调试 Spider Techniques 攻击状态",
+  "epic_parcool_momentum.configuration.debugSpiderWallRunState": "调试 Spider Techniques 跑墙状态",
   "epic_parcool_momentum.configuration.vaultHeightScale": "撑越高度乘数",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpVerticalVelocity": "EpicParCool ClimbUp 垂直速度",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlVelocity": "EpicParCool ClimbUp 横向空中移动速度",

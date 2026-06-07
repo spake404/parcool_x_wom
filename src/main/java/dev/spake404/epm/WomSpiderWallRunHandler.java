@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.input.KeyBindings;
+import com.alrex.parcool.common.action.impl.ClimbUp;
 import com.alrex.parcool.common.capability.Parkourability;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -27,6 +28,12 @@ import yesman.epicfight.world.capabilities.EpicFightCapabilities;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 import yesman.epicfight.world.entity.eventlistener.MovementInputEvent;
 
+/**
+ * PARCOOL 模式下的 WOM Spider Techniques 跑墙接管逻辑。
+ *
+ * 只有 {@link WomSpiderWallRunModeGate#canUseParCoolReplacement} 通过时，这个类才会接管移动：
+ * WOM 已安装、玩家已学习 Spider Techniques，并且 spiderTechniquesWallRunMode 为 PARCOOL。
+ */
 public final class WomSpiderWallRunHandler {
 	private static final float WALL_RUN_STAMINA_COST = 0.5F;
 	private static final double VERTICAL_FACING_DOT = 0.93D;
@@ -42,7 +49,6 @@ public final class WomSpiderWallRunHandler {
 	private static final int WALL_RUN_MODE_STICK_TICKS = 5;
 	private static final int WALL_RUN_MODE_SWITCH_CONFIRM_TICKS = 3;
 	private static final int PARCOOL_CORNER_TRANSFER_COOLDOWN_TICKS = 6;
-	private static final int GROUND_START_GRACE_TICKS = 2;
 	private static final int STALE_STATE_PROBE_INTERVAL_TICKS = 5;
 	private static final double PARCOOL_CAMERA_SIDE_SWITCH_DOT = 0.35D;
 	private static final double PARCOOL_CAMERA_SIDE_SWITCH_MARGIN = 0.1D;
@@ -61,36 +67,51 @@ public final class WomSpiderWallRunHandler {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
+		// 非 PARCOOL 模式下，这个 handler 不能持有 WOM 跑墙状态。
 		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
 			stopOwnedWallRun(player, playerPatch, wallRunKeyDown);
 			return;
 		}
 
 		if (isWomWallBackflipAnimation(playerPatch)) {
+			logWallRunState("tick_stop", "wall_backflip_animation", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
 			removeActiveWallRun(player, wallRunKeyDown);
 			NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
 			return;
 		}
 
 		if (isParCoolWallJumpActive(player) || isEpicParCoolWallJumpAnimation(playerPatch)) {
+			logWallRunState("tick_stop", "parcool_walljump", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
+			// ParCool 蹬墙跳优先级高于替换跑墙；这里清掉本类状态，避免跑墙动画残留。
 			suspendForParCoolWallJump(player, playerPatch, wallRunKeyDown);
 			return;
 		}
 
+		if (isParCoolClimbUpActive(player) || isEpicParCoolClimbUpAnimation(playerPatch)) {
+			logWallRunState("tick_stop", "parcool_climbup", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
+			// ParCool ClimbUp/翻越动画可能在 isDoing() 变 false 后继续播放，所以动作状态和动画都要检查。
+			suspendForParCoolClimbUp(player, playerPatch, wallRunKeyDown);
+			return;
+		}
+
 		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
+		logWallRunState("tick_head", "head", player, playerPatch, previous, wallRunKeyDown);
+		if (shouldStopBecauseLanded(player, previous)) {
+			logWallRunState("tick_stop", "landed", player, playerPatch, previous, wallRunKeyDown);
+			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_landed");
+			return;
+		}
+		// PARCOOL 替换模式使用 ParCool 跑墙键 + 前进键作为跑墙持续输入。
 		if (!wallRunKeyDown || !canAttemptWallRun(player, playerPatch)) {
+			logWallRunState("tick_stop", "inactive", player, playerPatch, previous, wallRunKeyDown);
 			stop(player, playerPatch, wallRunKeyDown);
 			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_inactive");
 			return;
 		}
 
-		if (shouldStopBecauseLanded(player, previous)) {
-			stop(player, playerPatch, wallRunKeyDown);
-			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_landed");
-			return;
-		}
-
 		if (handledMovementInputThisTick(player)) {
+			// MovementInputEvent 是主路径；tick 路径只补没有收到输入事件的帧。
 			return;
 		}
 
@@ -100,12 +121,14 @@ public final class WomSpiderWallRunHandler {
 
 		DecisionResult decisionResult = resolveWallRunDecision(player);
 		if (decisionResult == null || !canUseDecisionFromInput(player, decisionResult.decision())) {
+			logWallRunState("tick_stop", decisionResult == null ? "no_wall" : "input_rejected", player, playerPatch, previous, wallRunKeyDown);
 			stop(player, playerPatch, wallRunKeyDown);
 			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_no_wall");
 			return;
 		}
 
 		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch)) {
+			logWallRunState("tick_stop", "missing_local_patch", player, playerPatch, previous, wallRunKeyDown);
 			stop(player, playerPatch, wallRunKeyDown);
 			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_tick_missing_local_patch");
 			return;
@@ -113,7 +136,9 @@ public final class WomSpiderWallRunHandler {
 
 		boolean jumpHeld = previous == null ? isJumpKeyDown() : previous.jumpHeld();
 		applyWallRun(player, localPlayerPatch, decisionResult.decision(), jumpHeld);
-		ACTIVE_WALL_RUNS.put(player, nextWallRunState(player, previous, decisionResult, jumpHeld));
+		WallRunState next = nextWallRunState(player, previous, decisionResult, jumpHeld);
+		ACTIVE_WALL_RUNS.put(player, next);
+		logWallRunState("tick_apply", "apply", player, playerPatch, next, wallRunKeyDown);
 		NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
 	}
 
@@ -126,41 +151,57 @@ public final class WomSpiderWallRunHandler {
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
 		boolean wallRunKeyDown = isWallRunControlDown();
 		clearRestartGateIfKeyReleased(player, wallRunKeyDown);
+		// 返回 false 表示 DEFAULT/WOM 模式不由本类接管，保持 WOM/ParCool 原逻辑。
 		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
 			return false;
 		}
 		markMovementInputHandled(player);
 
 		if (isWomWallBackflipAnimation(playerPatch)) {
+			logWallRunState("input_stop", "wall_backflip_animation", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
 			removeActiveWallRun(player, wallRunKeyDown);
 			NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
 			return true;
 		}
 
 		if (isParCoolWallJumpActive(player) || isEpicParCoolWallJumpAnimation(playerPatch)) {
+			logWallRunState("input_stop", "parcool_walljump", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
+			// 让 ParCool 自己完成蹬墙跳，本帧不要重新写入 WOM Spider 跑墙状态。
 			suspendForParCoolWallJump(player, playerPatch, wallRunKeyDown);
 			return true;
 		}
 
-		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
-		if (!wallRunKeyDown || !canAttemptWallRun(player, playerPatch)) {
-			stop(player, playerPatch, wallRunKeyDown);
-			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_inactive");
+		if (isParCoolClimbUpActive(player) || isEpicParCoolClimbUpAnimation(playerPatch)) {
+			logWallRunState("input_stop", "parcool_climbup", player, playerPatch, ACTIVE_WALL_RUNS.get(player), wallRunKeyDown);
+			// ClimbUp 对替换跑墙是硬中断；否则翻越动画后可能接上旧的跑墙状态。
+			suspendForParCoolClimbUp(player, playerPatch, wallRunKeyDown);
 			return true;
 		}
 
+		WallRunState previous = ACTIVE_WALL_RUNS.get(player);
+		logWallRunState("input_head", "head", player, playerPatch, previous, wallRunKeyDown);
 		if (shouldStopBecauseLanded(player, previous)) {
+			logWallRunState("input_stop", "landed", player, playerPatch, previous, wallRunKeyDown);
 			stop(player, playerPatch, wallRunKeyDown);
 			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_landed");
 			return true;
 		}
 
+		if (!wallRunKeyDown || !canAttemptWallRun(player, playerPatch)) {
+			logWallRunState("input_stop", "inactive", player, playerPatch, previous, wallRunKeyDown);
+			stop(player, playerPatch, wallRunKeyDown);
+			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_inactive");
+			return true;
+		}
+
 		if (shouldWaitForWallRunKeyRelease(player)) {
+			logWallRunState("input_wait", "wait_key_release", player, playerPatch, previous, wallRunKeyDown);
 			return true;
 		}
 
 		DecisionResult decisionResult = resolveWallRunDecision(player);
 		if (decisionResult == null || !canUseDecisionFromInput(player, decisionResult.decision())) {
+			logWallRunState("input_stop", decisionResult == null ? "no_wall" : "input_rejected", player, playerPatch, previous, wallRunKeyDown);
 			stop(player, playerPatch, wallRunKeyDown);
 			WomSpiderWallSlideHandler.clearStaleWallState(player, playerPatch, "wallrun_input_no_wall");
 			return true;
@@ -169,13 +210,16 @@ public final class WomSpiderWallRunHandler {
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
 			boolean jumping = event.getMovementInput() != null && event.getMovementInput().jumping;
 			if (jumping && previous != null && !previous.jumpHeld()) {
+				logWallRunState("input_stop", "wall_backflip", player, playerPatch, previous, wallRunKeyDown);
 				triggerWallBackflip(player, localPlayerPatch, decisionResult.decision());
 				return true;
 			}
 
 			applyWallRun(player, localPlayerPatch, decisionResult.decision(), jumping);
-			previous = ACTIVE_WALL_RUNS.put(player, nextWallRunState(player, previous, decisionResult, jumping));
+			WallRunState next = nextWallRunState(player, previous, decisionResult, jumping);
+			previous = ACTIVE_WALL_RUNS.put(player, next);
 			logDecisionChange(player, previous == null ? null : previous.decision(), decisionResult.decision());
+			logWallRunState("input_apply", "apply", player, playerPatch, next, wallRunKeyDown);
 			NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
 		}
 		return true;
@@ -190,6 +234,24 @@ public final class WomSpiderWallRunHandler {
 		return player != null && ACTIVE_WALL_RUNS.containsKey(player);
 	}
 
+	public static boolean shouldBlockParCoolClimbUp(Player player) {
+		if (player == null || !player.isLocalPlayer() || player.onGround()) {
+			return false;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (!WomSpiderWallRunModeGate.canUseParCoolReplacement(player, playerPatch)) {
+			return false;
+		}
+
+		WallRunState active = ACTIVE_WALL_RUNS.get(player);
+		if (active != null && active.decision().mode() == WallRunMode.VERTICAL) {
+			return true;
+		}
+
+		return isWomVerticalWallRunAnimation(playerPatch);
+	}
+
 	static Direction activeWallDirection(Player player) {
 		WallRunState state = player == null ? null : ACTIVE_WALL_RUNS.get(player);
 		if (state == null) {
@@ -202,6 +264,7 @@ public final class WomSpiderWallRunHandler {
 		return player instanceof LocalPlayer
 				&& !player.isInWaterOrBubble()
 				&& !player.isFallFlying()
+				&& !player.onGround()
 				&& player.getVehicle() == null
 				&& playerPatch instanceof LocalPlayerPatch localPlayerPatch
 				&& localPlayerPatch.hasStamina(WALL_RUN_STAMINA_COST);
@@ -219,8 +282,43 @@ public final class WomSpiderWallRunHandler {
 
 	private static boolean shouldStopBecauseLanded(Player player, WallRunState previous) {
 		return previous != null
-				&& player.onGround()
-				&& player.tickCount - previous.lastUpdateTick() > GROUND_START_GRACE_TICKS;
+				&& (player.onGround() || hasGroundSupport(player));
+	}
+
+	private static boolean hasGroundSupport(Player player) {
+		return detectGroundSupport(player).present();
+	}
+
+	private static GroundSupport detectGroundSupport(Player player) {
+		Level level = player.level();
+		AABB supportBox = player.getBoundingBox()
+				.deflate(0.08D, 0.0D, 0.08D)
+				.move(0.0D, -0.08D, 0.0D);
+		int minX = (int) Math.floor(supportBox.minX);
+		int minY = (int) Math.floor(supportBox.minY);
+		int minZ = (int) Math.floor(supportBox.minZ);
+		int maxX = (int) Math.floor(supportBox.maxX);
+		int maxY = (int) Math.floor(supportBox.maxY);
+		int maxZ = (int) Math.floor(supportBox.maxZ);
+
+		for (BlockPos blockPos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
+			BlockState blockState = level.getBlockState(blockPos);
+			if (blockState.isAir()) {
+				continue;
+			}
+
+			VoxelShape collisionShape = blockState.getCollisionShape(level, blockPos);
+			if (collisionShape.isEmpty()) {
+				continue;
+			}
+
+			for (AABB collisionBox : collisionShape.toAabbs()) {
+				if (collisionBox.move(blockPos.getX(), blockPos.getY(), blockPos.getZ()).intersects(supportBox)) {
+					return new GroundSupport(true, blockPos.immutable(), String.valueOf(blockState.getBlock()));
+				}
+			}
+		}
+		return new GroundSupport(false, null, "none");
 	}
 
 	private static void markMovementInputHandled(Player player) {
@@ -852,6 +950,7 @@ public final class WomSpiderWallRunHandler {
 			return;
 		}
 
+		// 跑墙被我们主动结束时，如果玩家还按着跑墙键，需要松开后才能重新进入。
 		if (wallRunKeyDown) {
 			WALL_RUN_KEY_RELEASE_REQUIRED.put(player, Boolean.TRUE);
 		} else {
@@ -884,6 +983,10 @@ public final class WomSpiderWallRunHandler {
 				WomAnimationRefs.wallGlide());
 	}
 
+	private static boolean isWomVerticalWallRunAnimation(PlayerPatch<?> playerPatch) {
+		return WomAnimationRefs.isAny(currentBaseAnimation(playerPatch), WomAnimationRefs.wallRunning());
+	}
+
 	private static boolean shouldProbePassiveWallState(Player player) {
 		return player != null && player.tickCount % STALE_STATE_PROBE_INTERVAL_TICKS == 0;
 	}
@@ -895,6 +998,24 @@ public final class WomSpiderWallRunHandler {
 				WomAnimationRefs.epicParCoolWallJumpRightStart(),
 				WomAnimationRefs.epicParCoolWallJumpLeft(),
 				WomAnimationRefs.epicParCoolWallJumpRight());
+	}
+
+	private static boolean isEpicParCoolClimbUpAnimation(PlayerPatch<?> playerPatch) {
+		return WomAnimationRefs.isAny(
+				currentBaseAnimation(playerPatch),
+				WomAnimationRefs.epicParCoolFlipForward(),
+				WomAnimationRefs.epicParCoolClimbUp(),
+				WomAnimationRefs.epicParCoolClimbUpNoAction());
+	}
+
+	private static boolean isParCoolClimbUpActive(Player player) {
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			ClimbUp climbUp = parkourability == null ? null : parkourability.get(ClimbUp.class);
+			return climbUp != null && climbUp.isDoing();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
 	}
 
 	private static boolean isParCoolWallJumpActive(Player player) {
@@ -943,6 +1064,17 @@ public final class WomSpiderWallRunHandler {
 		}
 	}
 
+	private static void suspendForParCoolClimbUp(Player player, PlayerPatch<?> playerPatch, boolean wallRunKeyDown) {
+		removeActiveWallRun(player, wallRunKeyDown);
+		// 翻越/爬墙中断时即使没有活动跑墙状态，也要等玩家松开跑墙键后才允许重新触发。
+		markRestartGate(player, wallRunKeyDown);
+		NaturalSprinterFastRunHandler.cancelManualFastRunStepKey(player);
+		WomCompatBridge.instance().clearSpiderWallRunState(playerPatch);
+		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
+			stopWallRunAnimationsOnly(localPlayerPatch);
+		}
+	}
+
 	private static void stopWallRunAnimation(PlayerPatch<?> playerPatch) {
 		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch)) {
 			return;
@@ -971,6 +1103,56 @@ public final class WomSpiderWallRunHandler {
 		try {
 			playerPatch.stopPlaying(animation);
 		} catch (RuntimeException | LinkageError ignored) {
+		}
+	}
+
+	private static void logWallRunState(String phase, String reason, Player player, PlayerPatch<?> playerPatch, WallRunState state, boolean wallRunKeyDown) {
+		if (!EPMConfig.debugSpiderWallRunState() || player == null) {
+			return;
+		}
+
+		boolean wallRunAnimation = isWomWallRunAnimation(playerPatch);
+		if (state == null && !wallRunKeyDown && !wallRunAnimation && !shouldWaitForWallRunKeyRelease(player)) {
+			return;
+		}
+
+		GroundSupport groundSupport = detectGroundSupport(player);
+		EPM.LOGGER.info(
+				"[EPM/SpiderWallRun] phase={} reason={} tick={} active={} mode={} modeTicks={} pending={} pendingTicks={} missed={} lockedWall={} previousWall={} wallRunKeyDown={} rawWallRunKeyDown={} forwardDown={} jumpDown={} waitRelease={} canAttempt={} onGround={} groundSupport={} supportBlock={} supportPos={} pos={} delta={} bbMinY={} bbMaxY={} animation={} womState={}",
+				phase,
+				reason,
+				Integer.valueOf(player.tickCount),
+				Boolean.valueOf(state != null),
+				state == null ? "none" : state.decision().mode(),
+				Integer.valueOf(state == null ? 0 : state.modeTicks()),
+				state == null ? "none" : state.pendingMode(),
+				Integer.valueOf(state == null ? 0 : state.pendingModeTicks()),
+				Integer.valueOf(state == null ? 0 : state.missedContactTicks()),
+				state == null ? "none" : state.lockedWall(),
+				state == null ? "none" : state.previousWall(),
+				Boolean.valueOf(wallRunKeyDown),
+				Boolean.valueOf(isWallRunKeyDown()),
+				Boolean.valueOf(isForwardKeyDown()),
+				Boolean.valueOf(isJumpKeyDown()),
+				Boolean.valueOf(shouldWaitForWallRunKeyRelease(player)),
+				Boolean.valueOf(canAttemptWallRun(player, playerPatch)),
+				Boolean.valueOf(player.onGround()),
+				Boolean.valueOf(groundSupport.present()),
+				groundSupport.block(),
+				groundSupport.blockPos(),
+				player.position(),
+				player.getDeltaMovement(),
+				Double.valueOf(player.getBoundingBox().minY),
+				Double.valueOf(player.getBoundingBox().maxY),
+				currentBaseAnimation(playerPatch),
+				describeSpiderState(playerPatch));
+	}
+
+	private static String describeSpiderState(PlayerPatch<?> playerPatch) {
+		try {
+			return WomCompatBridge.instance().describeSpiderTechniquesState(playerPatch);
+		} catch (RuntimeException | LinkageError ignored) {
+			return "unavailable";
 		}
 	}
 
@@ -1067,6 +1249,9 @@ public final class WomSpiderWallRunHandler {
 	}
 
 	private record ForwardCornerContact(Direction wallDirection, WallContact contact) {
+	}
+
+	private record GroundSupport(boolean present, BlockPos blockPos, String block) {
 	}
 
 	private record WallRunState(WallRunDecision decision, int missedContactTicks, boolean jumpHeld, int modeTicks, WallRunMode pendingMode, int pendingModeTicks, Direction lockedWall, Direction previousWall, int cornerCooldownTicks, int lastUpdateTick) {

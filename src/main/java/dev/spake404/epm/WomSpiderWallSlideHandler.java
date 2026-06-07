@@ -3,6 +3,7 @@ package dev.spake404.epm;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.input.KeyBindings;
+import com.alrex.parcool.common.action.impl.WallSlide;
 import com.alrex.parcool.common.capability.Animation;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.utilities.WorldUtil;
@@ -31,6 +32,7 @@ public final class WomSpiderWallSlideHandler {
 	private static final int STALE_STATE_PROBE_INTERVAL_TICKS = 5;
 	private static final WeakHashMap<Player, WallSlideState> ACTIVE_WALL_SLIDES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> LAST_STALE_STATE_CLEAR_LOG_TICK = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> LAST_RIGHT_CLICK_PRIORITY_SKIP_LOG_TICK = new WeakHashMap<>();
 
 	private WomSpiderWallSlideHandler() {
 	}
@@ -58,6 +60,13 @@ public final class WomSpiderWallSlideHandler {
 
 		if (!isWallSlideControlDown() || !canSlideNow(player)) {
 			clearStaleWallState(player, playerPatch, "slide_input_inactive", false);
+			return;
+		}
+
+		String blockingAction = ParCoolRightClickActionPriority.blockingAction(player, isParCoolWallSlideKeyDown());
+		if (blockingAction != null) {
+			logRightClickPrioritySkip(player, blockingAction);
+			clearStaleWallState(player, playerPatch, "slide_right_click_priority_" + blockingAction, false);
 			return;
 		}
 
@@ -107,6 +116,7 @@ public final class WomSpiderWallSlideHandler {
 				&& player.isLocalPlayer()
 				&& isWallSlideControlDown()
 				&& canSlideNow(player)
+				&& ParCoolRightClickActionPriority.blockingAction(player, false) == null
 				&& wallDirection(player) != null;
 	}
 
@@ -118,19 +128,13 @@ public final class WomSpiderWallSlideHandler {
 				&& player.getVehicle() == null;
 	}
 
-	private static Object wallSlideAction(Player player) {
+	private static WallSlide wallSlideAction(Player player) {
 		try {
 			Parkourability parkourability = Parkourability.get(player);
-			Class<?> wallSlideClass = parCoolActionClass("com.alrex.parcool.common.action.impl.WallSlide");
-			return parkourability == null || wallSlideClass == null ? null : parCoolAction(parkourability, wallSlideClass);
+			return parkourability == null ? null : parkourability.get(WallSlide.class);
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static Object parCoolAction(Parkourability parkourability, Class<?> actionClass) {
-		return parkourability.get((Class) actionClass);
 	}
 
 	private static Vec3 wallDirection(Player player) {
@@ -146,25 +150,38 @@ public final class WomSpiderWallSlideHandler {
 		}
 	}
 
-	private static Class<?> parCoolActionClass(String className) {
+	private static Vec3 leanedWallDirection(WallSlide wallSlide) {
+		if (wallSlide == null || !wallSlide.isDoing()) {
+			return null;
+		}
+
 		try {
-			return Class.forName(className, false, WomSpiderWallSlideHandler.class.getClassLoader());
-		} catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
+			return wallSlide.getLeanedWallDirection();
+		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
 	}
 
-	private static Vec3 leanedWallDirection(Object wallSlide) {
-		if (wallSlide == null) {
-			return null;
+	private static void logRightClickPrioritySkip(Player player, String blockingAction) {
+		if (player == null || !EPMConfig.debugSpiderWallRunState()) {
+			return;
 		}
 
-		try {
-			Object value = wallSlide.getClass().getMethod("getLeanedWallDirection").invoke(wallSlide);
-			return value instanceof Vec3 vec3 ? vec3 : null;
-		} catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
-			return null;
+		Integer lastTick = LAST_RIGHT_CLICK_PRIORITY_SKIP_LOG_TICK.get(player);
+		if (lastTick != null && player.tickCount - lastTick.intValue() < 10) {
+			return;
 		}
+
+		LAST_RIGHT_CLICK_PRIORITY_SKIP_LOG_TICK.put(player, Integer.valueOf(player.tickCount));
+		EPM.LOGGER.debug(
+				"[WomSpiderWallSlide] yield action={} tick={} wallSlideKeyDown={} wallRunKeyDown={} forwardDown={} delta={} onGround={}",
+				blockingAction,
+				Integer.valueOf(player.tickCount),
+				Boolean.valueOf(isParCoolWallSlideKeyDown()),
+				Boolean.valueOf(isWallRunKeyDown()),
+				Boolean.valueOf(isForwardKeyDown()),
+				player.getDeltaMovement(),
+				Boolean.valueOf(player.onGround()));
 	}
 
 	private static boolean isWallSlideControlDown() {

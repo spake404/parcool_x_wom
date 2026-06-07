@@ -43,6 +43,16 @@ public final class WomSpiderWallRunModeGate {
 				&& EPMConfig.womSpiderWallRunMode();
 	}
 
+	public static boolean shouldDisableParCoolWallSlideAction(Player player) {
+		if (player == null) {
+			return false;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		return hasSpiderWallRunModeContext(player, playerPatch)
+				&& (EPMConfig.parCoolSpiderWallRunMode() || EPMConfig.womSpiderWallRunMode());
+	}
+
 	public static boolean canStabilizeOriginalWomWallRun(Player player, PlayerPatch<?> playerPatch) {
 		return hasSpiderWallRunModeContext(player, playerPatch)
 				&& (EPMConfig.defaultSpiderWallRunMode() || EPMConfig.womSpiderWallRunMode());

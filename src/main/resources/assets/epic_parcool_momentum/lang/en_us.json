@@ -20,6 +20,7 @@
   "epic_parcool_momentum.configuration.parCoolWallRunAnimationTransition": "ParCool wall-run animation transition time",
   "epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques": "Disable ParCool vertical wall run with Spider Techniques",
   "epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState": "Debug Spider Techniques attack state",
+  "epic_parcool_momentum.configuration.debugSpiderWallRunState": "Debug Spider Techniques wall-run state",
   "epic_parcool_momentum.configuration.aquaManeuvreFastSwimAnimation": "Aqua Maneuvre FastSwim animation",
   "epic_parcool_momentum.configuration.debugAquaManeuvreFastSwimState": "Debug Aqua Maneuvre FastSwim state",
   "epic_parcool_momentum.configuration.vaultHeightScale": "Vault height scale",

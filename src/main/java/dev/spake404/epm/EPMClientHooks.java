@@ -189,6 +189,11 @@ public final class EPMClientHooks {
 		}
 
 		Player player = playerPatch.getOriginal();
+		if (shouldStopFastRunForGlider(player)) {
+			suppressFastRunAnimationForGlider(player);
+			return;
+		}
+
 		if (shouldDelayNaturalSprinterDashForBreakfall(player)) {
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.putIfAbsent(player, Integer.valueOf(player.tickCount));
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.put(player, animation);
@@ -418,6 +423,27 @@ public final class EPMClientHooks {
 		return player != null && TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player);
 	}
 
+	public static boolean shouldStopFastRunForGlider(Player player) {
+		return player != null && player.isLocalPlayer() && GliderCompat.isGlidingWithActiveGlider(player);
+	}
+
+	public static void suppressFastRunAnimationForGlider(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
+		NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.remove(player);
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (playerPatch != null) {
+			NaturalSprinterState.suppress(playerPatch);
+			PENDING_FAST_RUN_DASHES.remove(playerPatch);
+		}
+
+		clearParCoolAnimator(player);
+	}
+
 	public static boolean shouldPreserveFastRunAfterTaczShoot(Player player, IStamina stamina) {
 		return shouldRestoreFastRunAfterTaczShoot(player, stamina);
 	}
@@ -575,6 +601,10 @@ public final class EPMClientHooks {
 		WomSpiderWallHooks.tickYawLock(event.player);
 		logExhaustionPose(event.player);
 
+		if (shouldStopFastRunForGlider(event.player)) {
+			suppressFastRunAnimationForGlider(event.player);
+		}
+
 		cancelWallJumpForHeldTaczAttack(event.player);
 		if (TACZ_SHOOT_ACTIVE.containsKey(event.player) || TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(event.player)) {
 			tickTaczShootStopFastRunDashSuppression(event.player);
@@ -673,6 +703,14 @@ public final class EPMClientHooks {
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (shouldStopFastRunForGlider(player)) {
+			if (playerPatch != null) {
+				PENDING_FAST_RUN_DASHES.remove(playerPatch);
+			}
+			suppressFastRunAnimationForGlider(player);
+			return;
+		}
+
 		if (isPhantomAscentAirborneLocked(player)) {
 			if (playerPatch != null) {
 				PENDING_FAST_RUN_DASHES.remove(playerPatch);

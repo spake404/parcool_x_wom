@@ -9,6 +9,7 @@ public final class EPMConfig {
 	public static final ForgeConfigSpec SPEC;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_ANIMATIONS;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_MANUAL_STEP;
+	private static final ForgeConfigSpec.BooleanValue FAST_RUN_START_STEP_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue AUTO_FAST_RUN_DASH;
 	private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TACZ_BAREHAND_SPRINT_TYPES;
 	private static final ForgeConfigSpec.BooleanValue CAT_LEAP_PRIMES_PHANTOM_ASCENT;
@@ -48,6 +49,12 @@ public final class EPMConfig {
 						"true: pressing the configured Natural Sprinter Step key can trigger a step during EpicParCool FastRun.",
 						"This only works when naturalSprinterAnimations is also true.")
 				.define("naturalSprinterManualStep", true);
+		FAST_RUN_START_STEP_ANIMATION = builder
+				.translation("epic_parcool_momentum.configuration.fastRunStartStepAnimation")
+				.comment(
+						"true: entering EpicParCool FastRun from sprint can trigger the Natural Sprinter step/dash startup animation.",
+						"false: keeps FastRun and its loop animation, but disables only this automatic startup step.")
+				.define("fastRunStartStepAnimation", true);
 		AUTO_FAST_RUN_DASH = builder
 				.translation("epic_parcool_momentum.configuration.autoFastRunDash")
 				.comment(
@@ -202,6 +209,10 @@ public final class EPMConfig {
 
 	public static boolean naturalSprinterManualStep() {
 		return NATURAL_SPRINTER_MANUAL_STEP.get();
+	}
+
+	public static boolean fastRunStartStepAnimation() {
+		return FAST_RUN_START_STEP_ANIMATION.get();
 	}
 
 	public static boolean isTaczBarehandSprintType(String gunType) {

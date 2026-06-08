@@ -2,6 +2,7 @@
   "modmenu.descriptionTranslation.epic_parcool_momentum": "Momentum-focused compatibility for Epic Fight, ParCool, EpicParCool, and optional addon integrations.",
   "epic_parcool_momentum.configuration.naturalSprinterAnimations": "Natural Sprinter animations",
   "epic_parcool_momentum.configuration.naturalSprinterManualStep": "Natural Sprinter R-key step",
+  "epic_parcool_momentum.configuration.fastRunStartStepAnimation": "FastRun startup step animation",
   "epic_parcool_momentum.configuration.autoFastRunDash": "Auto FastRun dash",
   "epic_parcool_momentum.configuration.taczBarehandSprintTypes": "TaCZ barehand sprint gun types",
   "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "CatLeap primes Phantom Ascent",

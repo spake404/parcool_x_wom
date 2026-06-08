@@ -2,6 +2,7 @@
   "modmenu.descriptionTranslation.epic_parcool_momentum": "面向 Epic Fight、ParCool、EpicParCool 和可选附属模组的动量衔接兼容。",
   "epic_parcool_momentum.configuration.naturalSprinterAnimations": "Natural Sprinter Animation \u52a8\u753b",
   "epic_parcool_momentum.configuration.naturalSprinterManualStep": "Natural Sprinter R \u952e\u4e3b\u52a8\u8de8\u6b65",
+  "epic_parcool_momentum.configuration.fastRunStartStepAnimation": "\u542f\u7528 FastRun \u8d77\u624b\u8de8\u6b65\u52a8\u753b",
   "epic_parcool_momentum.configuration.autoFastRunDash": "自动触发疾跑冲刺",
   "epic_parcool_momentum.configuration.taczBarehandSprintTypes": "TaCZ 使用空手疾跑的枪种",
   "epic_parcool_momentum.configuration.catLeapPrimesPhantomAscent": "猫跳后可触发幻影跃升",

@@ -59,6 +59,13 @@ final class NaturalSprinterFastRunHandler {
 		}
 
 		PlayerPatch<?> playerPatch = event.getPlayerPatch();
+		if (EPMClientHooks.shouldStopFastRunForGlider(playerPatch.getOriginal())) {
+			clearFastRunState(playerPatch);
+			EPMClientHooks.suppressFastRunAnimationForGlider(playerPatch.getOriginal());
+			event.setMotion(LivingMotions.FALL);
+			return;
+		}
+
 		if (!NaturalSprinterState.hasNaturalSprinter(playerPatch) || !EPMConfig.naturalSprinterAnimations()) {
 			clearFastRunState(playerPatch);
 			event.setMotion(LivingMotions.RUN);
@@ -171,6 +178,10 @@ final class NaturalSprinterFastRunHandler {
 
 		if (!EPMConfig.autoFastRunDash()) {
 			return shouldTriggerManualFastRunDash(playerPatch);
+		}
+
+		if (!EPMConfig.fastRunStartStepAnimation()) {
+			return false;
 		}
 
 		return !wasFastRunActive && !EPMClientHooks.shouldSuppressAutoFastRunDashForTacz(playerPatch);

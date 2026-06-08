@@ -52,14 +52,14 @@ public final class EPMConfig {
 		FAST_RUN_START_STEP_ANIMATION = builder
 				.translation("epic_parcool_momentum.configuration.fastRunStartStepAnimation")
 				.comment(
-						"true: entering EpicParCool FastRun from sprint can trigger the Natural Sprinter step/dash startup animation.",
-						"false: keeps FastRun and its loop animation, but disables only this automatic startup step.")
+						"true: allows one startup step when entering FastRun.",
+						"false: entering FastRun never plays a startup step.")
 				.define("fastRunStartStepAnimation", true);
 		AUTO_FAST_RUN_DASH = builder
 				.translation("epic_parcool_momentum.configuration.autoFastRunDash")
 				.comment(
-						"true: auto trigger dash when entering EpicParCool FastRun.",
-						"false: only trigger dash when pressing ParCool's FastRun key.")
+						"true: when FastRun is entered by a non-manual path, it can still auto-trigger one startup step.",
+						"false: non-manual FastRun entry does not auto-trigger a startup step; only the manual FastRun key path can do it.")
 				.define("autoFastRunDash", true);
 		TACZ_BAREHAND_SPRINT_TYPES = builder
 				.translation("epic_parcool_momentum.configuration.taczBarehandSprintTypes")

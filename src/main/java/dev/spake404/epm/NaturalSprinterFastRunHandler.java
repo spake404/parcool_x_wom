@@ -161,7 +161,7 @@ final class NaturalSprinterFastRunHandler {
 		}
 
 		boolean wasFastRunActive = Boolean.TRUE.equals(FAST_RUN_ACTIVE.put(playerPatch, Boolean.TRUE));
-		if (!shouldTriggerNaturalSprinterDash(playerPatch, wasFastRunActive) || !playerPatch.hasStamina(2.0F)) {
+		if (!shouldPlayFastRunStartStep(playerPatch, wasFastRunActive) || !playerPatch.hasStamina(2.0F)) {
 			return;
 		}
 
@@ -171,16 +171,20 @@ final class NaturalSprinterFastRunHandler {
 		}
 	}
 
-	private static boolean shouldTriggerNaturalSprinterDash(PlayerPatch<?> playerPatch, boolean wasFastRunActive) {
+	private static boolean shouldPlayFastRunStartStep(PlayerPatch<?> playerPatch, boolean wasFastRunActive) {
 		if (!EPMConfig.naturalSprinterAnimations()) {
 			return false;
 		}
 
-		if (!EPMConfig.autoFastRunDash()) {
-			return shouldTriggerManualFastRunDash(playerPatch);
+		if (!EPMConfig.fastRunStartStepAnimation()) {
+			return false;
 		}
 
-		if (!EPMConfig.fastRunStartStepAnimation()) {
+		return shouldAutoTriggerFastRunDash(playerPatch, wasFastRunActive) || shouldTriggerManualFastRunDash(playerPatch);
+	}
+
+	private static boolean shouldAutoTriggerFastRunDash(PlayerPatch<?> playerPatch, boolean wasFastRunActive) {
+		if (!EPMConfig.autoFastRunDash()) {
 			return false;
 		}
 

@@ -59,10 +59,6 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
-    flatDir {
-        dirs 'libs'
-    }
-
     maven {
         name = 'ThreeTAG'
         url = 'https://repo.repsy.io/mvn/lucraft/threetag/'
@@ -73,27 +69,6 @@ repositories {
         content {
             includeGroup 'curse.maven'
         }
-    }
-}
-
-configurations {
-    glidersRaw
-}
-
-tasks.register('stripGlidersJarJar', Zip) {
-    group = 'forgegradle'
-    description = 'Strips nested JarJar dependencies from Gliders so ForgeGradle can remap them explicitly.'
-
-    dependsOn configurations.glidersRaw
-    archiveFileName = 'gliders-828331-7349611-no-jarjar-7349611.jar'
-    destinationDirectory = layout.projectDirectory.dir('libs')
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    from({
-        zipTree(configurations.glidersRaw.singleFile)
-    }) {
-        exclude 'META-INF/jarjar/**'
-        exclude 'META-INF/jars/**'
     }
 }
 
@@ -113,8 +88,7 @@ dependencies {
     implementation fg.deobf("curse.maven:epicfight-extra-1434276:7961244")
     implementation fg.deobf("curse.maven:whatimpressing-1194084:6238530")
 
-    glidersRaw "curse.maven:gliders-828331:7349611"
-    implementation fg.deobf("dev.local:gliders-828331-7349611-no-jarjar:7349611")
+    implementation fg.deobf("curse.maven:gliders-828331:7349611")
     implementation fg.deobf("net.threetag:PalladiumCore-forge:1.20-2.0.0.0:forge")
     implementation fg.deobf("curse.maven:playeranimator-658587:4587214")
 
@@ -125,7 +99,6 @@ dependencies {
 
 tasks.matching { it.name.startsWith('prepareRun') }.configureEach {
     dependsOn tasks.named('createSrgToMcp')
-    dependsOn tasks.named('stripGlidersJarJar')
 }
 
 tasks.named('processResources', ProcessResources).configure {

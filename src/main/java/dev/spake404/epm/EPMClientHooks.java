@@ -80,7 +80,7 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, GliderOpeningDelayState> GLIDER_OPENING_DELAY_STATES = new WeakHashMap<>();
 	private static final ResourceLocation HF_MURASAMA = ResourceLocation.fromNamespaceAndPath("efn", "hf_murasama");
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS = 10;
-	private static final int PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS = 12;
+	private static final int PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS = 13;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
 	private static final int WALL_JUMP_AUTO_SPRINT_DURATION_TICKS = 12;
 	private static final int TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS = 40;

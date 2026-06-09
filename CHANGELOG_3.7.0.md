@@ -5,7 +5,7 @@
 ### Gliders 与 Phantom Ascent
 
 - 新增 Gliders 兼容路径，用于处理 Phantom Ascent / 幻影跳跃启动时与滑翔伞同时触发的问题。
-- Phantom Ascent 启动后的前 12 tick 内，滑翔伞模型不会提前显示，Gliders 打开动画不会提前开始，玩家身体的 gliding 动画也会被延迟。
+- Phantom Ascent 启动后的前 13 tick 内，滑翔伞模型不会提前显示，Gliders 打开动画不会提前开始，玩家身体的 gliding 动画也会被延迟。
 - 延迟窗口结束后，Gliders 会恢复自己的原生打开流程，并从头播放滑翔伞打开动画。
 - 该逻辑只在本地玩家、Gliders active、且当前 Epic Fight 动作为 Phantom Ascent 时生效，不会影响普通滑翔伞使用。
 
@@ -26,7 +26,7 @@
 ### Gliders And Phantom Ascent
 
 - Added a Gliders compatibility path for cases where Phantom Ascent and the glider are triggered at the same time.
-- During the first 12 ticks of Phantom Ascent startup, the glider model is hidden, the Gliders opening animation is not started, and the player's gliding animation is delayed.
+- During the first 13 ticks of Phantom Ascent startup, the glider model is hidden, the Gliders opening animation is not started, and the player's gliding animation is delayed.
 - After the delay window ends, Gliders resumes its native opening flow and plays the glider opening animation from the beginning.
 - The delay only applies to the local player while Gliders is active and the current Epic Fight animation is Phantom Ascent, so normal glider usage is not affected.
 

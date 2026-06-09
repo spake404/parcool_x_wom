@@ -77,8 +77,10 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, AssetAccessor<? extends StaticAnimation>> NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, SkillContainer> PHANTOM_ASCENT_CONTAINERS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, ExhaustionPoseSnapshot> EXHAUSTION_POSE_SNAPSHOTS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, GliderOpeningDelayState> GLIDER_OPENING_DELAY_STATES = new WeakHashMap<>();
 	private static final ResourceLocation HF_MURASAMA = ResourceLocation.fromNamespaceAndPath("efn", "hf_murasama");
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS = 10;
+	private static final int PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS = 12;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
 	private static final int WALL_JUMP_AUTO_SPRINT_DURATION_TICKS = 12;
 	private static final int TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS = 40;
@@ -526,6 +528,7 @@ public final class EPMClientHooks {
 		PhantomAscentAirAttackState.mark(player);
 		PHANTOM_ASCENT_STARTED_TICKS.put(player, Integer.valueOf(player.tickCount));
 		PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.put(player, Boolean.TRUE);
+		clearGliderOpeningDelayState(player);
 		EPMNetwork.sendPhantomAscentAirAttackWindow();
 	}
 
@@ -565,6 +568,52 @@ public final class EPMClientHooks {
 
 		cancelPhantomAscentForAirAttack(localPlayerPatch);
 		return false;
+	}
+
+	public static boolean shouldDelayGliderOpeningAnimation(net.minecraft.world.entity.LivingEntity entity) {
+		if (!(entity instanceof Player player) || !player.isLocalPlayer()) {
+			return false;
+		}
+
+		if (!isGliderOpeningDelayWindowActive(player)) {
+			clearGliderOpeningDelayState(player);
+			return false;
+		}
+
+		if (!GliderCompat.isGlidingWithActiveGlider(player)) {
+			clearGliderOpeningDelayState(player);
+			return false;
+		}
+
+		GliderOpeningDelayState state = GLIDER_OPENING_DELAY_STATES.get(player);
+		if (state != null && state.checkedTick == player.tickCount) {
+			return state.delay;
+		}
+
+		boolean delay = computeGliderOpeningDelay(player);
+		if (state == null) {
+			state = new GliderOpeningDelayState();
+			GLIDER_OPENING_DELAY_STATES.put(player, state);
+		}
+
+		state.checkedTick = player.tickCount;
+		state.delay = delay;
+		return state.delay;
+	}
+
+	private static boolean computeGliderOpeningDelay(Player player) {
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		return playerPatch != null
+				&& WomAnimationRefs.isAny(currentBaseAnimation(playerPatch), WomAnimationRefs.bipedPhantomAscentForward(), WomAnimationRefs.bipedPhantomAscentBackward());
+	}
+
+	private static boolean isGliderOpeningDelayWindowActive(Player player) {
+		Integer startTick = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		return startTick != null && player.tickCount - startTick.intValue() < PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS;
+	}
+
+	private static void clearGliderOpeningDelayState(Player player) {
+		GLIDER_OPENING_DELAY_STATES.remove(player);
 	}
 
 	private static void tickDelayedPhantomAscentAirAttack(Player player) {
@@ -948,6 +997,7 @@ public final class EPMClientHooks {
 		PHANTOM_ASCENT_STARTED_TICKS.remove(player);
 		DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.remove(player);
 		PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.remove(player);
+		clearGliderOpeningDelayState(player);
 	}
 
 	private static void cancelPhantomAscentForAirAttack(LocalPlayerPatch playerPatch) {
@@ -1769,5 +1819,10 @@ public final class EPMClientHooks {
 			boolean swimming,
 			int recentLowTicks,
 			int lastLogTick) {
+	}
+
+	private static final class GliderOpeningDelayState {
+		private int checkedTick = Integer.MIN_VALUE;
+		private boolean delay;
 	}
 }

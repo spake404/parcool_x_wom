@@ -1,12 +1,88 @@
-# Epic ParCool: Momentum 3.x 使用者更新汇总
+# Epic ParCool: Momentum 3.x 使用者更新汇总 / User Update Summary
 
-本文汇总从 3.0 系列开始到当前 3.3.0 分支的主要功能性更新，面向玩家、整合包作者和配置维护者。内部重构、调试日志和实现细节不在这里展开。
+本文汇总从 3.0 系列开始到当前 3.7.0 分支的主要功能性更新，面向玩家、整合包作者和配置维护者。内部重构、调试日志和实现细节不在这里展开。
 
-## 当前开发中
+This file summarizes the main user-facing updates from the 3.0 series through the current 3.7.0 branch. It is intended for players, modpack authors, and configuration maintainers.
+
+## 3.7.0
+
+### 中文
+
+#### Gliders 与 Phantom Ascent
+
+- 新增 Gliders 兼容路径，处理 Phantom Ascent / 幻影跳跃启动时与滑翔伞同时触发的问题。
+- Phantom Ascent 启动后的前 12 tick 内，滑翔伞模型、Gliders 打开动画和玩家身体 gliding 动画都会延迟。
+- 延迟窗口结束后，Gliders 会恢复自己的原生打开流程，并从头播放滑翔伞打开动画。
+- 该逻辑只在本地玩家、Gliders active、且当前 Epic Fight 动作为 Phantom Ascent 时生效，不影响普通滑翔伞使用。
+
+#### 代码与性能
+
+- Gliders 相关 mixin 只会在 `vc_gliders` 安装时加载。
+- 滑翔伞延迟判断按玩家 tick 缓存，减少同一 tick 内重复查询 Epic Fight capability 和当前动画。
+- 移除临时动画调试日志，避免正常游玩时产生额外日志开销。
+
+### English
+
+#### Gliders And Phantom Ascent
+
+- Added a Gliders compatibility path for cases where Phantom Ascent and the glider are triggered at the same time.
+- During the first 12 ticks of Phantom Ascent startup, the glider model, Gliders opening animation, and player gliding animation are delayed.
+- After the delay window ends, Gliders resumes its native opening flow and plays the opening animation from the beginning.
+- The delay only applies to the local player while Gliders is active and the current Epic Fight animation is Phantom Ascent, so normal glider usage is not affected.
+
+#### Code And Performance
+
+- Gliders mixins are loaded only when `vc_gliders` is installed.
+- Glider delay checks are cached per player tick to reduce repeated Epic Fight capability and current-animation lookups in the same tick.
+- Temporary animation debug logging was removed to avoid normal gameplay log overhead.
+
+## 3.6.0
+
+### 中文
+
+#### Spider Techniques 跑墙与滑墙
+
+- 优化 ParCool 模式下的 WOM 风格滑墙输入优先级。
+- 修复鼠标右键滑墙会抢占 ParCool 其他右键动作的问题。
+- 在 Spider Techniques 替换模式下停用 ParCool 原版 WallSlide 动作本体，避免两个滑墙系统同时争抢移动与动画状态。
+- 改进跑墙、滑墙、落地和 ClimbUp / Vault 类动作之间的互斥逻辑，减少状态残留。
+
+#### 代码与性能
+
+- 整理右键动作优先级判断为独立模块。
+- 优化滑墙右键让位检测，复用临时缓冲区，减少每 tick 对象分配。
+- 移除滑墙方向读取中的反射访问，改为直接读取 ParCool WallSlide 状态。
+
+### English
+
+#### Spider Techniques Wall Run And Wall Slide
+
+- Improved right-click priority for WOM-style wall slide in ParCool mode.
+- Fixed cases where right-click wall slide could block other ParCool right-click actions.
+- Disabled ParCool's original WallSlide action body in Spider Techniques replacement modes to prevent two wall-slide systems from fighting over movement and animations.
+- Improved mutual exclusion between wall run, wall slide, landing, and ClimbUp / Vault-style transitions to reduce lingering states.
+
+#### Code And Performance
+
+- Moved right-click action priority checks into a dedicated helper module.
+- Reused a temporary action-start buffer for wall-slide yield checks to reduce per-tick allocations.
+- Removed reflective WallSlide direction access and switched to direct ParCool WallSlide state reads.
+
+## 3.5.0
+
+### 中文
 
 - 新增配置：默认禁止在水下游泳时使用 Epic Fight 的 Phantom Ascent / 幻影跳跃。
 - 如果希望保留原本水下也能触发幻影跳跃的行为，可以关闭 `disablePhantomAscentUnderwaterSwimming`。
 - 该限制只影响“水下游泳姿态”中的幻影跳跃，不影响地面、空中或普通出水/入水时的正常使用。
+- 新增 3.x 功能汇总 changelog 和 3.0 系列跑墙专题 changelog，方便玩家和整合包作者快速了解版本变化。
+
+### English
+
+- Added `disablePhantomAscentUnderwaterSwimming`, enabled by default, to prevent Epic Fight Phantom Ascent from being triggered while the player is in the underwater swimming pose.
+- Players who want to keep the older underwater Phantom Ascent behavior can disable `disablePhantomAscentUnderwaterSwimming`.
+- The restriction only affects underwater swimming posture and does not change normal ground, air, water-entry, or water-exit Phantom Ascent usage.
+- Added a 3.x user-facing changelog summary and a dedicated 3.0 wall-run changelog for players and modpack authors.
 
 ## 3.3.0
 

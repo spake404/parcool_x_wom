@@ -17,6 +17,7 @@ Optional compatibility:
 
 - Weapons of Miracles
 - TaCZ
+- Gliders
 - Tijn's Epic Arsenal
 - Epic Fight Invincible
 - EpicFight Nightfall
@@ -32,6 +33,7 @@ Optional compatibility:
 | TaCZ compatibility | Lets TaCZ shooting interrupt sprint and WallJump, restores FastRun after shooting when appropriate, and avoids unwanted Natural Sprinter dash steps around reload/shoot timing. |
 | Phantom Ascent follow-ups | Allows CatLeap, WallJump, and Spider Techniques wall jump to open a short Phantom Ascent follow-up window. |
 | Aerial attack transitions | Lets CatLeap, WallJump, Spider Techniques wall jump, and Phantom Ascent flow into Epic Fight aerial attacks while preserving normal ground attack behavior. |
+| Gliders compatibility | Delays Gliders model rendering, opening animation, and player gliding animation during Phantom Ascent startup so both actions no longer visually trigger on the same frame. |
 | ClingToCliff / ClimbUp improvements | Makes EpicParCool ClimbUp more reliable after cling movement and corner movement, with configurable vertical and lateral compensation. |
 | WallJump improvements | Adds configurable sprint restoration, TaCZ shooting interruption, aerial attack windows, Phantom Ascent chaining, and fall-protection thresholds. |
 | Vault tuning | Adds a configurable ParCool Vault height scale for more stable three-block-air vaults. |
@@ -40,6 +42,14 @@ Optional compatibility:
 | Runtime performance | Keeps compatibility checks scoped to active states and avoids unnecessary per-tick work where possible. |
 
 ## Changelog
+
+### 3.7.0
+
+- Added Gliders compatibility for Phantom Ascent startup.
+- During the first 12 ticks of Phantom Ascent, Gliders model rendering, Gliders opening animation, and player gliding animation are delayed instead of starting on the same frame as Phantom Ascent.
+- After the startup window ends, Gliders resumes its native opening animation from the beginning.
+- Reduced runtime overhead by caching Gliders delay checks per player tick and removing temporary animation debug logging.
+- Full bilingual notes: [CHANGELOG_3.7.0.md](CHANGELOG_3.7.0.md).
 
 ### 3.2.1
 

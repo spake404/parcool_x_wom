@@ -14,6 +14,12 @@
 - 当玩家同时触发 Phantom Ascent 和 Gliders 时，优先表现 Phantom Ascent 的启动动作。
 - 避免二段跳启动帧中滑翔伞模型、滑翔伞打开动画和身体滑翔动画同时抢状态，减少动作衔接突兀感。
 
+### Natural Sprinter 与 FastRun
+
+- 整理 FastRun 启动跨步控制，进入 EpicParCool FastRun 时可以避免自动触发一次 Natural Sprinter 跨步。
+- `fastRunStartStepAnimation` 可以完全关闭 FastRun 启动跨步。
+- `autoFastRunDash` 可以只关闭非手动进入 FastRun 时的自动跨步，同时保留手动 FastRun 键和主动跨步路径。
+
 ### 代码与性能
 
 - Gliders 相关 mixin 只会在 `vc_gliders` 安装时加载。
@@ -34,6 +40,12 @@
 
 - When Phantom Ascent and Gliders are triggered together, Phantom Ascent now owns the startup visual priority.
 - This prevents the glider model, glider opening animation, and body gliding animation from fighting the Phantom Ascent startup on the same frame.
+
+### Natural Sprinter And FastRun
+
+- Cleaned up FastRun startup-step controls so entering EpicParCool FastRun can avoid automatically triggering one Natural Sprinter startup step.
+- `fastRunStartStepAnimation` can fully disable FastRun startup steps.
+- `autoFastRunDash` can disable only non-manual FastRun startup steps while preserving manual FastRun key and manual step paths.
 
 ### Code And Performance
 

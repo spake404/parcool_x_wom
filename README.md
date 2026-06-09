@@ -48,6 +48,7 @@ Optional compatibility:
 - Added Gliders compatibility for Phantom Ascent startup.
 - During the first 13 ticks of Phantom Ascent, Gliders model rendering, Gliders opening animation, and player gliding animation are delayed instead of starting on the same frame as Phantom Ascent.
 - After the startup window ends, Gliders resumes its native opening animation from the beginning.
+- Added clearer Natural Sprinter FastRun startup-step controls, allowing non-manual FastRun entry to avoid automatically triggering one startup step while preserving manual step paths.
 - Reduced runtime overhead by caching Gliders delay checks per player tick and removing temporary animation debug logging.
 - Full bilingual notes: [CHANGELOG_3.7.0.md](CHANGELOG_3.7.0.md).
 

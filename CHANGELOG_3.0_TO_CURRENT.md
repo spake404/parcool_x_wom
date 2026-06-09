@@ -21,6 +21,12 @@ This file summarizes the main user-facing updates from the 3.0 series through th
 - 滑翔伞延迟判断按玩家 tick 缓存，减少同一 tick 内重复查询 Epic Fight capability 和当前动画。
 - 移除临时动画调试日志，避免正常游玩时产生额外日志开销。
 
+#### Natural Sprinter 与 FastRun
+
+- 整理 FastRun 启动跨步控制，进入 EpicParCool FastRun 时可以避免自动触发一次 Natural Sprinter 跨步。
+- `fastRunStartStepAnimation` 可以完全关闭 FastRun 启动跨步。
+- `autoFastRunDash` 可以只关闭非手动进入 FastRun 时的自动跨步，同时保留手动 FastRun 键和主动跨步路径。
+
 ### English
 
 #### Gliders And Phantom Ascent
@@ -35,6 +41,12 @@ This file summarizes the main user-facing updates from the 3.0 series through th
 - Gliders mixins are loaded only when `vc_gliders` is installed.
 - Glider delay checks are cached per player tick to reduce repeated Epic Fight capability and current-animation lookups in the same tick.
 - Temporary animation debug logging was removed to avoid normal gameplay log overhead.
+
+#### Natural Sprinter And FastRun
+
+- Cleaned up FastRun startup-step controls so entering EpicParCool FastRun can avoid automatically triggering one Natural Sprinter startup step.
+- `fastRunStartStepAnimation` can fully disable FastRun startup steps.
+- `autoFastRunDash` can disable only non-manual FastRun startup steps while preserving manual FastRun key and manual step paths.
 
 ## 3.6.0
 

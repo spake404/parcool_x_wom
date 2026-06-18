@@ -13,7 +13,7 @@ import yesman.epicfight.api.animation.LivingMotion;
 public class EPM {
 	public static final String MODID = "epic_parcool_momentum";
 	public static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
-	
+
 	public EPM(FMLJavaModLoadingContext context) {
 		LivingMotion.ENUM_MANAGER.registerEnumCls(MODID, EpmLivingMotions.class);
 		context.getModEventBus().addListener(EpmAnimations::register);

@@ -26,6 +26,7 @@ public abstract class FastRunMixin {
 
 		if (EPMClientHooks.shouldKeepFastRunDuringVault(player)
 				|| EPMClientHooks.shouldKeepFastRunAfterWallJump(player, stamina)
+				|| EPMClientHooks.shouldKeepFastRunAfterNaturalSprinterStep(player, stamina)
 				|| EPMClientHooks.shouldRestoreFastRunAfterTaczShoot(player, stamina)) {
 			this.toggleStatus = true;
 			cir.setReturnValue(Boolean.TRUE);
@@ -41,8 +42,16 @@ public abstract class FastRunMixin {
 
 		if (EPMClientHooks.shouldPreserveFastRunToggleDuringVault(player)
 				|| EPMClientHooks.shouldPreserveFastRunToggleAfterWallJump(player, stamina)
+				|| EPMClientHooks.shouldKeepFastRunAfterNaturalSprinterStep(player, stamina)
 				|| EPMClientHooks.shouldPreserveFastRunAfterTaczShoot(player, stamina)) {
 			this.toggleStatus = true;
+		}
+	}
+
+	@Inject(method = "canActWithRunning", at = @At("RETURN"), cancellable = true, require = 0)
+	private void parcoolxwom$allowCloseVaultChainGrace(Player player, CallbackInfoReturnable<Boolean> cir) {
+		if (!Boolean.TRUE.equals(cir.getReturnValue()) && EPMClientHooks.shouldAllowFastRunForVaultGrace(player)) {
+			cir.setReturnValue(Boolean.TRUE);
 		}
 	}
 }

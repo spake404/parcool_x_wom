@@ -12,4 +12,9 @@ public abstract class WorldUtilMixin {
 	private static double parcoolxwom$useConfiguredVaultHeightScale(double original) {
 		return EPMConfig.vaultHeightScale();
 	}
+
+	@ModifyConstant(method = "getVaultableStep", constant = @Constant(doubleValue = 1.8D), require = 4)
+	private static double parcoolxwom$shortenVaultableStepTopClearanceScan(double original) {
+		return 1.5D;
+	}
 }

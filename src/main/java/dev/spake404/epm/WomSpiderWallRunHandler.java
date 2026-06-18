@@ -818,6 +818,7 @@ public final class WomSpiderWallRunHandler {
 
 	private static void applyWallRun(Player player, LocalPlayerPatch playerPatch, WallRunDecision decision, boolean jumpHeld) {
 		player.stopFallFlying();
+		EPMClientHooks.forceStopGliderForWallRun(player);
 		AssetAccessor<? extends StaticAnimation> animation = animationFor(decision);
 		if (animation != null) {
 			AssetAccessor<?> currentAnimation = currentBaseAnimation(playerPatch);
@@ -848,6 +849,7 @@ public final class WomSpiderWallRunHandler {
 
 	private static void triggerWallBackflip(Player player, LocalPlayerPatch playerPatch, WallRunDecision decision) {
 		player.stopFallFlying();
+		EPMClientHooks.markWomWallJumpForPhantomAscent(player);
 		stopWallRunAnimationsOnly(playerPatch);
 
 		AssetAccessor<? extends StaticAnimation> animation = WomAnimationRefs.wallBackflip();
@@ -889,11 +891,7 @@ public final class WomSpiderWallRunHandler {
 	}
 
 	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
 	private static void stop(Player player, PlayerPatch<?> playerPatch, boolean wallRunKeyDown) {

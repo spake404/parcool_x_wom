@@ -110,8 +110,8 @@ public final class ClingToCliffDebug {
 
 		Parkourability parkourability = Parkourability.get(player);
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		AssetAccessor<?> animation = currentAnimation(playerPatch);
-		ResourceLocation animationName = safeRegistryName(animation);
+		AssetAccessor<?> animation = AnimationQuery.currentAnimation(playerPatch);
+		ResourceLocation animationName = AnimationQuery.safeRegistryName(animation);
 		String path = animationName == null ? "" : animationName.getPath();
 		boolean epicParCoolAnimation = animationName != null && "epicparcool".equals(animationName.getNamespace());
 		boolean clingMoveAnimation = epicParCoolAnimation && path.startsWith("biped/cling_move_");
@@ -269,8 +269,8 @@ public final class ClingToCliffDebug {
 
 	private static void logClimbUpDecision(Player player, Parkourability parkourability, boolean originalResult) {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		AssetAccessor<?> animation = currentAnimation(playerPatch);
-		ResourceLocation animationName = safeRegistryName(animation);
+		AssetAccessor<?> animation = AnimationQuery.currentAnimation(playerPatch);
+		ResourceLocation animationName = AnimationQuery.safeRegistryName(animation);
 		String path = animationName == null ? "" : animationName.getPath();
 		boolean epicParCoolAnimation = animationName != null && "epicparcool".equals(animationName.getNamespace());
 		boolean clingMoveAnimation = epicParCoolAnimation && path.startsWith("biped/cling_move_");
@@ -533,32 +533,8 @@ public final class ClingToCliffDebug {
 	}
 
 	private static String currentAnimationName(PlayerPatch<?> playerPatch) {
-		AssetAccessor<?> animation = currentAnimation(playerPatch);
-		ResourceLocation registryName = safeRegistryName(animation);
+		AssetAccessor<?> animation = AnimationQuery.currentAnimation(playerPatch);
+		ResourceLocation registryName = AnimationQuery.safeRegistryName(animation);
 		return registryName == null ? "null" : String.valueOf(registryName);
-	}
-
-	private static AssetAccessor<?> currentAnimation(PlayerPatch<?> playerPatch) {
-		if (playerPatch == null) {
-			return null;
-		}
-
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
-	}
-
-	private static ResourceLocation safeRegistryName(AssetAccessor<?> animation) {
-		if (animation == null) {
-			return null;
-		}
-
-		try {
-			return animation.registryName();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
 	}
 }

@@ -55,6 +55,8 @@ interface WomCompat {
 
 	boolean isSpiderWallMovementActive(PlayerPatch<?> playerPatch);
 
+	boolean isSpiderWallBackflipActive(PlayerPatch<?> playerPatch);
+
 	void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot);
 
 	void clearSpiderWallRunState(PlayerPatch<?> playerPatch);

@@ -64,22 +64,40 @@ public final class WomParCoolWallJumpBridge {
 				.putDouble(wallDirection.x())
 				.putDouble(wallDirection.z())
 				.put(wallJumpAnimationType(wallDirection, jumpDirection));
+		EPMClientHooks.markWallRunToParCoolWallJumpGliderSuppress(player, "wallrun_parcool_glider_lock_candidate");
 		logFallback(player, wall, wallDirection, jumpDirection);
 		return true;
 	}
 
-	public static void onWallJumpStarted(Player player, ByteBuffer startData) {
+	public static void markNativeStartCandidate(WallJump wallJump, Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo) {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch)) {
+		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch)
+				|| wallJump == null
+				|| parkourability == null
+				|| stamina == null
+				|| !isWallJumpInputDone()
+				|| !isWomSideWallRunState(player, playerPatch)) {
 			return;
 		}
-		if (!isWomSideWallRunState(player, playerPatch)) {
+
+		EPMClientHooks.markWallRunToParCoolWallJumpGliderSuppress(player, "wallrun_parcool_glider_lock_native_candidate");
+		logNativeCandidate(player);
+	}
+
+	public static void onWallJumpStarted(Player player, ByteBuffer startData) {
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		boolean hasCandidate = EPMClientHooks.hasWallRunToParCoolWallJumpCandidate(player);
+		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch) && !hasCandidate) {
+			return;
+		}
+		if (!isWomSideWallRunState(player, playerPatch) && !hasCandidate) {
 			return;
 		}
 
 		byte animationType = wallJumpAnimationType(startData);
 		Direction activeWall = WomOriginalSpiderWallRunDirectionFix.activeWallDirection(player);
 		WomOriginalSpiderWallRunDirectionFix.releaseSideWallForParCoolWallJump(player, playerPatch);
+		EPMClientHooks.markWomWallRunToParCoolWallJumpStarted(player);
 		playEpicParCoolWallJumpAnimation(playerPatch, animationType);
 		logStarted(player, activeWall, animationType);
 	}
@@ -216,11 +234,7 @@ public final class WomParCoolWallJumpBridge {
 	}
 
 	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
 	private static float modelYaw(Player player, PlayerPatch<?> playerPatch) {
@@ -238,6 +252,15 @@ public final class WomParCoolWallJumpBridge {
 				wall,
 				wallDirection,
 				jumpDirection,
+				player.getDeltaMovement(),
+				WomCompatBridge.instance().describeSpiderTechniquesState(EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class)));
+	}
+
+	private static void logNativeCandidate(Player player) {
+		if (!EPM.LOGGER.isDebugEnabled() || !shouldLog(player)) {
+			return;
+		}
+		EPM.LOGGER.debug("[WomParCoolWallJump] nativeCandidate delta={} state={}",
 				player.getDeltaMovement(),
 				WomCompatBridge.instance().describeSpiderTechniquesState(EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class)));
 	}

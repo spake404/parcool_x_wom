@@ -232,11 +232,7 @@ public final class WomOriginalSpiderWallRunDirectionFix {
 	}
 
 	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
 	private static boolean isParCoolWallJumpActive(Player player, PlayerPatch<?> playerPatch) {

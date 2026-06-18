@@ -226,6 +226,25 @@ final class LoadedWomCompat implements WomCompat {
 	}
 
 	@Override
+	public boolean isSpiderWallBackflipActive(PlayerPatch<?> playerPatch) {
+		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
+		if (spiderTechniques == null) {
+			return false;
+		}
+
+		SkillDataManager dataManager = spiderTechniques.getDataManager();
+		Integer wallRunning = getData(dataManager, key(WOMSkillDataKeys.WALL_RUNNING));
+		Integer timer = getData(dataManager, key(WOMSkillDataKeys.TIMER));
+		Player player = playerPatch == null ? null : playerPatch.getOriginal();
+		return wallRunning != null
+				&& wallRunning.intValue() == -3
+				&& timer != null
+				&& timer.intValue() > 0
+				&& player != null
+				&& !player.onGround();
+	}
+
+	@Override
 	public void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot) {
 		SkillContainer spiderTechniques = findSpiderTechniques(playerPatch);
 		if (spiderTechniques == null) {

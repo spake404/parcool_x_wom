@@ -4,6 +4,7 @@ import com.alrex.parcool.api.unstable.action.ParCoolActionEvent;
 import com.alrex.parcool.common.action.impl.CatLeap;
 import com.alrex.parcool.common.action.impl.ClimbUp;
 import com.alrex.parcool.common.action.impl.ClingToCliff;
+import com.alrex.parcool.common.action.impl.Dodge;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.Vault;
 import com.alrex.parcool.common.action.impl.WallJump;
@@ -29,12 +30,14 @@ public final class EPMEvents {
 	public static void primeEpicParCoolFastRun(InitAnimatorEvent event) {
 		NaturalSprinterFastRunHandler.registerFastRunAnimation(event);
 		AquaManeuvreFastSwimHandler.registerFastSwimAnimation(event);
+		DemolitionLeapCatJumpHandler.registerChargeJumpAnimation(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void chooseFastRunAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
 		NaturalSprinterFastRunHandler.chooseFastRunAnimation(event);
 		AquaManeuvreFastSwimHandler.chooseFastSwimAnimation(event);
+		DemolitionLeapCatJumpHandler.chooseChargeJumpAnimation(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
@@ -111,6 +114,27 @@ public final class EPMEvents {
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void arbitrateDodgeStepConflict(ParCoolActionEvent.TryToStartEvent event) {
+		if (event.getAction() instanceof Dodge && NaturalSprinterDodgeStepArbiter.shouldCancelDodgeStart(event.getPlayer())) {
+			event.setCanceled(true);
+		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void arbitrateDodgeStepConflictModern(ParCoolActionEvent.TryToStart event) {
+		if (event.getAction() instanceof Dodge && NaturalSprinterDodgeStepArbiter.shouldCancelDodgeStart(event.getPlayer())) {
+			event.setCanceled(true);
+		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.LOWEST)
+	public static void rememberDodgeStartedForStepConflict(ParCoolActionEvent.Start.Post event) {
+		if (event.getAction() instanceof Dodge) {
+			NaturalSprinterDodgeStepArbiter.markDodgeStarted(event.getPlayer());
+		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void blockClimbUpDuringSpiderWallRun(ParCoolActionEvent.TryToStartEvent event) {
 		if (!(event.getAction() instanceof ClimbUp)) {
 			return;
@@ -176,6 +200,8 @@ public final class EPMEvents {
 		}
 
 		if (event.player.level().isClientSide()) {
+			DemolitionLeapCatJumpHandler.tickLocalPlayer(event);
+			DemolitionLeapAirJumpHandler.tickLocalPlayer(event);
 			EPMClientHooks.tickLocalPlayer(event);
 		}
 	}

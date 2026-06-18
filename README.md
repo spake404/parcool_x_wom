@@ -35,6 +35,7 @@ Optional compatibility:
 | Aerial attack transitions | Lets CatLeap, WallJump, Spider Techniques wall jump, and Phantom Ascent flow into Epic Fight aerial attacks while preserving normal ground attack behavior. |
 | Gliders compatibility | Delays Gliders model rendering, opening animation, and player gliding animation during Phantom Ascent startup so both actions no longer visually trigger on the same frame. |
 | ClingToCliff / ClimbUp improvements | Makes EpicParCool ClimbUp more reliable after cling movement and corner movement, with configurable vertical and lateral compensation. |
+| Demolition Leap integration | Replaces ParCool CatLeap/ChargeJump with Epic Fight Demolition Leap via Shift+Space, supports air double jump after launch, and optionally replaces ParCool charge animation with Demolition Leap's charging animation before learning the skill. |
 | WallJump improvements | Adds configurable sprint restoration, TaCZ shooting interruption, aerial attack windows, Phantom Ascent chaining, and fall-protection thresholds. |
 | Vault tuning | Adds a configurable ParCool Vault height scale for more stable three-block-air vaults. |
 | Spider Techniques compatibility | Reduces conflicts between WOM Spider Techniques and ParCool wall actions, including optional ParCool vertical wall-run disabling. |
@@ -42,6 +43,17 @@ Optional compatibility:
 | Runtime performance | Keeps compatibility checks scoped to active states and avoids unnecessary per-tick work where possible. |
 
 ## Changelog
+
+### 4.0.0
+
+- Added Demolition Leap Shift+Space input path, air double jump after launch, and charge animation replacement.
+- Before learning Demolition Leap, ParCool ChargeJump charging shows Epic Fight's Demolition Leap charging animation.
+- After learning Demolition Leap, pressing Shift alone disables ParCool ChargeJump at the source via `canStart` — Shift+Space triggers Demolition Leap through its native hold/release chain.
+- Added air double jump: after Demolition Leap launch, the next airborne jump press triggers Phantom Ascent.
+- Fixed CatLeap sprintJump animation not ending when falling into water after learning Natural Sprinter — now immediately cleaned up on `player.isInWater()`.
+- Three new config options: `demolitionLeapShiftSpaceReplacement`, `demolitionLeapAirDoubleJump`, `demolitionLeapChargeJumpAnimation`.
+- Charge animation is a standalone client-side registration, not inheriting Epic Fight's skill entity state, avoiding inaction flicker.
+- Full bilingual notes: [CHANGELOG_4.0.0.md](CHANGELOG_4.0.0.md).
 
 ### 3.7.0
 

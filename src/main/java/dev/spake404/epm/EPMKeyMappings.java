@@ -1,6 +1,7 @@
 package dev.spake404.epm;
 
 import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 
@@ -20,5 +21,9 @@ public final class EPMKeyMappings {
 
 	public static boolean isNaturalSprinterStepDown() {
 		return NATURAL_SPRINTER_STEP.isDown();
+	}
+
+	public static InputConstants.Key naturalSprinterStepKey() {
+		return NATURAL_SPRINTER_STEP.getKey();
 	}
 }

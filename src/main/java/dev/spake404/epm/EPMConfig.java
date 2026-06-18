@@ -9,6 +9,10 @@ public final class EPMConfig {
 	public static final ForgeConfigSpec SPEC;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_ANIMATIONS;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_MANUAL_STEP;
+	private static final ForgeConfigSpec.EnumValue<StepDodgeConflictMode> NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE;
+	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS;
+	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_DOUBLE_TAP_GAP_TICKS;
+	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS;
 	private static final ForgeConfigSpec.BooleanValue FAST_RUN_START_STEP_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue AUTO_FAST_RUN_DASH;
 	private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TACZ_BAREHAND_SPRINT_TYPES;
@@ -16,6 +20,9 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.DoubleValue PHANTOM_ASCENT_FALL_PROTECTION_DAMAGE_THRESHOLD;
 	private static final ForgeConfigSpec.BooleanValue DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING;
+	private static final ForgeConfigSpec.BooleanValue DEMOLITION_LEAP_SHIFT_SPACE_REPLACEMENT;
+	private static final ForgeConfigSpec.BooleanValue DEMOLITION_LEAP_AIR_DOUBLE_JUMP;
+	private static final ForgeConfigSpec.BooleanValue DEMOLITION_LEAP_CHARGE_JUMP_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue AUTO_SPRINT_AFTER_WALL_JUMP;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_AIR_ATTACK;
 	private static final ForgeConfigSpec.BooleanValue TACZ_SHOOT_DURING_WALL_JUMP;
@@ -26,7 +33,10 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue DISABLE_VERTICAL_WALL_RUN_WITH_SPIDER_TECHNIQUES;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_SPIDER_WALL_RUN_STATE;
+	private static final ForgeConfigSpec.BooleanValue FAST_RUN_VAULT_CHAIN_FIX;
 	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_VAULT_STATE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_GLIDER_STATE;
 	private static final ForgeConfigSpec.BooleanValue AQUA_MANEUVRE_FAST_SWIM_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY;
@@ -49,6 +59,28 @@ public final class EPMConfig {
 						"true: pressing the configured Natural Sprinter Step key can trigger a step during EpicParCool FastRun.",
 						"This only works when naturalSprinterAnimations is also true.")
 				.define("naturalSprinterManualStep", true);
+		NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE = builder
+				.translation("epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode")
+				.comment(
+						"Controls how Natural Sprinter Step and ParCool Dodge share one key.",
+						"When ParCool Dodge is disabled in ParCool settings, this option is ignored and the shared key behaves as Natural Sprinter Step.",
+						"disabled: do not arbitrate. Step and Dodge keep their normal behavior.",
+						"short_dodge_long_step: short press triggers Dodge; holding then releasing triggers Step. This is the default.",
+						"short_step_hold_dodge: short press triggers Step; holding triggers Dodge. Releasing after Dodge has fully ended can trigger Step.",
+						"single_step_double_dodge: single tap triggers Step after the double-tap window; double tap triggers Dodge.")
+				.defineEnum("naturalSprinterStepDodgeConflictMode", StepDodgeConflictMode.SHORT_DODGE_LONG_STEP);
+		NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.naturalSprinterStepDodgeLongPressTicks")
+				.comment("Ticks held before a shared Step/Dodge key counts as a long press. 6 ticks is about 300 ms at 20 TPS.")
+				.defineInRange("naturalSprinterStepDodgeLongPressTicks", 6, 1, 40);
+		NATURAL_SPRINTER_STEP_DODGE_DOUBLE_TAP_GAP_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.naturalSprinterStepDodgeDoubleTapGapTicks")
+				.comment("Maximum ticks between first release and second press for single_step_double_dodge. Single-tap Step is delayed by this window. Default 2 matches ParCool's native movement-key double-tap window.")
+				.defineInRange("naturalSprinterStepDodgeDoubleTapGapTicks", 2, 1, 20);
+		NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.naturalSprinterStepDodgeFirstTapMaxTicks")
+				.comment("Maximum held ticks for the first tap to be eligible for double-tap Dodge.")
+				.defineInRange("naturalSprinterStepDodgeFirstTapMaxTicks", 5, 1, 40);
 		FAST_RUN_START_STEP_ANIMATION = builder
 				.translation("epic_parcool_momentum.configuration.fastRunStartStepAnimation")
 				.comment(
@@ -93,6 +125,23 @@ public final class EPMConfig {
 						"true: blocks Epic Fight Phantom Ascent while the player is swimming underwater.",
 						"false: keeps Epic Fight's original Phantom Ascent behavior underwater.")
 				.define("disablePhantomAscentUnderwaterSwimming", true);
+		builder.pop();
+
+		builder.push("Demolition Leap");
+		DEMOLITION_LEAP_SHIFT_SPACE_REPLACEMENT = builder
+				.translation("epic_parcool_momentum.configuration.demolitionLeapShiftSpaceReplacement")
+				.comment(
+						"true: after learning Epic Fight Demolition Leap, Shift+Jump starts Demolition Leap through Epic Fight's original hold/release chain and suppresses ParCool Cat Leap/Charge Jump on that input.",
+						"false: keeps Epic Fight Demolition Leap and ParCool Cat Leap/Charge Jump trigger paths separate.")
+				.define("demolitionLeapShiftSpaceReplacement", true);
+		DEMOLITION_LEAP_AIR_DOUBLE_JUMP = builder
+				.translation("epic_parcool_momentum.configuration.demolitionLeapAirDoubleJump")
+				.comment("true: after Demolition Leap launches the player, the next new airborne jump press triggers Epic Fight Phantom Ascent through its native chain.")
+				.define("demolitionLeapAirDoubleJump", true);
+		DEMOLITION_LEAP_CHARGE_JUMP_ANIMATION = builder
+				.translation("epic_parcool_momentum.configuration.demolitionLeapChargeJumpAnimation")
+				.comment("true: before learning Demolition Leap, ParCool Charge Jump charging uses Demolition Leap's charging animation in Epic Fight mode. After learning Demolition Leap, Shift alone shows no charging animation — only Shift+Space triggers the skill.")
+				.define("demolitionLeapChargeJumpAnimation", true);
 		builder.pop();
 
 		builder.push("WallJump");
@@ -158,6 +207,12 @@ public final class EPMConfig {
 		builder.pop();
 
 		builder.push("Vault");
+		FAST_RUN_VAULT_CHAIN_FIX = builder
+				.translation("epic_parcool_momentum.configuration.fastRunVaultChainFix")
+				.comment(
+						"true: when Vault starts from FastRun, releases ParCool's Vault action at 6 ticks and keeps a short FastRun grace window so close obstacles can chain through ParCool's original Vault detection.",
+						"false: keeps ParCool's original Vault action timing and disables this mod's FastRun Vault chaining assist.")
+				.define("fastRunVaultChainFix", true);
 		VAULT_HEIGHT_SCALE = builder
 				.translation("epic_parcool_momentum.configuration.vaultHeightScale")
 				.comment(
@@ -165,6 +220,17 @@ public final class EPMConfig {
 						"ParCool original default is 0.86. This compatibility mod defaults to 1.5 for stable three-block air vaults.",
 						"Lower values require more precise jump timing.")
 				.defineInRange("vaultHeightScale", 1.5D, 0.86D, 2.0D);
+		DEBUG_VAULT_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugVaultState")
+				.comment("Temporary debug option. true: logs detailed ParCool Vault canStart, movement, and post-vault state.")
+				.define("debugVaultState", false);
+		builder.pop();
+
+		builder.push("Debug");
+		DEBUG_GLIDER_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugGliderState")
+				.comment("Temporary debug option. true: logs detailed Glider/FastRun diagnostic state.")
+				.define("debugGliderState", false);
 		builder.pop();
 
 		builder.push("Climb");
@@ -211,6 +277,22 @@ public final class EPMConfig {
 		return NATURAL_SPRINTER_MANUAL_STEP.get();
 	}
 
+	public static StepDodgeConflictMode naturalSprinterStepDodgeConflictMode() {
+		return NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE.get();
+	}
+
+	public static int naturalSprinterStepDodgeLongPressTicks() {
+		return NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS.get();
+	}
+
+	public static int naturalSprinterStepDodgeDoubleTapGapTicks() {
+		return NATURAL_SPRINTER_STEP_DODGE_DOUBLE_TAP_GAP_TICKS.get();
+	}
+
+	public static int naturalSprinterStepDodgeFirstTapMaxTicks() {
+		return NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS.get();
+	}
+
 	public static boolean fastRunStartStepAnimation() {
 		return FAST_RUN_START_STEP_ANIMATION.get();
 	}
@@ -243,6 +325,18 @@ public final class EPMConfig {
 
 	public static boolean disablePhantomAscentUnderwaterSwimming() {
 		return DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING.get();
+	}
+
+	public static boolean demolitionLeapShiftSpaceReplacement() {
+		return DEMOLITION_LEAP_SHIFT_SPACE_REPLACEMENT.get();
+	}
+
+	public static boolean demolitionLeapAirDoubleJump() {
+		return DEMOLITION_LEAP_AIR_DOUBLE_JUMP.get();
+	}
+
+	public static boolean demolitionLeapChargeJumpAnimation() {
+		return DEMOLITION_LEAP_CHARGE_JUMP_ANIMATION.get();
 	}
 
 	public static boolean autoSprintAfterWallJump() {
@@ -309,6 +403,18 @@ public final class EPMConfig {
 		return VAULT_HEIGHT_SCALE.get();
 	}
 
+	public static boolean fastRunVaultChainFix() {
+		return FAST_RUN_VAULT_CHAIN_FIX.get();
+	}
+
+	public static boolean debugVaultState() {
+		return DEBUG_VAULT_STATE.get();
+	}
+
+	public static boolean debugGliderState() {
+		return DEBUG_GLIDER_STATE.get();
+	}
+
 	public static double epicParCoolClimbUpVerticalVelocity() {
 		return EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY.get();
 	}
@@ -342,5 +448,12 @@ public final class EPMConfig {
 		DEFAULT,
 		PARCOOL,
 		WOM
+	}
+
+	public enum StepDodgeConflictMode {
+		DISABLED,
+		SHORT_DODGE_LONG_STEP,
+		SHORT_STEP_HOLD_DODGE,
+		SINGLE_STEP_DOUBLE_DODGE
 	}
 }

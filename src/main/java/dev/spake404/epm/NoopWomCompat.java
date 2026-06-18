@@ -130,6 +130,11 @@ final class NoopWomCompat implements WomCompat {
 	}
 
 	@Override
+	public boolean isSpiderWallBackflipActive(PlayerPatch<?> playerPatch) {
+		return false;
+	}
+
+	@Override
 	public void triggerSpiderWallBackflipState(PlayerPatch<?> playerPatch, float xRot, float yRot) {
 	}
 

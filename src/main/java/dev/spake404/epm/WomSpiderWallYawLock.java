@@ -34,7 +34,7 @@ public final class WomSpiderWallYawLock {
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		AssetAccessor<?> currentAnimation = playerPatch == null ? null : currentBaseAnimation(playerPatch);
+		AssetAccessor<?> currentAnimation = AnimationQuery.currentAnimation(playerPatch);
 		if (playerPatch == null || !isWomSpiderWallAnimation(currentAnimation)) {
 			clear(player);
 			return;
@@ -99,16 +99,8 @@ public final class WomSpiderWallYawLock {
 		LOGGED.remove(player);
 	}
 
-	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
-	}
-
 	private static boolean isWomSpiderWallAnimation(AssetAccessor<?> animation) {
-		ResourceLocation registryName = safeRegistryName(animation);
+		ResourceLocation registryName = AnimationQuery.safeRegistryName(animation);
 		if (registryName == null || !"wom".equals(registryName.getNamespace())) {
 			return false;
 		}
@@ -131,7 +123,7 @@ public final class WomSpiderWallYawLock {
 		}
 
 		LOGGED.put(player, Boolean.TRUE);
-		ResourceLocation animationId = safeRegistryName(currentAnimation);
+		ResourceLocation animationId = AnimationQuery.safeRegistryName(currentAnimation);
 		EPM.LOGGER.debug("[WomSpiderWallYaw] lock animation={} wallDirection={} lockedYaw={} playerYRot={} yBodyRot={} yHeadRot={} pos=({}, {}, {}) delta=({}, {}, {}) onGround={} ssrCameraFixesLoaded={}",
 				animationId,
 				wallDirection,
@@ -147,13 +139,5 @@ public final class WomSpiderWallYawLock {
 				Double.valueOf(player.getDeltaMovement().z()),
 				Boolean.valueOf(player.onGround()),
 				Boolean.valueOf(ModCompat.isSsrCameraFixesLoaded()));
-	}
-
-	private static ResourceLocation safeRegistryName(AssetAccessor<?> animation) {
-		try {
-			return animation.registryName();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
 	}
 }

@@ -30,11 +30,11 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 		return switch (simpleName(mixinClassName)) {
 			case "AquaManeuvreSkillMixin", "NaturalSprinterSkillMixin", "SpiderTechniquesSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
-			case "WallJumpMixin" -> isLoaded(PARCOOL);
+			case "CatLeapMixin", "ChargeJumpMixin", "JumpChargingAnimatorMixin", "ParCoolAnimationAccessor", "ParCoolSettingScreenMixin", "WallJumpMixin" -> isLoaded(PARCOOL);
 			case "ComboBasicAttackMixin", "InvincibleJumpConditionMixin" -> isLoaded(INVINCIBLE);
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
 			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin", "MinecraftAttackMixin" -> isLoaded(TACZ);
-			case "GliderAnimationHandlerMixin", "GliderDataMixin", "PlayerGliderLayerMixin" -> isLoaded(VC_GLIDERS);
+			case "GliderAnimationHandlerMixin", "GliderDataMixin", "GliderToggleMessageMixin", "PlayerGliderLayerMixin" -> isLoaded(VC_GLIDERS);
 			default -> true;
 		};
 	}

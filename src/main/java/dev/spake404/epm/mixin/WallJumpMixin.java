@@ -17,8 +17,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class WallJumpMixin {
 	@Inject(method = "checkCanStart", at = @At("RETURN"), cancellable = true, require = 0)
 	private void parcoolxwom$allowParCoolWallJumpFromWomSideWallRun(Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo, CallbackInfoReturnable<Boolean> cir) {
-		if (!cir.getReturnValueZ()
-				&& WomParCoolWallJumpBridge.writeFallbackStartInfo((WallJump) (Object) this, player, parkourability, stamina, startInfo)) {
+		if (cir.getReturnValueZ()) {
+			WomParCoolWallJumpBridge.markNativeStartCandidate((WallJump) (Object) this, player, parkourability, stamina, startInfo);
+		} else if (WomParCoolWallJumpBridge.writeFallbackStartInfo((WallJump) (Object) this, player, parkourability, stamina, startInfo)) {
 			cir.setReturnValue(Boolean.TRUE);
 		}
 	}

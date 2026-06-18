@@ -229,6 +229,7 @@ public final class WomSpiderWallSlideHandler {
 
 	private static void applyWomWallSlide(Player player, LocalPlayerPatch playerPatch, Vec3 wallDirection, WallSlideState previous, boolean slowGlide, boolean jumpKeyUp) {
 		player.stopFallFlying();
+		EPMClientHooks.forceStopGliderForWallRun(player);
 		playWallGlideAnimation(playerPatch);
 		clearParCoolAnimator(player);
 		applyWomGlideMotion(player, slowGlide);
@@ -350,11 +351,7 @@ public final class WomSpiderWallSlideHandler {
 	}
 
 	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
 	private static float wallFacingYaw(Vec3 wallDirection) {
@@ -363,6 +360,7 @@ public final class WomSpiderWallSlideHandler {
 
 	private static void triggerWallBackflip(Player player, LocalPlayerPatch playerPatch, boolean slowGlide) {
 		player.stopFallFlying();
+		EPMClientHooks.markWomWallJumpForPhantomAscent(player);
 		ACTIVE_WALL_SLIDES.remove(player);
 		stopPlaying(playerPatch, WomAnimationRefs.wallGlide());
 

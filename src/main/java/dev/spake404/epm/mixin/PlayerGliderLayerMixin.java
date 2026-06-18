@@ -14,7 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PlayerGliderLayerMixin {
 	@Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/entity/LivingEntity;FFFFFF)V", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$hideGliderModelDuringPhantomAscentDelay(PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, LivingEntity entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo callback) {
-		if (EPMClientHooks.shouldDelayGliderOpeningAnimation(entity)) {
+		boolean delay = EPMClientHooks.shouldDelayGliderOpeningAnimation(entity);
+		EPMClientHooks.logGliderOpeningDelayProbe(entity, "render_head", delay, delay);
+		if (delay) {
 			callback.cancel();
 		}
 	}

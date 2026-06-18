@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.WeakHashMap;
 
+import com.alrex.parcool.common.action.impl.Dodge;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.yesman.epicparcool.ParcoolLivingMotions;
@@ -72,35 +73,84 @@ final class NaturalSprinterFastRunHandler {
 			return;
 		}
 
-		triggerNaturalSprinterDashOnFastRunStart(playerPatch);
+		if (EPMClientHooks.isParCoolDodgeBlockingNaturalSprinterStep(playerPatch.getOriginal())) {
+			return;
+		}
+
+		boolean handledStartupStep = EPMClientHooks.playPendingNaturalSprinterStepFastRun(playerPatch);
+		triggerNaturalSprinterDashOnFastRunStart(playerPatch, handledStartupStep);
 		applyFastRunAnimation(playerPatch);
 	}
 
 	static boolean tryManualFastRunStep(Player player) {
-		if (!ModCompat.isWomLoaded()
-				|| !EPMConfig.naturalSprinterAnimations()
-				|| !EPMConfig.naturalSprinterManualStep()
-				|| player == null
-				|| !player.isLocalPlayer()
-				|| !canManualFastRunStep(player)
-				|| isTaczReloading(player)
-				|| !isParCoolFastRunDoing(player)) {
+		return tryManualFastRunStep(player, false);
+	}
+
+	static boolean tryArbitratedFastRunStep(Player player) {
+		return tryManualFastRunStep(player, true);
+	}
+
+	private static boolean tryManualFastRunStep(Player player, boolean fromStepDodgeConflict) {
+		if (!canUseManualNaturalSprinterStep(player)) {
 			return false;
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (playerPatch == null || !playerPatch.isLogicalClient() || !NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
+		boolean hasPatch = playerPatch != null;
+		boolean logicalClient = hasPatch && playerPatch.isLogicalClient();
+		boolean hasNaturalSprinter = logicalClient && NaturalSprinterState.hasNaturalSprinter(playerPatch);
+		if (!hasPatch || !logicalClient || !hasNaturalSprinter) {
 			return false;
 		}
 
 		AssetAccessor<? extends StaticAnimation> stepAnimation = currentSprintStepAnimation(playerPatch);
-		if (stepAnimation == null || !NaturalSprinterState.consumeStep(playerPatch)) {
+		if (stepAnimation == null) {
+			return false;
+		}
+
+		boolean fastRunDoing = isParCoolFastRunDoing(player);
+		if (!fastRunDoing && !fromStepDodgeConflict) {
+			return false;
+		}
+
+		if (EPMClientHooks.shouldDelayNaturalSprinterStepForDodge(player)) {
+			EPMClientHooks.deferStepForDodge(player, stepAnimation);
+			return true;
+		}
+
+		if (fromStepDodgeConflict && !fastRunDoing) {
+			return EPMClientHooks.requestNaturalSprinterStepFastRun(player, stepAnimation);
+		}
+
+		if (!NaturalSprinterState.consumeStep(playerPatch)) {
 			return false;
 		}
 
 		advanceSprintStep(playerPatch);
 		EPMClientHooks.queueNaturalSprinterFastRunDash(playerPatch, stepAnimation);
 		return true;
+	}
+
+	static boolean canArbitrateStepDodgeConflict(Player player) {
+		if (!canUseManualNaturalSprinterStep(player)) {
+			return false;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		return playerPatch != null
+				&& playerPatch.isLogicalClient()
+				&& NaturalSprinterState.hasNaturalSprinter(playerPatch)
+				&& currentSprintStepAnimation(playerPatch) != null;
+	}
+
+	private static boolean canUseManualNaturalSprinterStep(Player player) {
+		return player != null
+				&& player.isLocalPlayer()
+				&& ModCompat.isWomLoaded()
+				&& EPMConfig.naturalSprinterAnimations()
+				&& EPMConfig.naturalSprinterManualStep()
+				&& canManualFastRunStep(player)
+				&& !isTaczReloading(player);
 	}
 
 	static void tickManualFastRunStepKey(Player player) {
@@ -115,6 +165,11 @@ final class NaturalSprinterFastRunHandler {
 			return;
 		}
 
+		if (NaturalSprinterDodgeStepArbiter.tick(player)) {
+			MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player);
+			return;
+		}
+
 		if (EPMKeyMappings.isNaturalSprinterStepDown()) {
 			if (!MANUAL_FAST_RUN_STEP_KEY_HELD.containsKey(player)) {
 				MANUAL_FAST_RUN_STEP_KEY_HELD.put(player, Boolean.TRUE);
@@ -123,13 +178,18 @@ final class NaturalSprinterFastRunHandler {
 		}
 
 		if (Boolean.TRUE.equals(MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player))) {
-			tryManualFastRunStep(player);
+			if (NaturalSprinterDodgeStepArbiter.shouldUseStepOnlyFallback(player)) {
+				tryArbitratedFastRunStep(player);
+			} else {
+				tryManualFastRunStep(player);
+			}
 		}
 	}
 
 	static void cancelManualFastRunStepKey(Player player) {
 		if (player != null) {
 			MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player);
+			NaturalSprinterDodgeStepArbiter.clear(player);
 		}
 	}
 
@@ -154,14 +214,14 @@ final class NaturalSprinterFastRunHandler {
 		swapPrimarySprintAnimationPreservingTime(playerPatch, family, animation, currentAnimation);
 	}
 
-	private static void triggerNaturalSprinterDashOnFastRunStart(PlayerPatch<?> playerPatch) {
+	private static void triggerNaturalSprinterDashOnFastRunStart(PlayerPatch<?> playerPatch, boolean startupStepHandled) {
 		if (!EPMConfig.naturalSprinterAnimations()) {
 			clearFastRunState(playerPatch);
 			return;
 		}
 
 		boolean wasFastRunActive = Boolean.TRUE.equals(FAST_RUN_ACTIVE.put(playerPatch, Boolean.TRUE));
-		if (!shouldPlayFastRunStartStep(playerPatch, wasFastRunActive) || !playerPatch.hasStamina(2.0F)) {
+		if (startupStepHandled || !shouldPlayFastRunStartStep(playerPatch, wasFastRunActive) || !playerPatch.hasStamina(2.0F)) {
 			return;
 		}
 
@@ -224,6 +284,16 @@ final class NaturalSprinterFastRunHandler {
 		}
 	}
 
+	static boolean isParCoolDodgeDoing(Player player) {
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			Dodge dodge = parkourability == null ? null : parkourability.get(Dodge.class);
+			return dodge != null && dodge.isDoing();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
 	private static AssetAccessor<? extends StaticAnimation> nextSprintStepAnimation(PlayerPatch<?> playerPatch) {
 		AssetAccessor<? extends StaticAnimation> animation = currentSprintStepAnimation(playerPatch);
 		advanceSprintStep(playerPatch);
@@ -244,6 +314,10 @@ final class NaturalSprinterFastRunHandler {
 	private static void advanceSprintStep(PlayerPatch<?> playerPatch) {
 		boolean rightStep = Boolean.TRUE.equals(NEXT_FAST_RUN_STEP_RIGHT.get(playerPatch));
 		NEXT_FAST_RUN_STEP_RIGHT.put(playerPatch, Boolean.valueOf(!rightStep));
+	}
+
+	public static void advanceSprintStepPublic(PlayerPatch<?> playerPatch) {
+		advanceSprintStep(playerPatch);
 	}
 
 	private static void putLivingAnimationSilently(Animator animator, LivingMotion motion, AssetAccessor<? extends StaticAnimation> animation) {
@@ -269,11 +343,7 @@ final class NaturalSprinterFastRunHandler {
 	}
 
 	private static AssetAccessor<?> currentBaseAnimation(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch.getClientAnimator().baseLayer.animationPlayer.getRealAnimation();
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
 	private static SprintFamily chooseSprintFamily(PlayerPatch<?> playerPatch) {

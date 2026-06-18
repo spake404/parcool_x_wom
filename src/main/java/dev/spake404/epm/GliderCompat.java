@@ -4,13 +4,13 @@ import java.lang.reflect.Method;
 
 import net.minecraft.world.entity.LivingEntity;
 
-final class GliderCompat {
+public final class GliderCompat {
 	private static Method isGlidingWithActiveGlider;
 
 	private GliderCompat() {
 	}
 
-	static boolean isGlidingWithActiveGlider(LivingEntity entity) {
+	public static boolean isGlidingWithActiveGlider(LivingEntity entity) {
 		if (!ModCompat.isGlidersLoaded() || entity == null) {
 			return false;
 		}

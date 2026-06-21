@@ -211,6 +211,9 @@ public final class WomSpiderWallRunHandler {
 			boolean jumping = event.getMovementInput() != null && event.getMovementInput().jumping;
 			if (jumping && previous != null && !previous.jumpHeld()) {
 				logWallRunState("input_stop", "wall_backflip", player, playerPatch, previous, wallRunKeyDown);
+				if (!EPMClientHooks.claimWomWallJump(player, "wom_wallrun_backflip")) {
+					return true;
+				}
 				triggerWallBackflip(player, localPlayerPatch, decisionResult.decision());
 				return true;
 			}

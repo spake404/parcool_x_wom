@@ -8,6 +8,7 @@ public final class ModCompat {
 	public static final String NIGHTFALL = "efn";
 	public static final String TACZ = "tacz";
 	public static final String EPIC_ARSENAL = "epicarsenal";
+	public static final String EPICFIGHTX = "epicfightx";
 	public static final String SSRCAMERA_FIXES = "ssrcamerafixes";
 	public static final String VC_GLIDERS = "vc_gliders";
 	private static final boolean WOM_LOADED = isLoaded(WOM);
@@ -15,6 +16,7 @@ public final class ModCompat {
 	private static final boolean NIGHTFALL_LOADED = isLoaded(NIGHTFALL);
 	private static final boolean TACZ_LOADED = isLoaded(TACZ);
 	private static final boolean EPIC_ARSENAL_LOADED = isLoaded(EPIC_ARSENAL);
+	private static final boolean EPICFIGHTX_LOADED = isLoaded(EPICFIGHTX);
 	private static final boolean SSRCAMERA_FIXES_LOADED = isLoaded(SSRCAMERA_FIXES);
 	private static final boolean GLIDERS_LOADED = isLoaded(VC_GLIDERS);
 
@@ -39,6 +41,10 @@ public final class ModCompat {
 
 	public static boolean isEpicArsenalLoaded() {
 		return EPIC_ARSENAL_LOADED;
+	}
+
+	public static boolean isEpicFightXLoaded() {
+		return EPICFIGHTX_LOADED;
 	}
 
 	public static boolean isSsrCameraFixesLoaded() {

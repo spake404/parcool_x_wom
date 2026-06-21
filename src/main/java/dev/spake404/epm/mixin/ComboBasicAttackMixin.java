@@ -2,6 +2,7 @@ package dev.spake404.epm.mixin;
 
 import com.p1nero.invincible.api.skill.ComboNode;
 import com.p1nero.invincible.skill.ComboBasicAttack;
+import dev.spake404.epm.EPMClientHooks;
 import dev.spake404.epm.MomentumAirAttackWindowState;
 import dev.spake404.epm.ModCompat;
 import dev.spake404.epm.SpiderTechniquesState;
@@ -26,7 +27,7 @@ public abstract class ComboBasicAttackMixin {
 			}
 		}
 
-		if (!callback.getReturnValueZ() && MomentumAirAttackWindowState.canUseBasicAttack(playerPatch)) {
+		if (!callback.getReturnValueZ() && EPMClientHooks.tryPrepareWallJumpAttackHandoff(playerPatch)) {
 			callback.setReturnValue(Boolean.TRUE);
 		}
 	}

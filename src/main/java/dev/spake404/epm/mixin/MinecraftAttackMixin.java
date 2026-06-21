@@ -15,7 +15,9 @@ public abstract class MinecraftAttackMixin {
 	public LocalPlayer player;
 
 	@Inject(method = "startAttack", at = @At("HEAD"), require = 0)
-	private void parcoolxwom$cancelWallJumpBeforeTaczAttack(CallbackInfoReturnable<Boolean> callback) {
-		EPMClientHooks.cancelWallJumpForTaczAttackInput(this.player);
+	private void parcoolxwom$cancelWallJumpBeforeAttack(CallbackInfoReturnable<Boolean> callback) {
+		if (!EPMClientHooks.cancelWallJumpForTaczAttackInput(this.player)) {
+			EPMClientHooks.cancelWallJumpForAttackInput(this.player);
+		}
 	}
 }

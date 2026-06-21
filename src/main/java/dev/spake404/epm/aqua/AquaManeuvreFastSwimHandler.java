@@ -8,6 +8,7 @@ import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.config.ParCoolConfig;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMConfig;
+import dev.spake404.epm.EPMParCoolGate;
 import dev.spake404.epm.ModCompat;
 import dev.spake404.epm.WomAnimationRefs;
 import dev.spake404.epm.WomCompatBridge;
@@ -348,7 +349,9 @@ public final class AquaManeuvreFastSwimHandler {
 	}
 
 	private static boolean isFastSwimAnimationEnabled() {
-		return ModCompat.isWomLoaded() && EPMConfig.aquaManeuvreFastSwimAnimation();
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& ModCompat.isWomLoaded()
+				&& EPMConfig.aquaManeuvreFastSwimAnimation();
 	}
 
 	private static boolean hasAquaManeuvre(PlayerPatch<?> playerPatch) {

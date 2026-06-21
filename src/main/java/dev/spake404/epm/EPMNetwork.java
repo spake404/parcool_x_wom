@@ -1,5 +1,7 @@
 package dev.spake404.epm;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
@@ -7,10 +9,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class EPMNetwork {
-	private static final String PROTOCOL_VERSION = "1";
+	private static final String PROTOCOL_VERSION = "2";
 	private static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
 			.named(ResourceLocation.fromNamespaceAndPath(EPM.MODID, "main"))
 			.networkProtocolVersion(() -> PROTOCOL_VERSION)
@@ -28,10 +31,23 @@ public final class EPMNetwork {
 				.decoder(PhantomAscentAirAttackPacket::decode)
 				.consumerMainThread(PhantomAscentAirAttackPacket::handle)
 				.add();
+		CHANNEL.messageBuilder(SyncNaturalSprinterFastRunAnimationOverridesPacket.class, packetId++)
+				.encoder(SyncNaturalSprinterFastRunAnimationOverridesPacket::encode)
+				.decoder(SyncNaturalSprinterFastRunAnimationOverridesPacket::decode)
+				.consumerMainThread(SyncNaturalSprinterFastRunAnimationOverridesPacket::handle)
+				.add();
 	}
 
 	public static void sendPhantomAscentAirAttackWindow() {
 		CHANNEL.sendToServer(PhantomAscentAirAttackPacket.INSTANCE);
+	}
+
+	public static void sendNaturalSprinterFastRunAnimationOverrides(ServerPlayer player) {
+		if (player != null) {
+			CHANNEL.send(
+					PacketDistributor.PLAYER.with(() -> player),
+					new SyncNaturalSprinterFastRunAnimationOverridesPacket(NaturalSprinterFastRunAnimationOverrides.serverRules()));
+		}
 	}
 
 	private static final class PhantomAscentAirAttackPacket {
@@ -50,6 +66,36 @@ public final class EPMNetwork {
 			if (sender != null) {
 				PhantomAscentAirAttackState.mark(sender);
 			}
+			context.setPacketHandled(true);
+		}
+	}
+
+	private static final class SyncNaturalSprinterFastRunAnimationOverridesPacket {
+		private final List<NaturalSprinterFastRunAnimationOverrides.RuleData> rules;
+
+		private SyncNaturalSprinterFastRunAnimationOverridesPacket(List<NaturalSprinterFastRunAnimationOverrides.RuleData> rules) {
+			this.rules = List.copyOf(rules);
+		}
+
+		private static void encode(SyncNaturalSprinterFastRunAnimationOverridesPacket packet, FriendlyByteBuf buffer) {
+			buffer.writeVarInt(packet.rules.size());
+			for (NaturalSprinterFastRunAnimationOverrides.RuleData rule : packet.rules) {
+				rule.encode(buffer);
+			}
+		}
+
+		private static SyncNaturalSprinterFastRunAnimationOverridesPacket decode(FriendlyByteBuf buffer) {
+			int count = buffer.readVarInt();
+			List<NaturalSprinterFastRunAnimationOverrides.RuleData> rules = new ArrayList<>(count);
+			for (int index = 0; index < count; index++) {
+				rules.add(NaturalSprinterFastRunAnimationOverrides.RuleData.decode(buffer));
+			}
+			return new SyncNaturalSprinterFastRunAnimationOverridesPacket(rules);
+		}
+
+		private static void handle(SyncNaturalSprinterFastRunAnimationOverridesPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+			NetworkEvent.Context context = contextSupplier.get();
+			context.enqueueWork(() -> NaturalSprinterFastRunAnimationOverrides.applyClientRules(packet.rules));
 			context.setPacketHandled(true);
 		}
 	}

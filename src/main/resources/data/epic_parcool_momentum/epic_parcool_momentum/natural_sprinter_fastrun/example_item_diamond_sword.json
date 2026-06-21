@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "match": {
+    "item": "efn:yamato_dmc4_in_sheath"
+  },
+  "run": "efn:biped/yamato/dmcyamato_run",
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon",
+  "priority": 100
+}

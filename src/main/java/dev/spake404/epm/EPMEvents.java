@@ -11,6 +11,8 @@ import com.alrex.parcool.common.action.impl.WallJump;
 import dev.spake404.epm.aqua.AquaManeuvreFastSwimHandler;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.event.AddReloadListenerEvent;
+import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
@@ -33,6 +35,18 @@ public final class EPMEvents {
 		DemolitionLeapCatJumpHandler.registerChargeJumpAnimation(event);
 	}
 
+	@SubscribeEvent
+	public static void addReloadListeners(AddReloadListenerEvent event) {
+		event.addListener(NaturalSprinterFastRunAnimationOverrides.reloadListener());
+	}
+
+	@SubscribeEvent
+	public static void syncDatapackData(OnDatapackSyncEvent event) {
+		for (net.minecraft.server.level.ServerPlayer player : event.getPlayers()) {
+			EPMNetwork.sendNaturalSprinterFastRunAnimationOverrides(player);
+		}
+	}
+
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void chooseFastRunAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
 		NaturalSprinterFastRunHandler.chooseFastRunAnimation(event);
@@ -42,6 +56,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void handleEpicParCoolCatLeap(ParCoolActionEvent.StartEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (!(event.getAction() instanceof CatLeap)) {
 			return;
 		}
@@ -65,16 +83,20 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void markEpicParCoolWallJumpForPhantomAscent(ParCoolActionEvent.StartEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (!(event.getAction() instanceof WallJump)) {
 			return;
 		}
 
+		EPMClientHooks.markParCoolWallJumpHandoffStarted(event.getPlayer());
 		if (EPMConfig.wallJumpPrimesPhantomAscent()) {
 			EPMClientHooks.markWallJumpForPhantomAscent(event.getPlayer());
 		}
 
 		MomentumAirAttackWindowState.markWallJump(event.getPlayer());
-		EPMClientHooks.markWallJumpForTaczShootCancel(event.getPlayer());
 		EPMClientHooks.markAutoSprintAfterWallJump(event.getPlayer());
 	}
 
@@ -101,6 +123,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void rememberFastRunBeforeVault(ParCoolActionEvent.Start.Pre event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getPlayer().isLocalPlayer() && event.getAction() instanceof Vault) {
 			EPMClientHooks.markVaultStartedFromFastRun(event.getPlayer());
 		}
@@ -108,6 +134,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void clearFastRunHoldAfterVault(ParCoolActionEvent.Finish.Post event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getPlayer().isLocalPlayer() && event.getAction() instanceof Vault) {
 			EPMClientHooks.clearVaultFastRunHold(event.getPlayer());
 		}
@@ -115,6 +145,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void arbitrateDodgeStepConflict(ParCoolActionEvent.TryToStartEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getAction() instanceof Dodge && NaturalSprinterDodgeStepArbiter.shouldCancelDodgeStart(event.getPlayer())) {
 			event.setCanceled(true);
 		}
@@ -122,6 +156,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void arbitrateDodgeStepConflictModern(ParCoolActionEvent.TryToStart event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getAction() instanceof Dodge && NaturalSprinterDodgeStepArbiter.shouldCancelDodgeStart(event.getPlayer())) {
 			event.setCanceled(true);
 		}
@@ -129,6 +167,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void rememberDodgeStartedForStepConflict(ParCoolActionEvent.Start.Post event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getAction() instanceof Dodge) {
 			NaturalSprinterDodgeStepArbiter.markDodgeStarted(event.getPlayer());
 		}
@@ -136,6 +178,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void blockClimbUpDuringSpiderWallRun(ParCoolActionEvent.TryToStartEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (!(event.getAction() instanceof ClimbUp)) {
 			return;
 		}
@@ -147,6 +193,10 @@ public final class EPMEvents {
 
 	@SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
 	public static void allowClimbUpFromEpicParCoolClingMove(ParCoolActionEvent.TryToStartEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		if (event.getAction() instanceof ClimbUp && WomSpiderWallRunHandler.shouldBlockParCoolClimbUp(event.getPlayer())) {
 			return;
 		}
@@ -168,7 +218,7 @@ public final class EPMEvents {
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void logClingToCliffStarted(ParCoolActionEvent.Start.Post event) {
 		if (event.getAction() instanceof ClingToCliff || event.getAction() instanceof ClimbUp) {
-			if (event.getAction() instanceof ClimbUp) {
+			if (event.getAction() instanceof ClimbUp && EPMParCoolGate.allowCrossModSkillCompat()) {
 				EPMClientHooks.compensateEpicParCoolClimbUp(event.getPlayer());
 			}
 			ClingToCliffDebug.logActionEvent("start_post", event.getPlayer(), event.getAction());
@@ -218,7 +268,7 @@ public final class EPMEvents {
 	}
 
 	private static void syncAndSuppressNaturalSprinter(ParCoolActionEvent event) {
-		if (!ModCompat.isWomLoaded()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !ModCompat.isWomLoaded()) {
 			return;
 		}
 

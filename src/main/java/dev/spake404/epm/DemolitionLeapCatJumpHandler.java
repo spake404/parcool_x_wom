@@ -44,7 +44,9 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static void registerChargeJumpAnimation(InitAnimatorEvent event) {
-		if (event == null || !(event.getEntityPatch() instanceof PlayerPatch<?>)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| event == null
+				|| !(event.getEntityPatch() instanceof PlayerPatch<?>)) {
 			return;
 		}
 
@@ -55,7 +57,7 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static void chooseChargeJumpAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
-		if (event == null) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || event == null) {
 			return;
 		}
 
@@ -106,7 +108,10 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static void tickLocalPlayer(TickEvent.PlayerTickEvent event) {
-		if (event == null || event.player == null || !event.player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| event == null
+				|| event.player == null
+				|| !event.player.isLocalPlayer()) {
 			return;
 		}
 
@@ -163,7 +168,8 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static boolean shouldSuppressJumpChargingForDemolitionLeap(Player player) {
-		return EPMConfig.demolitionLeapChargeJumpAnimation()
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& EPMConfig.demolitionLeapChargeJumpAnimation()
 				&& player != null
 				&& player.isLocalPlayer()
 				&& player.isShiftKeyDown()
@@ -199,7 +205,8 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static boolean shouldReplaceChargeJumpAnimator(Player player) {
-		if (!EPMConfig.demolitionLeapChargeJumpAnimation()
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| !EPMConfig.demolitionLeapChargeJumpAnimation()
 				|| player == null
 				|| !player.isLocalPlayer()) {
 			return false;
@@ -222,7 +229,8 @@ public final class DemolitionLeapCatJumpHandler {
 	}
 
 	public static boolean isShiftSpaceReplacementEnabled() {
-		return EPMConfig.demolitionLeapShiftSpaceReplacement();
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& EPMConfig.demolitionLeapShiftSpaceReplacement();
 	}
 
 	public static boolean isAuthorizedDemolitionLeapStart(PlayerPatch<?> playerPatch) {

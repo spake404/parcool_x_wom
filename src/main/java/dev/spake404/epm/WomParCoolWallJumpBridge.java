@@ -28,7 +28,15 @@ public final class WomParCoolWallJumpBridge {
 	private WomParCoolWallJumpBridge() {
 	}
 
+	public static boolean shouldBlockAfterPhantom(Player player, String phase) {
+		return EPMClientHooks.shouldBlockParCoolWallJumpAfterHigherPriority(player, phase);
+	}
+
 	public static boolean writeFallbackStartInfo(WallJump wallJump, Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo) {
+		if (shouldBlockAfterPhantom(player, "wallrun_parcool_fallback_after_phantom")) {
+			return false;
+		}
+
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch)
 				|| wallJump == null
@@ -70,6 +78,10 @@ public final class WomParCoolWallJumpBridge {
 	}
 
 	public static void markNativeStartCandidate(WallJump wallJump, Player player, Parkourability parkourability, IStamina stamina, ByteBuffer startInfo) {
+		if (shouldBlockAfterPhantom(player, "wallrun_parcool_native_candidate_after_phantom")) {
+			return;
+		}
+
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch)
 				|| wallJump == null
@@ -85,6 +97,10 @@ public final class WomParCoolWallJumpBridge {
 	}
 
 	public static void onWallJumpStarted(Player player, ByteBuffer startData) {
+		if (shouldBlockAfterPhantom(player, "wallrun_parcool_started_after_phantom")) {
+			return;
+		}
+
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		boolean hasCandidate = EPMClientHooks.hasWallRunToParCoolWallJumpCandidate(player);
 		if (!WomSpiderWallRunModeGate.canStabilizeOriginalWomWallRun(player, playerPatch) && !hasCandidate) {

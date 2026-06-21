@@ -37,11 +37,16 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.DoubleValue VAULT_HEIGHT_SCALE;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_VAULT_STATE;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_GLIDER_STATE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE;
 	private static final ForgeConfigSpec.BooleanValue AQUA_MANEUVRE_FAST_SWIM_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE;
+	private static final ForgeConfigSpec.BooleanValue EPICFIGHTX_COMBAT_MASTERY_FAST_RUN_CONTROL_COMPATIBILITY;
+	private static final ForgeConfigSpec.EnumValue<CombatMasterySprintTriggerMode> EPICFIGHTX_COMBAT_MASTERY_SPRINT_TRIGGER_MODE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_EPICFIGHTX_COMBAT_MASTERY_SPRINT_STATE;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY;
 	private static final ForgeConfigSpec.IntValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_CAMERA_EVENT_STATE;
 	private static final ForgeConfigSpec.BooleanValue PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED;
 
 	static {
@@ -183,14 +188,6 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.disableVerticalWallRunWithSpiderTechniques")
 				.comment("true: disables ParCool VerticalWallRun after learning WOM Spider Techniques.")
 				.define("disableVerticalWallRunWithSpiderTechniques", true);
-		DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE = builder
-				.translation("epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState")
-				.comment("Temporary debug option. true: logs Spider Techniques state when attack executability is checked.")
-				.define("debugSpiderTechniquesAttackState", false);
-		DEBUG_SPIDER_WALL_RUN_STATE = builder
-				.translation("epic_parcool_momentum.configuration.debugSpiderWallRunState")
-				.comment("Temporary debug option. true: logs detailed Spider Techniques wall-run state.")
-				.define("debugSpiderWallRunState", false);
 		builder.pop();
 
 		builder.push("Aqua Maneuvre");
@@ -200,10 +197,23 @@ public final class EPMConfig {
 						"true: without Aqua Maneuvre, maps ParCool FastSwimAnimator to WOM's Mermaid animation in Epic Fight mode.",
 						"After learning Aqua Maneuvre, ParCool's FastRun control mode only drives WOM's original Mermaid fast-swim input; WOM owns movement, speed, animation start, and animation exit.")
 				.define("aquaManeuvreFastSwimAnimation", true);
-		DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE = builder
-				.translation("epic_parcool_momentum.configuration.debugAquaManeuvreFastSwimState")
-				.comment("Temporary debug option. true: logs detailed Aqua Maneuvre fast-swim state.")
-				.define("debugAquaManeuvreFastSwimState", false);
+		builder.pop();
+
+		builder.push("EpicFightX");
+		EPICFIGHTX_COMBAT_MASTERY_FAST_RUN_CONTROL_COMPATIBILITY = builder
+				.translation("epic_parcool_momentum.configuration.epicFightXCombatMasteryFastRunControlCompatibility")
+				.comment(
+						"true: after learning EpicFightX Combat Mastery II, post-dodge sprint follows this mod's Combat Mastery sprint trigger mode.",
+						"false: keeps EpicFightX's original Combat Mastery II sprint trigger behavior.")
+				.define("epicFightXCombatMasteryFastRunControlCompatibility", true);
+		EPICFIGHTX_COMBAT_MASTERY_SPRINT_TRIGGER_MODE = builder
+				.translation("epic_parcool_momentum.configuration.epicFightXCombatMasterySprintTriggerMode")
+				.comment(
+						"Controls how this mod enters vanilla sprint after an EpicFightX Combat Mastery II dodge window.",
+						"Toggle: press the FastRun key again after the dodge, then hold forward to enter vanilla sprint.",
+						"Auto: automatically enters vanilla sprint after the dodge when forward input is held.",
+						"PressKey: hold the FastRun key and forward input to enter and keep vanilla sprint.")
+				.defineEnum("epicFightXCombatMasterySprintTriggerMode", CombatMasterySprintTriggerMode.Toggle);
 		builder.pop();
 
 		builder.push("Vault");
@@ -220,17 +230,6 @@ public final class EPMConfig {
 						"ParCool original default is 0.86. This compatibility mod defaults to 1.5 for stable three-block air vaults.",
 						"Lower values require more precise jump timing.")
 				.defineInRange("vaultHeightScale", 1.5D, 0.86D, 2.0D);
-		DEBUG_VAULT_STATE = builder
-				.translation("epic_parcool_momentum.configuration.debugVaultState")
-				.comment("Temporary debug option. true: logs detailed ParCool Vault canStart, movement, and post-vault state.")
-				.define("debugVaultState", false);
-		builder.pop();
-
-		builder.push("Debug");
-		DEBUG_GLIDER_STATE = builder
-				.translation("epic_parcool_momentum.configuration.debugGliderState")
-				.comment("Temporary debug option. true: logs detailed Glider/FastRun diagnostic state.")
-				.define("debugGliderState", false);
 		builder.pop();
 
 		builder.push("Climb");
@@ -252,6 +251,41 @@ public final class EPMConfig {
 						"How many ticks after EpicParCool ClimbUp starts left/right air-control compensation can be applied.",
 						"Set to 0 to disable.")
 				.defineInRange("epicParCoolClimbUpLateralAirControlTicks", 6, 0, 20);
+		builder.pop();
+
+		builder.push("Debug");
+		DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState")
+				.comment("Temporary debug option. true: logs Spider Techniques state when attack executability is checked.")
+				.define("debugSpiderTechniquesAttackState", false);
+		DEBUG_SPIDER_WALL_RUN_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugSpiderWallRunState")
+				.comment("Temporary debug option. true: logs detailed Spider Techniques wall-run state.")
+				.define("debugSpiderWallRunState", false);
+		DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugAquaManeuvreFastSwimState")
+				.comment("Temporary debug option. true: logs detailed Aqua Maneuvre fast-swim state.")
+				.define("debugAquaManeuvreFastSwimState", false);
+		DEBUG_EPICFIGHTX_COMBAT_MASTERY_SPRINT_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugEpicFightXCombatMasterySprintState")
+				.comment("Temporary debug option. true: logs detailed EpicFightX Combat Mastery II sprint trigger state.")
+				.define("debugEpicFightXCombatMasterySprintState", false);
+		DEBUG_VAULT_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugVaultState")
+				.comment("Temporary debug option. true: logs detailed ParCool Vault canStart, movement, and post-vault state.")
+				.define("debugVaultState", false);
+		DEBUG_GLIDER_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugGliderState")
+				.comment("Temporary debug option. true: logs detailed Glider/FastRun diagnostic state.")
+				.define("debugGliderState", false);
+		DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugNaturalSprinterFastRunStepState")
+				.comment("Temporary debug option. true: logs Natural Sprinter FastRun startup step and procedural pulse state.")
+				.define("debugNaturalSprinterFastRunStepState", false);
+		DEBUG_CAMERA_EVENT_STATE = builder
+				.translation("epic_parcool_momentum.configuration.debugCameraEventState")
+				.comment("Temporary debug option. true: logs camera angle event diagnostics for intermittent camera shake investigation.")
+				.define("debugCameraEventState", false);
 		builder.pop();
 
 		builder.push("Internal");
@@ -399,6 +433,18 @@ public final class EPMConfig {
 		return DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE.get();
 	}
 
+	public static boolean epicFightXCombatMasteryFastRunControlCompatibility() {
+		return EPICFIGHTX_COMBAT_MASTERY_FAST_RUN_CONTROL_COMPATIBILITY.get();
+	}
+
+	public static CombatMasterySprintTriggerMode epicFightXCombatMasterySprintTriggerMode() {
+		return EPICFIGHTX_COMBAT_MASTERY_SPRINT_TRIGGER_MODE.get();
+	}
+
+	public static boolean debugEpicFightXCombatMasterySprintState() {
+		return DEBUG_EPICFIGHTX_COMBAT_MASTERY_SPRINT_STATE.get();
+	}
+
 	public static double vaultHeightScale() {
 		return VAULT_HEIGHT_SCALE.get();
 	}
@@ -413,6 +459,18 @@ public final class EPMConfig {
 
 	public static boolean debugGliderState() {
 		return DEBUG_GLIDER_STATE.get();
+	}
+
+	public static boolean debugNaturalSprinterFastRunStepState() {
+		return DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE.get();
+	}
+
+	public static boolean debugCameraEventState() {
+		try {
+			return DEBUG_CAMERA_EVENT_STATE.get();
+		} catch (IllegalStateException ignored) {
+			return false;
+		}
 	}
 
 	public static double epicParCoolClimbUpVerticalVelocity() {
@@ -455,5 +513,11 @@ public final class EPMConfig {
 		SHORT_DODGE_LONG_STEP,
 		SHORT_STEP_HOLD_DODGE,
 		SINGLE_STEP_DOUBLE_DODGE
+	}
+
+	public enum CombatMasterySprintTriggerMode {
+		Toggle,
+		Auto,
+		PressKey
 	}
 }

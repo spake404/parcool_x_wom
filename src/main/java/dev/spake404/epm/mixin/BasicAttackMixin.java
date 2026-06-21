@@ -1,6 +1,7 @@
 package dev.spake404.epm.mixin;
 
 import dev.spake404.epm.MomentumAirAttackWindowState;
+import dev.spake404.epm.EPMClientHooks;
 import dev.spake404.epm.ModCompat;
 import dev.spake404.epm.SpiderTechniquesState;
 import net.minecraft.network.FriendlyByteBuf;
@@ -29,7 +30,7 @@ public abstract class BasicAttackMixin {
 			}
 		}
 
-		if (!callback.getReturnValueZ() && MomentumAirAttackWindowState.canUseBasicAttack(playerPatch)) {
+		if (!callback.getReturnValueZ() && EPMClientHooks.tryPrepareWallJumpAttackHandoff(playerPatch)) {
 			callback.setReturnValue(Boolean.TRUE);
 		}
 	}

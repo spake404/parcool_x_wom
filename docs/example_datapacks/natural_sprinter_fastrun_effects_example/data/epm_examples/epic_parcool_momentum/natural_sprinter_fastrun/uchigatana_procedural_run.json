@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "match": {
+    "item": "epicfight:uchigatana"
+  },
+  "run": "efn:biped/yamato/dmcyamato_run",
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon",
+  "priority": 100
+}

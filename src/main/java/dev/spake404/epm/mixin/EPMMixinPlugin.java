@@ -15,6 +15,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	private static final String NIGHTFALL = "efn";
 	private static final String TACZ = "tacz";
 	private static final String PARCOOL = "parcool";
+	private static final String EPICFIGHTX = "epicfightx";
 	private static final String VC_GLIDERS = "vc_gliders";
 
 	@Override
@@ -33,7 +34,8 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 			case "CatLeapMixin", "ChargeJumpMixin", "JumpChargingAnimatorMixin", "ParCoolAnimationAccessor", "ParCoolSettingScreenMixin", "WallJumpMixin" -> isLoaded(PARCOOL);
 			case "ComboBasicAttackMixin", "InvincibleJumpConditionMixin" -> isLoaded(INVINCIBLE);
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
-			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin", "MinecraftAttackMixin" -> isLoaded(TACZ);
+			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin" -> isLoaded(TACZ);
+			case "AbstractClientPlayerPatchMixin", "CombatMasteryIIMixin" -> isLoaded(EPICFIGHTX);
 			case "GliderAnimationHandlerMixin", "GliderDataMixin", "GliderToggleMessageMixin", "PlayerGliderLayerMixin" -> isLoaded(VC_GLIDERS);
 			default -> true;
 		};

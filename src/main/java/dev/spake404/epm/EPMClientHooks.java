@@ -16,11 +16,13 @@ import com.alrex.parcool.common.action.impl.RideZipline;
 import com.alrex.parcool.common.action.impl.Roll;
 import com.alrex.parcool.common.action.impl.Tap;
 import com.alrex.parcool.common.action.impl.Vault;
+import com.alrex.parcool.common.action.impl.VerticalWallRun;
 import com.alrex.parcool.common.action.impl.WallJump;
 import com.alrex.parcool.common.capability.Animation;
 import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.config.ParCoolConfig;
+import com.alrex.parcool.utilities.WorldUtil;
 import dev.spake404.epm.mixin.AnimatorControlPacketAccessor;
 import dev.spake404.epm.mixin.ParCoolAnimationAccessor;
 import dev.spake404.epm.mixin.SPAnimatorControlAccessor;
@@ -67,21 +69,13 @@ import net.venturecraft.gliders.network.MessageToggleGlide;
 public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> NATURAL_SPRINTER_CAT_LEAP_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<LivingEntityPatch<?>, Boolean> NATURAL_SPRINTER_CAT_LEAP_PATCHES = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> PHANTOM_ASCENT_TICKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, PhantomAscentPrimeSource> PHANTOM_ASCENT_SOURCES = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Boolean> PHANTOM_ASCENT_USED_AIRBORNE = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> PHANTOM_ASCENT_STARTED_TICKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, DelayedAnimatorControl> DELAYED_PHANTOM_ASCENT_AIR_ATTACKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> PENDING_FORCED_PHANTOM_ASCENT_TICKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, PhantomAscentPrimeSource> PENDING_FORCED_PHANTOM_ASCENT_SOURCES = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Boolean> PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT = new WeakHashMap<>();
+	private static final WeakHashMap<Player, PhantomAscentCycle> PHANTOM_ASCENT_CYCLES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> VAULT_HOLD_FAST_RUN = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_GRACE_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_GRACE_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_EARLY_FINISH_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> WALL_JUMP_AUTO_SPRINT_TICKS = new WeakHashMap<>();
-	private static final WeakHashMap<Player, Integer> TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> JUMP_PRIORITY_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_RESTORE_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> TACZ_SHOOT_ACTIVE = new WeakHashMap<>();
@@ -108,6 +102,7 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> PENDING_GLIDER_INPUT_ARBITRATION_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, PendingGliderPreinput> PENDING_GLIDER_PREINPUTS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> PENDING_GLIDER_TOGGLE_AFTER_PHANTOM = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> PENDING_WOM_BACKFLIP_GLIDER_TOGGLE = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> PARCOOL_WALL_JUMP_INPUT_DOWN = new WeakHashMap<>();
@@ -140,7 +135,6 @@ public final class EPMClientHooks {
 	private static final int GLIDER_PREINPUT_SAME_PRESS_GRACE_TICKS = 1;
 	private static final int PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS = 12;
 	private static final int WALL_JUMP_AUTO_SPRINT_DURATION_TICKS = 12;
-	private static final int TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS = 40;
 	private static final int TACZ_SHOOT_FAST_RUN_SUPPRESS_DURATION_TICKS = 3;
 	private static final int TACZ_SHOOT_FAST_RUN_RESTORE_DURATION_TICKS = 12;
 	private static final int TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS = 30;
@@ -159,7 +153,11 @@ public final class EPMClientHooks {
 	}
 
 	public static void startNaturalSprinterCatLeap(Player player) {
-		if (player == null || !player.isLocalPlayer() || !EPMConfig.naturalSprinterAnimations() || !hasNaturalSprinter(player)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !EPMConfig.naturalSprinterAnimations()
+				|| !hasNaturalSprinter(player)) {
 			return;
 		}
 
@@ -174,26 +172,30 @@ public final class EPMClientHooks {
 	}
 
 	public static void markCatLeapForPhantomAscent(Player player) {
-		if (player != null && player.isLocalPlayer() && EPMConfig.catLeapPrimesPhantomAscent()) {
+		if (EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
+				&& player.isLocalPlayer()
+				&& EPMConfig.catLeapPrimesPhantomAscent()) {
 			markForPhantomAscent(player, PhantomAscentPrimeSource.CAT_LEAP);
 		}
 	}
 
 	public static boolean markDemolitionLeapForPhantomAscent(Player player) {
-		return player != null
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
 				&& player.isLocalPlayer()
 				&& EPMConfig.demolitionLeapAirDoubleJump()
 				&& markForPhantomAscent(player, PhantomAscentPrimeSource.DEMOLITION_LEAP);
 	}
 
-	public static boolean isForcingDemolitionPhantomAscent(Player player) {
+	public static boolean isForcedDemolitionPhantomAscent(Player player) {
 		return player != null
 				&& player.isLocalPlayer()
 				&& ACTIVE_FORCED_PHANTOM_ASCENT_SOURCE.get() == PhantomAscentPrimeSource.DEMOLITION_LEAP;
 	}
 
-	public static void logForcedDemolitionPhantomAscentBypass(Player player, String phase, boolean originalValue) {
-		if (!isForcingDemolitionPhantomAscent(player)) {
+	public static void logForcedDemolitionPhantomBypass(Player player, String phase, boolean originalValue) {
+		if (!isForcedDemolitionPhantomAscent(player)) {
 			return;
 		}
 
@@ -210,23 +212,29 @@ public final class EPMClientHooks {
 	}
 
 	public static void markWallJumpForPhantomAscent(Player player) {
-		if (player != null && player.isLocalPlayer() && EPMConfig.wallJumpPrimesPhantomAscent()) {
-			markParCoolWallJumpInputBaseline(player);
-			if (markForPhantomAscent(player, PhantomAscentPrimeSource.WALL_JUMP)) {
-				PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.put(player, Integer.valueOf(player.tickCount));
-				logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_mark", true, false, false);
-			} else {
-				logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_prime_skip", false, false, false);
+		if (EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
+				&& player.isLocalPlayer()
+				&& EPMConfig.wallJumpPrimesPhantomAscent()) {
+			if (!canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)) {
+				logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_native_window_skip", false, false, false);
+				return;
 			}
+
+			markForPhantomAscent(player, PhantomAscentPrimeSource.WALL_JUMP);
+			PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.put(player, Integer.valueOf(player.tickCount));
+			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_native_window_start", true, false, false);
+			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_mark", true, false, false);
 		}
 	}
 
 	public static void markWomWallRunToParCoolWallJumpStarted(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
 		markParCoolWallJumpInputBaseline(player);
+		ParCoolWallJumpHandoffState.markStarted(player, ParCoolWallJumpHandoffState.Source.WOM_WALLRUN);
 		markWallRunToParCoolWallJumpGliderSuppress(player, "wallrun_parcool_glider_lock_start");
 		Integer previousTick = PARCOOL_WALL_RUN_HANDOFF_TICKS.put(player, Integer.valueOf(player.tickCount));
 		if (previousTick == null || previousTick.intValue() != player.tickCount) {
@@ -235,7 +243,7 @@ public final class EPMClientHooks {
 	}
 
 	public static void markWallRunToParCoolWallJumpGliderSuppress(Player player, String phase) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -252,6 +260,10 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean hasWallRunToParCoolWallJumpCandidate(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return false;
+		}
+
 		Integer localStart = WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.get(player);
 		if (localStart == null || player == null || player.onGround() || player.isInWater()) {
 			return false;
@@ -268,12 +280,238 @@ public final class EPMClientHooks {
 		}
 	}
 
+	public static void markParCoolWallJumpHandoffStarted(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		markParCoolWallJumpInputBaseline(player);
+		ParCoolWallJumpHandoffState.markStarted(player, ParCoolWallJumpHandoffState.Source.PARCOOL);
+	}
+
+	public static boolean claimParCoolWallJump(Player player, String reason) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return true;
+		}
+
+		boolean jumpDown = isPhysicalJumpKeyDown();
+		if (!jumpDown) {
+			return true;
+		}
+
+		return JumpActionArbiter.claim(
+				player,
+				JumpActionArbiter.Winner.PARCOOL_WALL_JUMP,
+				reason == null ? "parcool_wall_jump" : reason,
+				jumpDown);
+	}
+
+	public static boolean claimWomWallJump(Player player, String reason) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return true;
+		}
+
+		return JumpActionArbiter.claim(
+				player,
+				JumpActionArbiter.Winner.WOM_WALL_JUMP,
+				reason == null ? "wom_wall_jump" : reason,
+				isPhysicalJumpKeyDown());
+	}
+
+	public static boolean shouldBlockParCoolWallJumpAfterHigherPriority(Player player, String phase) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| player.onGround()
+				|| player.isInWater()) {
+			return false;
+		}
+
+		boolean higherPriorityClaimed = JumpActionArbiter.isClaimedByHigherOrEqual(
+				player,
+				JumpActionArbiter.Winner.PARCOOL_WALL_JUMP);
+		boolean phantomAirborneLocked = isPhantomAscentUsedAirborne(player);
+		if (!phantomAirborneLocked && !higherPriorityClaimed) {
+			return false;
+		}
+
+		logJumpArbiter(player, phase == null ? "block_wall_jump_after_higher_priority" : phase);
+		return true;
+	}
+
+	private static void logJumpArbiter(Player player, String phase) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		Integer previousTick = JUMP_PRIORITY_LOG_TICKS.get(player);
+		if (previousTick != null && previousTick.intValue() == player.tickCount) {
+			return;
+		}
+		JUMP_PRIORITY_LOG_TICKS.put(player, Integer.valueOf(player.tickCount));
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		JumpActionArbiter.Snapshot jump = JumpActionArbiter.snapshot(player);
+		EPM.LOGGER.info(
+				"[EPM/JumpPriority] phase={} tick={} onGround={} jumpDown={} pressSeq={} pressElapsed={} winner={} winnerReason={} winnerElapsed={} phantomUsed={} phantomQueued={} currentAnimation={} delta={}",
+				phase,
+				Integer.valueOf(player.tickCount),
+				Boolean.valueOf(player.onGround()),
+				Boolean.valueOf(jump.jumpDown()),
+				Integer.valueOf(jump.pressSequence()),
+				Integer.valueOf(jump.pressElapsed()),
+				jump.winner(),
+				jump.reason(),
+				Integer.valueOf(jump.winnerElapsed()),
+				Boolean.valueOf(isPhantomAscentUsedAirborne(player)),
+				Boolean.valueOf(isPhantomAscentPrimed(player)),
+				assetName(currentBaseAnimation(playerPatch)),
+				player.getDeltaMovement());
+	}
+
 	public static void markWomWallJumpForPhantomAscent(Player player) {
-		if (player != null && player.isLocalPlayer() && EPMConfig.spiderWallJumpPrimesPhantomAscent()) {
+		if (EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
+				&& player.isLocalPlayer()
+				&& EPMConfig.spiderWallJumpPrimesPhantomAscent()) {
 			markWomBackflipPhantomLock(player, "mark_wom_wall_jump");
 			if (!markForPhantomAscent(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP)) {
 				logWomBackflipGliderGuard(player, "wom_backflip_phantom_prime_skip", "unavailable_or_used", false, false);
 			}
+		}
+	}
+
+	public static boolean shouldCancelPhantomAscentForJumpArbitration(SkillContainer skillContainer, MovementInputEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| skillContainer == null
+				|| event == null) {
+			return false;
+		}
+
+		LocalPlayerPatch localPlayerPatch = event.getPlayerPatch();
+		Player player = localPlayerPatch.getOriginal();
+		if (player == null || !player.isLocalPlayer()) {
+			return false;
+		}
+
+		if (ACTIVE_FORCED_PHANTOM_ASCENT_SOURCE.get() != null) {
+			logJumpArbiter(player, "phantom_forced_bypass_arbitration");
+			return false;
+		}
+
+		boolean jumpDown = isEpicFightJumpActionPressed();
+		JumpActionArbiter.tick(player, jumpDown);
+		if (!jumpDown) {
+			return false;
+		}
+
+		if (tryPrepareParCoolWallJumpForNativePhantom(skillContainer, player)) {
+			return false;
+		}
+
+		if (ParCoolWallJumpHandoffState.shouldBlockInitialPress(player)) {
+			setPhantomJumpPressedLastTick(skillContainer, true);
+			logJumpArbiter(player, "phantom_block_wall_jump_initial_press");
+			return true;
+		}
+
+		if (JumpActionArbiter.isClaimedByHigherOrEqual(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)
+				|| hasWomWallJumpPriorityCandidate(player)
+				|| hasParCoolWallJumpPriorityCandidate(player)) {
+			setPhantomJumpPressedLastTick(skillContainer, true);
+			logJumpArbiter(player, "phantom_block_higher_priority_candidate");
+			return true;
+		}
+
+		if (isPhantomJumpPressedLastTick(skillContainer)) {
+			return false;
+		}
+
+		return false;
+	}
+
+	private static boolean tryPrepareParCoolWallJumpForNativePhantom(SkillContainer skillContainer, Player player) {
+		if (!ParCoolWallJumpHandoffState.shouldAllowPhantom(player)) {
+			return false;
+		}
+		if (!canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)) {
+			logJumpArbiter(player, "phantom_wall_jump_handoff_unavailable");
+			return false;
+		}
+		if (JumpActionArbiter.isClaimedByOther(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)) {
+			logJumpArbiter(player, "phantom_wall_jump_handoff_taken");
+			return false;
+		}
+
+		prepareParCoolWallJumpForNativePhantom(player);
+		setPhantomJumpPressedLastTick(skillContainer, false);
+		markPhantomAscentConsumedJump(player, "wall_jump_handoff");
+		logJumpArbiter(player, "phantom_allow_wall_jump_handoff");
+		return true;
+	}
+
+	private static boolean hasWomWallJumpPriorityCandidate(Player player) {
+		return WomSpiderWallRunHandler.isWallRunActive(player)
+				|| WomSpiderWallSlideHandler.shouldOwnWallState(player)
+				|| isWomBackflipPhantomLockActive(player);
+	}
+
+	private static boolean hasParCoolWallJumpPriorityCandidate(Player player) {
+		if (player == null || player.onGround() || player.isInWaterOrBubble() || player.isFallFlying() || player.getAbilities().flying) {
+			return false;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			IStamina stamina = IStamina.get(player);
+			if (parkourability == null || stamina == null || stamina.isExhausted()) {
+				return false;
+			}
+
+			WallJump wallJump = parkourability.get(WallJump.class);
+			if (wallJump == null || !wallJump.isInputDone()) {
+				return false;
+			}
+
+			Vec3 wall = WorldUtil.getWall(player, player.getBbWidth() * 0.65D);
+			if (wall == null) {
+				return false;
+			}
+
+			ClingToCliff cling = parkourability.get(ClingToCliff.class);
+			boolean clingAllowsWallJump = (!cling.isDoing() && cling.getNotDoingTick() > 3)
+					|| (cling.isDoing() && cling.getFacingDirection() != ClingToCliff.FacingDirection.ToWall);
+			return parkourability.getAdditionalProperties().getNotCreativeFlyingTick() > 10
+					&& clingAllowsWallJump
+					&& !parkourability.get(Crawl.class).isDoing()
+					&& !parkourability.get(VerticalWallRun.class).isDoing()
+					&& !parkourability.get(RideZipline.class).isDoing()
+					&& parkourability.getAdditionalProperties().getNotLandingTick() > 4
+					&& !isParCoolWallJumpInCooldown(wallJump, parkourability);
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static boolean isParCoolWallJumpInCooldown(WallJump wallJump, Parkourability parkourability) {
+		return (parkourability.getClientInfo().get(ParCoolConfig.Client.Booleans.EnableWallJumpCooldown)
+				|| !parkourability.getServerLimitation().get(ParCoolConfig.Server.Booleans.AllowDisableWallJumpCooldown))
+				&& wallJump.getNotDoingTick() <= 8;
+	}
+
+	private static boolean isPhantomJumpPressedLastTick(SkillContainer skillContainer) {
+		try {
+			Object value = skillContainer.getDataManager().getDataValue(SkillDataKeys.JUMP_KEY_PRESSED_LAST_TICK.get());
+			return value instanceof Boolean pressed && pressed.booleanValue();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static void setPhantomJumpPressedLastTick(SkillContainer skillContainer, boolean pressed) {
+		try {
+			skillContainer.getDataManager().setData(SkillDataKeys.JUMP_KEY_PRESSED_LAST_TICK.get(), Boolean.valueOf(pressed));
+		} catch (RuntimeException | LinkageError ignored) {
 		}
 	}
 
@@ -287,7 +525,10 @@ public final class EPMClientHooks {
 	}
 
 	public static void compensateEpicParCoolClimbUp(Player player) {
-		if (player == null || !player.isLocalPlayer() || !player.level().isClientSide()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !player.level().isClientSide()) {
 			return;
 		}
 
@@ -306,7 +547,10 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldAllowClimbUpFromEpicParCoolClingMove(Player player) {
-		if (player == null || !player.isLocalPlayer() || !player.level().isClientSide()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !player.level().isClientSide()) {
 			return false;
 		}
 
@@ -330,7 +574,7 @@ public final class EPMClientHooks {
 	}
 
 	public static void markClimbUpFromEpicParCoolClingMove(Player player) {
-		if (player != null && player.isLocalPlayer()) {
+		if (EPMParCoolGate.allowCrossModSkillCompat() && player != null && player.isLocalPlayer()) {
 			EPIC_PARCOOL_CLING_MOVE_CLIMB_UP_TICKS.put(player, Integer.valueOf(player.tickCount));
 		}
 	}
@@ -340,7 +584,10 @@ public final class EPMClientHooks {
 	}
 
 	public static void queueNaturalSprinterFastRunDash(PlayerPatch<?> playerPatch, AssetAccessor<? extends StaticAnimation> animation) {
-		if (playerPatch == null || animation == null || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| playerPatch == null
+				|| animation == null
+				|| !EPMConfig.naturalSprinterAnimations()) {
 			return;
 		}
 
@@ -359,14 +606,71 @@ public final class EPMClientHooks {
 		PENDING_FAST_RUN_DASHES.put(playerPatch, animation);
 	}
 
+	static void playNaturalSprinterFastRunStep(PlayerPatch<?> playerPatch, NaturalSprinterFastRunStep step) {
+		playNaturalSprinterFastRunStep(playerPatch, step, NaturalSprinterFastRunStep.Trigger.MANUAL);
+	}
+
+	static void playNaturalSprinterFastRunStep(
+			PlayerPatch<?> playerPatch,
+			NaturalSprinterFastRunStep step,
+			NaturalSprinterFastRunStep.Trigger trigger) {
+		NaturalSprinterFastRunStep.Trigger safeTrigger = trigger == null ? NaturalSprinterFastRunStep.Trigger.MANUAL : trigger;
+		if (step == null || !step.isPresent()) {
+			logNaturalSprinterStepPulse("play_skip", "missing_step", playerPatch, step, safeTrigger);
+			return;
+		}
+
+		if (!step.procedural()) {
+			if (step.fullEffectsFor(safeTrigger)) {
+				NaturalSprinterProceduralStepPulse.playStepVisualAndAudioEffects(playerPatch,
+						safeTrigger == NaturalSprinterFastRunStep.Trigger.STARTUP
+								? "configured_startup_step"
+								: "configured_manual_step");
+			}
+			logNaturalSprinterStepPulse("play_step_animation", "queued_animation_step", playerPatch, step, safeTrigger);
+			queueNaturalSprinterFastRunDash(playerPatch, step.animation());
+			return;
+		}
+
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| playerPatch == null
+				|| !EPMConfig.naturalSprinterAnimations()) {
+			logNaturalSprinterStepPulse("play_procedural_skip", "compat_or_config", playerPatch, step, safeTrigger);
+			return;
+		}
+
+		Player player = playerPatch.getOriginal();
+		if (shouldStopFastRunForGlider(player)) {
+			logNaturalSprinterStepPulse("play_procedural_skip", "glider", playerPatch, step, safeTrigger);
+			suppressFastRunAnimationForGlider(player);
+			return;
+		}
+		if (shouldDelayNaturalSprinterDashForBreakfall(player) || isPhantomAscentAirborneLocked(player)) {
+			logNaturalSprinterStepPulse("play_procedural_skip", "breakfall_or_phantom", playerPatch, step, safeTrigger);
+			return;
+		}
+
+		logNaturalSprinterStepPulse("play_procedural_request", "request", playerPatch, step, safeTrigger);
+		if (step.fullEffectsFor(safeTrigger)) {
+			NaturalSprinterProceduralStepPulse.playStepEffects(playerPatch, "procedural_startup_step");
+		} else {
+			NaturalSprinterProceduralStepPulse.playCleanStepEffects(playerPatch, "procedural_manual_step");
+		}
+		NaturalSprinterProceduralStepPulse.request(playerPatch, step.proceduralRunAnimation(), step.rightStep());
+	}
+
 	public static boolean requestNaturalSprinterStepFastRun(Player player, AssetAccessor<? extends StaticAnimation> stepAnimation) {
+		return requestNaturalSprinterStepFastRun(player, NaturalSprinterFastRunStep.animation(stepAnimation));
+	}
+
+	static boolean requestNaturalSprinterStepFastRun(Player player, NaturalSprinterFastRunStep step) {
 		IStamina stamina = player == null ? null : IStamina.get(player);
-		if (stepAnimation == null || !canKeepNaturalSprinterStepFastRun(player, stamina)) {
+		if (step == null || !step.isPresent() || !canKeepNaturalSprinterStepFastRun(player, stamina)) {
 			clearNaturalSprinterStepFastRun(player);
 			return false;
 		}
 
-		NATURAL_SPRINTER_STEP_FAST_RUN_STATES.put(player, new NaturalSprinterStepFastRunState(player.tickCount, stepAnimation));
+		NATURAL_SPRINTER_STEP_FAST_RUN_STATES.put(player, new NaturalSprinterStepFastRunState(player.tickCount, step));
 		setSprintingWithDiagnostic(player, true, "natural_sprinter_step_fast_run_request");
 		return true;
 	}
@@ -378,8 +682,8 @@ public final class EPMClientHooks {
 
 		Player player = playerPatch.getOriginal();
 		NaturalSprinterStepFastRunState state = NATURAL_SPRINTER_STEP_FAST_RUN_STATES.get(player);
-		AssetAccessor<? extends StaticAnimation> stepAnimation = state == null ? null : state.startupStep;
-		if (stepAnimation == null) {
+		NaturalSprinterFastRunStep step = state == null ? null : state.startupStep;
+		if (step == null || !step.isPresent()) {
 			return false;
 		}
 
@@ -395,9 +699,9 @@ public final class EPMClientHooks {
 			return true;
 		}
 
-		state.startupStep = null;
+		state.startupStep = NaturalSprinterFastRunStep.none();
 		NaturalSprinterFastRunHandler.advanceSprintStepPublic(playerPatch);
-		queueNaturalSprinterFastRunDash(playerPatch, stepAnimation);
+		playNaturalSprinterFastRunStep(playerPatch, step, NaturalSprinterFastRunStep.Trigger.MANUAL);
 		return true;
 	}
 
@@ -424,6 +728,7 @@ public final class EPMClientHooks {
 		}
 
 		if (state.startupStep != null
+				&& state.startupStep.isPresent()
 				&& player.tickCount - state.startTick > NATURAL_SPRINTER_STEP_FAST_RUN_STARTUP_MAX_TICKS) {
 			clearNaturalSprinterStepFastRun(player);
 			return;
@@ -444,6 +749,7 @@ public final class EPMClientHooks {
 	private static boolean canKeepNaturalSprinterStepFastRun(Player player, IStamina stamina) {
 		if (player == null
 				|| !player.isLocalPlayer()
+				|| !EPMParCoolGate.allowCrossModSkillCompat()
 				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()
@@ -488,11 +794,16 @@ public final class EPMClientHooks {
 	private static void clearNaturalSprinterStepFastRun(Player player) {
 		if (player != null) {
 			NATURAL_SPRINTER_STEP_FAST_RUN_STATES.remove(player);
+			NaturalSprinterProceduralStepPulse.clear(player, "natural_sprinter_step_fast_run_clear");
 		}
 	}
 
 	public static void markBreakfallStarted(Player player) {
-		if (player == null || !player.isLocalPlayer() || !ModCompat.isWomLoaded() || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !ModCompat.isWomLoaded()
+				|| !EPMConfig.naturalSprinterAnimations()) {
 			return;
 		}
 
@@ -528,7 +839,7 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (!EPMConfig.fastRunVaultChainFix()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix()) {
 			clearVaultFastRunState(player);
 			return;
 		}
@@ -565,7 +876,7 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldAllowFastRunForVaultGrace(Player player) {
-		if (!EPMConfig.fastRunVaultChainFix()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix()) {
 			clearVaultFastRunState(player);
 			return false;
 		}
@@ -603,10 +914,10 @@ public final class EPMClientHooks {
 		return true;
 	}
 
-	public static void finishVaultEarlyForCloseChain(Vault vault, Player player) {
-		if (!EPMConfig.fastRunVaultChainFix()) {
+	public static boolean shouldFinishVaultEarlyForCloseChain(Vault vault, Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix()) {
 			clearVaultFastRunState(player);
-			return;
+			return false;
 		}
 
 		if (vault == null
@@ -619,13 +930,13 @@ public final class EPMClientHooks {
 				|| !Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player))
 				|| hasHardVaultFastRunBlocker(player)
 				|| !hasVaultGraceMovementInput()) {
-			return;
+			return false;
 		}
 
 		if (EPMConfig.debugVaultState() && shouldLogVaultTick(VAULT_EARLY_FINISH_LOG_TICKS, player)) {
 			Vec3 delta = player.getDeltaMovement();
 			EPM.LOGGER.info(
-					"[EPM/VaultDebug] phase=early_finish_for_close_chain tick={} vaultTick={} pos=({}, {}, {}) delta=({}, {}, {})",
+					"[EPM/VaultDebug] phase=synced_early_finish_request tick={} vaultTick={} pos=({}, {}, {}) delta=({}, {}, {})",
 					Integer.valueOf(player.tickCount),
 					Integer.valueOf(vault.getDoingTick()),
 					Double.valueOf(player.getX()),
@@ -635,11 +946,13 @@ public final class EPMClientHooks {
 					Double.valueOf(delta.y()),
 					Double.valueOf(delta.z()));
 		}
-		vault.finish(player);
+		clearVaultFastRunHold(player);
+		return true;
 	}
 
 	public static boolean wasHoldingFastRunDuringVault(Player player) {
-		return EPMConfig.fastRunVaultChainFix()
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& EPMConfig.fastRunVaultChainFix()
 				&& (Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player)) || VAULT_FAST_RUN_GRACE_TICKS.containsKey(player));
 	}
 
@@ -652,7 +965,7 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldKeepFastRunDuringVault(Player player) {
-		if (!EPMConfig.fastRunVaultChainFix()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix()) {
 			clearVaultFastRunState(player);
 			return false;
 		}
@@ -683,6 +996,7 @@ public final class EPMClientHooks {
 	public static void markAutoSprintAfterWallJump(Player player) {
 		if (player == null
 				|| !player.isLocalPlayer()
+				|| !EPMParCoolGate.allowCrossModSkillCompat()
 				|| !EPMConfig.autoSprintAfterWallJump()
 				|| GliderCompat.isGlidingWithActiveGlider(player)
 				|| hasHardVaultFastRunBlocker(player)) {
@@ -694,17 +1008,16 @@ public final class EPMClientHooks {
 		ensureFastRunAnimator(player);
 	}
 
-	public static void markWallJumpForTaczShootCancel(Player player) {
-		if (player != null && player.isLocalPlayer() && EPMConfig.taczShootDuringWallJump()) {
-			TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.put(player, Integer.valueOf(TACZ_WALL_JUMP_SHOOT_CANCEL_DURATION_TICKS));
-		}
-	}
-
 	public static boolean shouldPreserveFastRunToggleAfterWallJump(Player player, IStamina stamina) {
 		return shouldKeepFastRunAfterWallJump(player, stamina);
 	}
 
 	public static boolean shouldKeepFastRunAfterWallJump(Player player, IStamina stamina) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			cancelAutoSprintAfterWallJump(player);
+			return false;
+		}
+
 		if (!WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(player)) {
 			return false;
 		}
@@ -725,7 +1038,7 @@ public final class EPMClientHooks {
 	}
 
 	public static void suppressFastRunForTaczShoot(Player player, boolean restoreFastRunAfterShoot) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -740,8 +1053,62 @@ public final class EPMClientHooks {
 		stopLocalSprintAndFastRunAnimation(player);
 	}
 
-	public static void cancelWallJumpForTaczShoot(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
+	public static boolean tryPrepareWallJumpAttackHandoff(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null) {
+			return false;
+		}
+
+		Player player = playerPatch.getOriginal();
+		if (MomentumAirAttackWindowState.canUseBasicAttack(playerPatch)) {
+			consumeWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.ATTACK, false);
+			return true;
+		}
+		return cancelWallJumpForAttackInput(player);
+	}
+
+	public static boolean cancelWallJumpForAttackInput(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !canUseWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.ATTACK)) {
+			return false;
+		}
+
+		consumeWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.ATTACK, false);
+		return true;
+	}
+
+	private static boolean canUseWallJumpHandoff(Player player, ParCoolWallJumpHandoffState.Consumer consumer) {
+		if (consumer == ParCoolWallJumpHandoffState.Consumer.ATTACK
+				&& MomentumAirAttackWindowState.isInWallJumpWindow(player)) {
+			return true;
+		}
+		if (consumer == ParCoolWallJumpHandoffState.Consumer.ATTACK
+				&& ParCoolWallJumpHandoffState.canAttackHandoff(player)) {
+			return true;
+		}
+		return isWallJumpHandoffActiveFallback(player);
+	}
+
+	private static boolean isWallJumpHandoffActiveFallback(Player player) {
+		if (MomentumAirAttackWindowState.isInWallJumpWindow(player) || ParCoolWallJumpHandoffState.isActive(player)) {
+			return true;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
+			if (wallJump != null && wallJump.isDoing()) {
+				return true;
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+
+		return isCurrentParCoolWallJumpAnimation(player) || MomentumAirAttackWindowState.isInWallJumpWindow(player);
+	}
+
+	private static void prepareParCoolWallJumpForNativePhantom(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -756,13 +1123,59 @@ public final class EPMClientHooks {
 
 		clearVaultFastRunHold(player);
 		cancelAutoSprintAfterWallJump(player);
-		cancelTaczWallJumpShootCancel(player);
 		clearParCoolAnimator(player);
-		setSprintingWithDiagnostic(player, false, "cancel_wall_jump_for_tacz_shoot");
+		PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
+		PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
 
-		Vec3 movement = player.getDeltaMovement();
-		if (movement.y() > 0.0D) {
-			player.setDeltaMovement(movement.x(), 0.0D, movement.z());
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
+			PENDING_FAST_RUN_DASHES.remove(localPlayerPatch);
+			stopPlaying(localPlayerPatch,
+					WomAnimationRefs.epicParCoolWallJumpLeftStart(),
+					WomAnimationRefs.epicParCoolWallJumpRightStart(),
+					WomAnimationRefs.epicParCoolWallJumpLeft(),
+					WomAnimationRefs.epicParCoolWallJumpRight());
+			try {
+				localPlayerPatch.getClientAnimator().resetMotion(true);
+				localPlayerPatch.getClientAnimator().resetCompositeMotion();
+				localPlayerPatch.setModelYRot(player.getYRot(), true);
+			} catch (RuntimeException | LinkageError ignored) {
+			}
+		}
+
+		logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_prepare_native_phantom", true, false, false);
+	}
+
+	private static void consumeWallJumpHandoff(Player player, ParCoolWallJumpHandoffState.Consumer consumer, boolean stopVerticalBoost) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		try {
+			Parkourability parkourability = Parkourability.get(player);
+			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
+			if (wallJump != null && wallJump.isDoing()) {
+				wallJump.finish(player);
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+
+		clearVaultFastRunHold(player);
+		cancelAutoSprintAfterWallJump(player);
+		clearParCoolAnimator(player);
+		PARCOOL_WALL_JUMP_STARTED_TICKS.remove(player);
+		PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.remove(player);
+		PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.remove(player);
+		PARCOOL_WALL_RUN_HANDOFF_TICKS.remove(player);
+		WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.remove(player);
+		PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
+		PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
+
+		if (stopVerticalBoost) {
+			Vec3 movement = player.getDeltaMovement();
+			if (movement.y() > 0.0D) {
+				player.setDeltaMovement(movement.x(), 0.0D, movement.z());
+			}
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
@@ -779,27 +1192,12 @@ public final class EPMClientHooks {
 			} catch (RuntimeException | LinkageError ignored) {
 			}
 		}
-	}
 
-	public static boolean isWallJumpActiveForTaczShoot(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
-			return false;
-		}
-
-		try {
-			Parkourability parkourability = Parkourability.get(player);
-			WallJump wallJump = parkourability == null ? null : parkourability.get(WallJump.class);
-			if (wallJump != null && wallJump.isDoing()) {
-				return true;
-			}
-		} catch (RuntimeException | LinkageError ignored) {
-		}
-
-		return TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(player) || MomentumAirAttackWindowState.isInWallJumpWindow(player);
+		ParCoolWallJumpHandoffState.consume(player, consumer);
 	}
 
 	public static void rememberFastRunBeforeTaczShoot(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -808,7 +1206,18 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldStopFastRunForTaczShoot(Player player) {
-		return player != null && TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player);
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
+				&& TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player);
+	}
+
+	public static boolean isTaczShootFastRunHandoffActive(Player player) {
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
+				&& player.isLocalPlayer()
+				&& (TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player)
+						|| TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)
+						|| TACZ_SHOOT_ACTIVE.containsKey(player));
 	}
 
 	public static boolean shouldStopFastRunForGlider(Player player) {
@@ -839,6 +1248,11 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldRestoreFastRunAfterTaczShoot(Player player, IStamina stamina) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			cancelTaczShootFastRunRestore(player);
+			return false;
+		}
+
 		if (!TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)) {
 			return false;
 		}
@@ -858,19 +1272,21 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldSuppressAutoFastRunDashForTacz(PlayerPatch<?> playerPatch) {
-		return playerPatch != null
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& playerPatch != null
 				&& (TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(playerPatch.getOriginal())
 				|| TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.containsKey(playerPatch.getOriginal()));
 	}
 
 	public static void markTaczShootActive(Player player) {
-		if (player != null && player.isLocalPlayer() && isHoldingTaczGun(player)) {
+		if (EPMParCoolGate.allowCrossModSkillCompat() && player != null && player.isLocalPlayer() && isHoldingTaczGun(player)) {
 			TACZ_SHOOT_ACTIVE.put(player, Boolean.TRUE);
 		}
 	}
 
 	public static void suppressAutoFastRunDashForTaczReload(Player player) {
-		if (player != null
+		if (EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
 				&& player.isLocalPlayer()
 				&& isHoldingTaczGun(player)) {
 			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
@@ -883,7 +1299,9 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldSuppressJumpChargingForTacz(Player player) {
-		return ModCompat.isTaczLoaded() && isHoldingTaczGun(player);
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& ModCompat.isTaczLoaded()
+				&& isHoldingTaczGun(player);
 	}
 
 	public static boolean cancelWallJumpForTaczAttackInput(Player player) {
@@ -891,12 +1309,12 @@ public final class EPMClientHooks {
 			return false;
 		}
 
-		if (!isWallJumpActiveForTaczShoot(player)) {
+		if (!cancelWallJumpForAttackInput(player)) {
 			return false;
 		}
 
-		cancelWallJumpForTaczShoot(player);
 		MomentumAirAttackWindowState.clearWallJumpWindow(player);
+		setSprintingWithDiagnostic(player, false, "cancel_wall_jump_for_tacz_shoot");
 		return true;
 	}
 
@@ -910,15 +1328,53 @@ public final class EPMClientHooks {
 	}
 
 	public static void markPhantomAscentAirAttackWindow(Player player) {
-		if (player == null || !player.isLocalPlayer() || isHoldingPhantomAscentBlockedWeapon(player) || Boolean.TRUE.equals(PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.get(player))) {
+		if (player == null || !player.isLocalPlayer() || isHoldingPhantomAscentBlockedWeapon(player) || hasPhantomAscentAirAttackWindow(player)) {
 			return;
 		}
 
 		PhantomAscentAirAttackState.mark(player);
-		PHANTOM_ASCENT_STARTED_TICKS.put(player, Integer.valueOf(player.tickCount));
-		PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.put(player, Boolean.TRUE);
+		PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+		if (cycle != null) {
+			cycle.startedTick = player.tickCount;
+			cycle.airAttackWindowSent = true;
+			cycle.seenAirborne = cycle.seenAirborne || !player.onGround();
+		}
 		clearGliderOpeningDelayState(player);
 		EPMNetwork.sendPhantomAscentAirAttackWindow();
+	}
+
+	public static void markNativePhantomAscentStarted(Player player) {
+		if (player == null || !player.isLocalPlayer() || isHoldingPhantomAscentBlockedWeapon(player)) {
+			return;
+		}
+
+		PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+		PhantomAscentPrimeSource source = cycle == null ? null : cycle.source;
+		if (cycle != null) {
+			cycle.start(player);
+		}
+		boolean parCoolWallJumpHandoff = ParCoolWallJumpHandoffState.isActive(player)
+				|| isCurrentParCoolWallJumpAnimation(player)
+				|| PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.containsKey(player)
+				|| source == PhantomAscentPrimeSource.WALL_JUMP;
+		if (!JumpActionArbiter.isClaimedBy(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)) {
+			markPhantomAscentConsumedJump(player, "native_start");
+		} else {
+			logJumpArbiter(player, "phantom_native_start_already_claimed");
+		}
+
+		if (parCoolWallJumpHandoff) {
+			consumeWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.PHANTOM, false);
+		}
+
+		clearGliderOpeningDelayState(player);
+		clearParCoolWallJumpPriorityStateAfterPhantom(player);
+		if (parCoolWallJumpHandoff) {
+			PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.put(player, Integer.valueOf(player.tickCount));
+			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_handoff_start", true, false, false);
+		}
+		markPhantomAscentAirAttackWindow(player);
+		logJumpArbiter(player, "phantom_native_started");
 	}
 
 	public static boolean delayPhantomAscentAirAttackAnimation(PlayerPatch<?> playerPatch, AnimatorControlPacketAccessor packet, SPAnimatorControlAccessor serverPacket) {
@@ -945,13 +1401,16 @@ public final class EPMClientHooks {
 
 		int elapsedTicks = phantomAscentElapsedTicks(player);
 		if (elapsedTicks < PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS) {
-			DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.put(player, new DelayedAnimatorControl(
-					packet.parcoolxwom$action(),
-					packet.parcoolxwom$animationId(),
-					packet.parcoolxwom$transitionTimeModifier(),
-					packet.parcoolxwom$pause(),
-					serverPacket.parcoolxwom$layer(),
-					serverPacket.parcoolxwom$priority()));
+			PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+			if (cycle != null) {
+				cycle.delayedAirAttack = new DelayedAnimatorControl(
+						packet.parcoolxwom$action(),
+						packet.parcoolxwom$animationId(),
+						packet.parcoolxwom$transitionTimeModifier(),
+						packet.parcoolxwom$pause(),
+						serverPacket.parcoolxwom$layer(),
+						serverPacket.parcoolxwom$priority());
+			}
 			return true;
 		}
 
@@ -1095,16 +1554,16 @@ public final class EPMClientHooks {
 			return true;
 		}
 
-		boolean phantomQueued = PHANTOM_ASCENT_TICKS.containsKey(player);
+		boolean phantomQueued = isPhantomAscentPrimed(player);
 		boolean realPhantomWindow = isGliderOpeningDelayWindowActive(player) || snapshot.phantomAnimation();
-		boolean wallJumpPrime = snapshot.parCoolWallJumpAnimation() || (EPMConfig.spiderWallJumpPrimesPhantomAscent() && snapshot.womBackflipAnimation() && (PHANTOM_ASCENT_TICKS.containsKey(player) || canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP)));
+		boolean wallJumpPrime = snapshot.parCoolWallJumpAnimation() || (EPMConfig.spiderWallJumpPrimesPhantomAscent() && snapshot.womBackflipAnimation() && (isPhantomAscentPrimed(player) || canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP)));
 		if (!phantomQueued && !realPhantomWindow && !wallJumpPrime) {
 			return false;
 		}
 
 		logGliderOpeningDelayDiagnostic(player, "toggle_block_phantom_priority", true, true, false);
 		if (realPhantomWindow
-				&& (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player)) || !isParCoolWallJumpPhantomLockActive(player))) {
+				&& (isPhantomAscentUsedAirborne(player) || !isParCoolWallJumpPhantomLockActive(player))) {
 			cacheUnifiedGliderPreinput(player, GliderPreinputSource.PHANTOM_ASCENT, "phantom_priority");
 		}
 		return true;
@@ -1156,8 +1615,8 @@ public final class EPMClientHooks {
 			return false;
 		}
 
-		if (isPhantomAscentConsumedJumpHeld(player)) {
-			logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_drop_phantom_consumed_jump", true, true, false);
+		if (JumpActionArbiter.isClaimedByHigherOrEqual(player, JumpActionArbiter.Winner.GLIDER_TOGGLE)) {
+			logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_drop_higher_priority_claim", true, true, false);
 			return true;
 		}
 
@@ -1178,6 +1637,9 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldHardBlockGliderToggleForWallRunToParCoolWallJump(Player player) {
+		if (ParCoolWallJumpHandoffState.shouldAllowGlider(player)) {
+			return false;
+		}
 		if (!isWallRunToParCoolWallJumpGliderSuppressActive(player)) {
 			return false;
 		}
@@ -1257,12 +1719,16 @@ public final class EPMClientHooks {
 	}
 
 	private static void ensureGliderOpeningDelayWindowFromCurrentAnimation(Player player) {
-		if (PHANTOM_ASCENT_STARTED_TICKS.containsKey(player)) {
+		if (hasPhantomAscentStarted(player)) {
 			return;
 		}
 
 		if (GliderFrameState.snapshot(player).phantomAnimation()) {
-			PHANTOM_ASCENT_STARTED_TICKS.put(player, Integer.valueOf(player.tickCount));
+			PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+			if (cycle != null) {
+				cycle.startedTick = player.tickCount;
+				cycle.seenAirborne = cycle.seenAirborne || !player.onGround();
+			}
 			logGliderOpeningDelayDiagnostic(player, "window_from_current_animation", true, false, false);
 		}
 	}
@@ -1285,7 +1751,7 @@ public final class EPMClientHooks {
 
 		GliderFrameState.Snapshot gliderState = GliderFrameState.snapshot(player);
 		PlayerPatch<?> playerPatch = gliderState.playerPatch();
-		Integer startTick = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		Integer startTick = phantomAscentStartedTick(player);
 		int elapsed = startTick == null ? -1 : player.tickCount - startTick.intValue();
 		boolean windowActive = startTick != null && elapsed >= 0 && elapsed < PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS;
 		boolean phantomAnimation = gliderState.phantomAnimation();
@@ -1299,8 +1765,8 @@ public final class EPMClientHooks {
 		PendingGliderPreinput pendingPreinput = PENDING_GLIDER_PREINPUTS.get(player);
 		int pendingPreinputElapsed = pendingPreinput == null ? -1 : player.tickCount - pendingPreinput.queuedTick();
 		boolean phantomPrimeAvailable = canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP);
-		boolean phantomUsed = Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player));
-		JumpInputConsumptionState.Snapshot jumpInput = JumpInputConsumptionState.snapshot(player);
+		boolean phantomUsed = isPhantomAscentUsedAirborne(player);
+		JumpActionArbiter.Snapshot jumpInput = JumpActionArbiter.snapshot(player);
 		boolean protectPhantom = shouldProtectWomBackflipForPhantom(player);
 		Integer parcoolWallJumpLockStart = PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.get(player);
 		int parcoolWallJumpLockElapsed = parcoolWallJumpLockStart == null ? -1 : player.tickCount - parcoolWallJumpLockStart.intValue();
@@ -1363,15 +1829,15 @@ public final class EPMClientHooks {
 				Boolean.valueOf(womBackflipStartSuppress),
 				Boolean.valueOf(phantomPrimeAvailable),
 				Boolean.valueOf(phantomUsed),
-				Boolean.valueOf(jumpInput.consumedHeld()),
-				Boolean.valueOf(jumpInput.consumedActive()),
-				jumpInput.consumer().name(),
+				Boolean.valueOf(jumpInput.jumpDown() && jumpInput.winner() != JumpActionArbiter.Winner.NONE),
+				Boolean.valueOf(jumpInput.winner() != JumpActionArbiter.Winner.NONE),
+				jumpInput.winner().name(),
 				jumpInput.reason(),
-				Integer.valueOf(jumpInput.currentPressId()),
-				Integer.valueOf(jumpInput.currentPressStartTick()),
-				Integer.valueOf(jumpInput.currentPressElapsed()),
-				Integer.valueOf(jumpInput.consumedTick()),
-				Integer.valueOf(jumpInput.consumedElapsed()),
+				Integer.valueOf(jumpInput.pressSequence()),
+				Integer.valueOf(jumpInput.pressStartTick()),
+				Integer.valueOf(jumpInput.pressElapsed()),
+				Integer.valueOf(jumpInput.winnerTick()),
+				Integer.valueOf(jumpInput.winnerElapsed()),
 				Boolean.valueOf(protectPhantom),
 				womBackflipLockStart,
 				Integer.valueOf(womBackflipLockElapsed),
@@ -1398,7 +1864,7 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))) {
+		if (isPhantomAscentUsedAirborne(player)) {
 			PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.remove(player);
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_complete", false, false, false);
 			return;
@@ -1409,7 +1875,7 @@ public final class EPMClientHooks {
 				|| elapsed > PARCOOL_WALL_JUMP_PHANTOM_LOCK_MAX_TICKS
 				|| player.onGround()
 				|| player.isInWater()
-				|| !PHANTOM_ASCENT_TICKS.containsKey(player) && !isCurrentParCoolWallJumpAnimation(player);
+				|| !isPhantomAscentPrimed(player) && !isCurrentParCoolWallJumpAnimation(player);
 		if (invalid) {
 			PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.remove(player);
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_clear", false, false, false);
@@ -1587,15 +2053,16 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean cacheParCoolWallJumpGliderPreinput(Player player, String reason) {
+		boolean allowWallJumpGlider = ParCoolWallJumpHandoffState.shouldAllowGlider(player);
 		if (player == null
 				|| !player.isLocalPlayer()
 				|| player.onGround()
 				|| player.isInWater()
 				|| GliderCompat.isGlidingWithActiveGlider(player)
-				|| isWallRunToParCoolWallJumpGliderSuppressActive(player)
-				|| PHANTOM_ASCENT_TICKS.containsKey(player)
+				|| !allowWallJumpGlider && (isWallRunToParCoolWallJumpGliderSuppressActive(player)
+				|| isPhantomAscentPrimed(player)
 				|| isCurrentWallJumpPhantomAscentPrime(player)
-				|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)
+				|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP))
 				|| isWomBackflipPhantomLockActive(player)
 				|| PENDING_GLIDER_PREINPUTS.containsKey(player)) {
 			return false;
@@ -1640,23 +2107,25 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (PHANTOM_ASCENT_TICKS.containsKey(player)
+		boolean allowWallJumpGlider = ParCoolWallJumpHandoffState.shouldAllowGlider(player);
+		if (!allowWallJumpGlider && (isPhantomAscentPrimed(player)
 				|| isCurrentWallJumpPhantomAscentPrime(player)
 				|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)
-				|| isWallRunToParCoolWallJumpGliderSuppressActive(player)) {
+				|| isWallRunToParCoolWallJumpGliderSuppressActive(player))) {
 			PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_glider_preinput_drop_blocked", true, false, false);
 			return;
 		}
 
-		if (isCurrentParCoolWallJumpAnimation(player)
+		if (!allowWallJumpGlider && (isCurrentParCoolWallJumpAnimation(player)
 				|| isParCoolWallRunHandoffGliderBlockActive(player)
 				|| isWallMovementAnimationActiveForGlider(player)
-				|| GliderCompat.isGlidingWithActiveGlider(player)) {
+				|| GliderCompat.isGlidingWithActiveGlider(player))) {
 			return;
 		}
 
 		PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
+		consumeWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.GLIDER, false);
 		GLIDER_REPLAY_REQUESTS.put(player, Boolean.TRUE);
 		logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_glider_preinput_replay", false, false, false);
 		sendGliderToggleMessage(player);
@@ -1666,11 +2135,11 @@ public final class EPMClientHooks {
 		if (player == null || !player.isLocalPlayer() || !isParCoolWallJumpPhantomLockActive(player)) {
 			return false;
 		}
-		if (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))) {
+		if (isPhantomAscentUsedAirborne(player)) {
 			return false;
 		}
 
-		return PHANTOM_ASCENT_TICKS.containsKey(player)
+		return isPhantomAscentPrimed(player)
 				|| isCurrentParCoolWallJumpAnimation(player);
 	}
 
@@ -1742,7 +2211,7 @@ public final class EPMClientHooks {
 			return false;
 		}
 
-		return PHANTOM_ASCENT_TICKS.containsKey(player)
+		return isPhantomAscentPrimed(player)
 				|| isGliderOpeningDelayWindowActive(player)
 				|| isCurrentPhantomAscentAnimation(player)
 				|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP);
@@ -1804,10 +2273,10 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean canStartPhantomAscentPrime(Player player, PhantomAscentPrimeSource source) {
-		if (player == null || !player.isLocalPlayer() || source == null || !source.enabled()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer() || source == null || !source.enabled()) {
 			return false;
 		}
-		if (Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player)) || isHoldingPhantomAscentBlockedWeapon(player) || isParCoolHanging(player)) {
+		if (isPhantomAscentUsedAirborne(player) || isHoldingPhantomAscentBlockedWeapon(player) || isParCoolHanging(player)) {
 			return false;
 		}
 
@@ -1850,13 +2319,13 @@ public final class EPMClientHooks {
 		int pendingWomToggleElapsed = pendingWomToggleTick == null ? -1 : player.tickCount - pendingWomToggleTick.intValue();
 		PendingGliderPreinput pendingPreinput = PENDING_GLIDER_PREINPUTS.get(player);
 		int pendingPreinputElapsed = pendingPreinput == null ? -1 : player.tickCount - pendingPreinput.queuedTick();
-		Integer phantomStart = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		Integer phantomStart = phantomAscentStartedTick(player);
 		int phantomElapsed = phantomStart == null ? -1 : player.tickCount - phantomStart.intValue();
 		boolean phantomWindow = phantomStart != null && phantomElapsed >= 0 && phantomElapsed < PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS;
 		boolean phantomAnimation = playerPatch != null
 				&& WomAnimationRefs.isAny(animation, WomAnimationRefs.bipedPhantomAscentForward(), WomAnimationRefs.bipedPhantomAscentBackward());
 		boolean phantomPrimeAvailable = canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP);
-		boolean phantomUsed = Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player));
+		boolean phantomUsed = isPhantomAscentUsedAirborne(player);
 		boolean protectPhantom = shouldProtectWomBackflipForPhantom(player);
 
 		EPM.LOGGER.info(
@@ -1883,7 +2352,7 @@ public final class EPMClientHooks {
 				pendingPreinput == null ? "none" : pendingPreinput.source().name(),
 				Integer.valueOf(pendingPreinputElapsed),
 				Boolean.valueOf(GLIDER_REPLAY_REQUESTS.containsKey(player)),
-				Boolean.valueOf(PHANTOM_ASCENT_TICKS.containsKey(player)),
+				Boolean.valueOf(isPhantomAscentPrimed(player)),
 				Boolean.valueOf(phantomWindow),
 				phantomStart,
 				Integer.valueOf(phantomElapsed),
@@ -1917,7 +2386,7 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean isGliderOpeningDelayWindowActive(Player player) {
-		Integer startTick = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		Integer startTick = phantomAscentStartedTick(player);
 		if (startTick == null) {
 			return false;
 		}
@@ -1948,9 +2417,9 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (isPhantomAscentConsumedJumpPendingDrop(player, queuedTick.intValue())) {
+		if (JumpActionArbiter.shouldDropQueuedPress(player, queuedTick.intValue())) {
 			PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
-			logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_drop_phantom_consumed_jump", true, false, false);
+			logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_drop_claimed_press", true, false, false);
 			return;
 		}
 
@@ -1981,6 +2450,10 @@ public final class EPMClientHooks {
 		}
 
 		PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
+		if (!JumpActionArbiter.claim(player, JumpActionArbiter.Winner.GLIDER_TOGGLE, "glider_toggle_replay", true)) {
+			logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_drop_claim_reject", true, false, false);
+			return;
+		}
 		GLIDER_REPLAY_REQUESTS.put(player, Boolean.TRUE);
 		logGliderOpeningDelayDiagnostic(player, "glider_input_arbiter_replay", false, false, false);
 		sendGliderToggleMessage(player);
@@ -2026,7 +2499,7 @@ public final class EPMClientHooks {
 		if (isWomBackflipPhantomLockActive(player)) {
 			return GliderPreinputSource.WOM_BACKFLIP;
 		}
-		if (PHANTOM_ASCENT_TICKS.containsKey(player)
+		if (isPhantomAscentPrimed(player)
 				|| isCurrentWallJumpPhantomAscentPrime(player)
 				|| isGliderOpeningDelayWindowActive(player)
 				|| isCurrentPhantomAscentAnimation(player)) {
@@ -2040,12 +2513,18 @@ public final class EPMClientHooks {
 
 	private static Integer gliderPreinputSourceStartTick(Player player, GliderPreinputSource source) {
 		return switch (source) {
-			case PHANTOM_ASCENT -> PHANTOM_ASCENT_STARTED_TICKS.get(player);
+			case PHANTOM_ASCENT -> phantomAscentStartedTick(player);
 			case WOM_BACKFLIP -> WOM_BACKFLIP_PHANTOM_LOCK_TICKS.get(player);
-			case PARCOOL_WALL_JUMP -> PARCOOL_WALL_JUMP_STARTED_TICKS.get(player);
+			case PARCOOL_WALL_JUMP -> {
+				Integer handoffStart = ParCoolWallJumpHandoffState.startedTick(player);
+				yield handoffStart != null ? handoffStart : PARCOOL_WALL_JUMP_STARTED_TICKS.get(player);
+			}
 			case WALLRUN_TO_PARCOOL_WALL_JUMP -> {
 				Integer wallRunStart = WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.get(player);
-				Integer parcoolStart = PARCOOL_WALL_JUMP_STARTED_TICKS.get(player);
+				Integer parcoolStart = ParCoolWallJumpHandoffState.startedTick(player);
+				if (parcoolStart == null) {
+					parcoolStart = PARCOOL_WALL_JUMP_STARTED_TICKS.get(player);
+				}
 				yield wallRunStart != null ? wallRunStart : parcoolStart;
 			}
 			case WALL_MOVEMENT -> LAST_WALL_MOVEMENT_FOR_GLIDER_TICKS.get(player);
@@ -2056,9 +2535,12 @@ public final class EPMClientHooks {
 		return switch (source) {
 			case PHANTOM_ASCENT -> false;
 			case WOM_BACKFLIP -> shouldProtectWomBackflipForPhantom(player);
-			case PARCOOL_WALL_JUMP, WALLRUN_TO_PARCOOL_WALL_JUMP -> PHANTOM_ASCENT_TICKS.containsKey(player)
+			case PARCOOL_WALL_JUMP, WALLRUN_TO_PARCOOL_WALL_JUMP -> shouldReserveWallJumpHandoffPressForPhantom(player)
+					|| !ParCoolWallJumpHandoffState.shouldAllowGlider(player)
+					&& (ParCoolWallJumpHandoffState.shouldBlockInitialPress(player)
+					|| isPhantomAscentPrimed(player)
 					|| isCurrentWallJumpPhantomAscentPrime(player)
-					|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP);
+					|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP));
 			case WALL_MOVEMENT -> true;
 		};
 	}
@@ -2137,6 +2619,10 @@ public final class EPMClientHooks {
 		}
 
 		PENDING_GLIDER_PREINPUTS.remove(player);
+		if (pending.source() == GliderPreinputSource.PARCOOL_WALL_JUMP
+				|| pending.source() == GliderPreinputSource.WALLRUN_TO_PARCOOL_WALL_JUMP) {
+			consumeWallJumpHandoff(player, ParCoolWallJumpHandoffState.Consumer.GLIDER, false);
+		}
 		GLIDER_REPLAY_REQUESTS.put(player, Boolean.TRUE);
 		logGliderOpeningDelayDiagnostic(player, "glider_preinput_replay_" + pending.source().name().toLowerCase(), false, false, false);
 		sendGliderToggleMessage(player);
@@ -2145,7 +2631,7 @@ public final class EPMClientHooks {
 	private static boolean shouldHoldUnifiedGliderPreinput(Player player, GliderPreinputSource source) {
 		ensureGliderOpeningDelayWindowFromCurrentAnimation(player);
 		return switch (source) {
-			case PHANTOM_ASCENT -> PHANTOM_ASCENT_TICKS.containsKey(player)
+			case PHANTOM_ASCENT -> isPhantomAscentPrimed(player)
 					|| isCurrentWallJumpPhantomAscentPrime(player)
 					|| isGliderOpeningDelayWindowActive(player)
 					|| isWomBackflipStartSuppressActive(player)
@@ -2153,23 +2639,39 @@ public final class EPMClientHooks {
 			case WOM_BACKFLIP -> isWomBackflipStartSuppressActive(player)
 					|| shouldProtectWomBackflipForPhantom(player)
 					|| isWallMovementAnimationActiveForGlider(player);
-			case PARCOOL_WALL_JUMP -> PHANTOM_ASCENT_TICKS.containsKey(player)
+			case PARCOOL_WALL_JUMP -> shouldReserveWallJumpHandoffPressForPhantom(player)
+					|| isPhantomAscentPrimed(player)
+					|| !ParCoolWallJumpHandoffState.shouldAllowGlider(player)
+					&& (ParCoolWallJumpHandoffState.shouldBlockInitialPress(player)
 					|| isCurrentWallJumpPhantomAscentPrime(player)
 					|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)
 					|| isCurrentParCoolWallJumpAnimation(player)
 					|| isParCoolWallJumpHandoffSuppressActive(player)
 					|| isParCoolWallRunHandoffGliderBlockActive(player)
 					|| isWallRunToParCoolWallJumpGliderSuppressActive(player)
-					|| isWallMovementAnimationActiveForGlider(player);
-			case WALLRUN_TO_PARCOOL_WALL_JUMP -> PHANTOM_ASCENT_TICKS.containsKey(player)
+					|| isWallMovementAnimationActiveForGlider(player));
+			case WALLRUN_TO_PARCOOL_WALL_JUMP -> shouldReserveWallJumpHandoffPressForPhantom(player)
+					|| isPhantomAscentPrimed(player)
+					|| !ParCoolWallJumpHandoffState.shouldAllowGlider(player)
+					&& (ParCoolWallJumpHandoffState.shouldBlockInitialPress(player)
 					|| isCurrentWallJumpPhantomAscentPrime(player)
 					|| canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)
 					|| isWallRunToParCoolWallJumpGliderSuppressActive(player)
 					|| isParCoolWallRunHandoffGliderBlockActive(player)
 					|| isCurrentParCoolWallJumpAnimation(player)
-					|| isWallMovementAnimationActiveForGlider(player);
+					|| isWallMovementAnimationActiveForGlider(player));
 			case WALL_MOVEMENT -> true;
 		};
+	}
+
+	private static boolean shouldReserveWallJumpHandoffPressForPhantom(Player player) {
+		if (!ParCoolWallJumpHandoffState.shouldAllowPhantom(player)) {
+			return false;
+		}
+		if (!canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.WALL_JUMP)) {
+			return false;
+		}
+		return !JumpActionArbiter.isClaimedByOther(player, JumpActionArbiter.Winner.PHANTOM_ASCENT);
 	}
 
 	private static void tickPendingGliderToggleAfterPhantom(Player player) {
@@ -2211,9 +2713,9 @@ public final class EPMClientHooks {
 		}
 
 		ensureGliderOpeningDelayWindowFromCurrentAnimation(player);
-		Integer startTick = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		Integer startTick = phantomAscentStartedTick(player);
 		if (startTick == null || player.tickCount - startTick.intValue() < PHANTOM_ASCENT_GLIDER_OPENING_DELAY_TICKS
-				|| PHANTOM_ASCENT_TICKS.containsKey(player)
+				|| isPhantomAscentPrimed(player)
 				|| isCurrentWallJumpPhantomAscentPrime(player)
 				|| isWomBackflipStartSuppressActive(player)
 				|| isWomBackflipPhantomLockActive(player) && shouldProtectWomBackflipForPhantom(player)
@@ -2313,14 +2815,16 @@ public final class EPMClientHooks {
 	}
 
 	private static void tickDelayedPhantomAscentAirAttack(Player player) {
-		DelayedAnimatorControl delayedAttack = DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.get(player);
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		DelayedAnimatorControl delayedAttack = cycle == null ? null : cycle.delayedAirAttack;
 		if (delayedAttack == null) {
 			return;
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch) || player.onGround() || player.isDeadOrDying() || player.isInWater()) {
-			DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.remove(player);
+			cycle.delayedAirAttack = null;
+			removePhantomAscentCycleIfEmpty(player, cycle);
 			return;
 		}
 
@@ -2328,7 +2832,8 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.remove(player);
+		cycle.delayedAirAttack = null;
+		removePhantomAscentCycleIfEmpty(player, cycle);
 		cancelPhantomAscentForAirAttack(localPlayerPatch);
 		playDelayedAnimatorControl(localPlayerPatch, delayedAttack);
 	}
@@ -2361,9 +2866,9 @@ public final class EPMClientHooks {
 		}
 
 		if (event.player.onGround()) {
-			JumpInputConsumptionState.clear(event.player);
+			JumpActionArbiter.clear(event.player);
 		} else {
-			JumpInputConsumptionState.tick(event.player, isPhysicalJumpKeyDown());
+			JumpActionArbiter.tick(event.player, isPhysicalJumpKeyDown());
 		}
 
 		boolean hasTickWork = hasClientTickWork(event.player);
@@ -2372,10 +2877,10 @@ public final class EPMClientHooks {
 			return;
 		}
 
+		updatePhantomAscentAirborneState(event.player);
 		clearAirbornePhantomAscentLockIfLanded(event.player);
-		if (PENDING_FORCED_PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
-			tickPendingForcedPhantomAscent(event.player);
-		}
+		tickForcedPhantomAscent(event.player);
+		tickJumpActionHandoffInput(event.player);
 		if (NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(event.player)) {
 			tickNaturalSprinterCatLeap(event.player);
 		}
@@ -2385,7 +2890,7 @@ public final class EPMClientHooks {
 		if (WOM_BACKFLIP_PHANTOM_LOCK_TICKS.containsKey(event.player) || isWomSpiderBackflipDataActive(event.player)) {
 			tickWomBackflipPhantomLock(event.player);
 		}
-		if (PHANTOM_ASCENT_TICKS.containsKey(event.player)) {
+		if (isPhantomAscentPrimed(event.player)) {
 			tickPhantomAscent(event.player);
 		}
 		if (PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.containsKey(event.player)) {
@@ -2412,10 +2917,10 @@ public final class EPMClientHooks {
 		if (PENDING_WOM_BACKFLIP_GLIDER_TOGGLE.containsKey(event.player)) {
 			tickPendingWomBackflipGliderToggle(event.player);
 		}
-		if (DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.containsKey(event.player)) {
+		if (hasDelayedPhantomAscentAirAttack(event.player)) {
 			tickDelayedPhantomAscentAirAttack(event.player);
 		}
-		if (PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.containsKey(event.player)) {
+		if (hasPhantomAscentAirAttackSprintSuppression(event.player)) {
 			tickPhantomAscentAirAttackSprintSuppression(event.player);
 		}
 		if (VAULT_FAST_RUN_GRACE_TICKS.containsKey(event.player)) {
@@ -2427,9 +2932,6 @@ public final class EPMClientHooks {
 		NaturalSprinterStepFastRunState stepFastRunState = NATURAL_SPRINTER_STEP_FAST_RUN_STATES.get(event.player);
 		if (stepFastRunState != null) {
 			tickNaturalSprinterStepFastRun(event.player, stepFastRunState);
-		}
-		if (TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(event.player)) {
-			tickTaczWallJumpShootCancel(event.player);
 		}
 		if (TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(event.player)) {
 			tickTaczShootFastRunSuppression(event.player);
@@ -2451,9 +2953,7 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean hasClientTickWork(Player player) {
-		return PHANTOM_ASCENT_TICKS.containsKey(player)
-				|| PHANTOM_ASCENT_USED_AIRBORNE.containsKey(player)
-				|| PHANTOM_ASCENT_STARTED_TICKS.containsKey(player)
+		return hasPhantomAscentCycle(player)
 				|| PENDING_GLIDER_INPUT_ARBITRATION_TICKS.containsKey(player)
 				|| PENDING_GLIDER_PREINPUTS.containsKey(player)
 				|| PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.containsKey(player)
@@ -2463,17 +2963,12 @@ public final class EPMClientHooks {
 				|| PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.containsKey(player)
 				|| PARCOOL_WALL_RUN_HANDOFF_TICKS.containsKey(player)
 				|| WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.containsKey(player)
-				|| DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.containsKey(player)
-				|| PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.containsKey(player)
-				|| PENDING_FORCED_PHANTOM_ASCENT_TICKS.containsKey(player)
-				|| PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.containsKey(player)
 				|| WOM_BACKFLIP_PHANTOM_LOCK_TICKS.containsKey(player)
 				|| NATURAL_SPRINTER_CAT_LEAP_TICKS.containsKey(player)
 				|| NATURAL_SPRINTER_STEP_FAST_RUN_STATES.containsKey(player)
 				|| VAULT_HOLD_FAST_RUN.containsKey(player)
 				|| VAULT_FAST_RUN_GRACE_TICKS.containsKey(player)
 				|| WALL_JUMP_AUTO_SPRINT_TICKS.containsKey(player)
-				|| TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.containsKey(player)
 				|| TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.containsKey(player)
 				|| TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.containsKey(player)
 				|| TACZ_SHOOT_ACTIVE.containsKey(player)
@@ -2486,16 +2981,17 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean shouldProbeSpiderWallJump(Player player) {
-		return ModCompat.isWomLoaded()
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& ModCompat.isWomLoaded()
 				&& EPMConfig.spiderWallJumpPrimesPhantomAscent()
-				&& !PHANTOM_ASCENT_TICKS.containsKey(player)
-				&& !Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))
+				&& !isPhantomAscentPrimed(player)
+				&& !isPhantomAscentUsedAirborne(player)
 				&& !player.onGround()
 				&& !player.isInWater();
 	}
 
 	private static void playPendingFastRunDash(Player player) {
-		if (!EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.naturalSprinterAnimations()) {
 			PENDING_FAST_RUN_DASHES.clear();
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.remove(player);
@@ -2529,7 +3025,10 @@ public final class EPMClientHooks {
 	}
 
 	private static void tickBreakfallDelayedNaturalSprinterDash(Player player) {
-		if (player == null || !player.isLocalPlayer() || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !EPMConfig.naturalSprinterAnimations()) {
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.remove(player);
 			return;
@@ -2592,7 +3091,10 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean shouldDelayNaturalSprinterStepForDodge(Player player) {
-		if (player == null || !player.isLocalPlayer() || !isParCoolDodgeBlockingNaturalSprinterStep(player)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !isParCoolDodgeBlockingNaturalSprinterStep(player)) {
 			return false;
 		}
 
@@ -2600,30 +3102,40 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean isParCoolDodgeBlockingNaturalSprinterStep(Player player) {
-		return NaturalSprinterFastRunHandler.isParCoolDodgeDoing(player) || hasParCoolDodgeAnimator(player) || hasDodgeRollBaseAnimation(player);
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& (NaturalSprinterFastRunHandler.isParCoolDodgeDoing(player)
+						|| hasParCoolDodgeAnimator(player)
+						|| hasDodgeRollBaseAnimation(player));
 	}
 
 	public static void deferStepForDodge(Player player, AssetAccessor<? extends StaticAnimation> animation) {
-		if (player == null || animation == null) {
+		deferStepForDodge(player, NaturalSprinterFastRunStep.animation(animation));
+	}
+
+	static void deferStepForDodge(Player player, NaturalSprinterFastRunStep step) {
+		if (player == null || step == null || !step.isPresent()) {
 			return;
 		}
 
 		DeferredNaturalSprinterDodgeStep state = NATURAL_SPRINTER_DODGE_DEFERRED_STEPS.get(player);
 		if (state == null) {
-			NATURAL_SPRINTER_DODGE_DEFERRED_STEPS.put(player, new DeferredNaturalSprinterDodgeStep(player.tickCount, animation));
+			NATURAL_SPRINTER_DODGE_DEFERRED_STEPS.put(player, new DeferredNaturalSprinterDodgeStep(player.tickCount, step));
 		} else {
 			state.clearTick = -1;
-			state.deferredStep = animation;
+			state.deferredStep = step;
 		}
 	}
 
 	private static void tickDeferredDodgeSteps(Player player, DeferredNaturalSprinterDodgeStep state) {
-		if (player == null || !player.isLocalPlayer() || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !EPMConfig.naturalSprinterAnimations()) {
 			clearDeferredDodgeStep(player);
 			return;
 		}
 
-		if (state == null || state.deferredStep == null) {
+		if (state == null || state.deferredStep == null || !state.deferredStep.isPresent()) {
 			clearDeferredDodgeStep(player);
 			return;
 		}
@@ -2663,8 +3175,8 @@ public final class EPMClientHooks {
 		}
 
 		NATURAL_SPRINTER_DODGE_DEFERRED_STEPS.remove(player);
-		AssetAccessor<? extends StaticAnimation> deferred = state.deferredStep;
-		if (deferred == null) {
+		NaturalSprinterFastRunStep deferred = state.deferredStep;
+		if (deferred == null || !deferred.isPresent()) {
 			return;
 		}
 
@@ -2680,7 +3192,7 @@ public final class EPMClientHooks {
 		}
 
 		NaturalSprinterFastRunHandler.advanceSprintStepPublic(playerPatch);
-		queueNaturalSprinterFastRunDash(playerPatch, deferred);
+		playNaturalSprinterFastRunStep(playerPatch, deferred, NaturalSprinterFastRunStep.Trigger.MANUAL);
 	}
 
 	private static void clearDeferredDodgeStep(Player player) {
@@ -2751,105 +3263,129 @@ public final class EPMClientHooks {
 			return false;
 		}
 
-		PHANTOM_ASCENT_TICKS.put(player, Integer.valueOf(0));
-		PHANTOM_ASCENT_SOURCES.put(player, source);
-		PHANTOM_ASCENT_STARTED_TICKS.remove(player);
+		PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+		if (cycle == null) {
+			return false;
+		}
+
+		cycle.prime(source, player);
 		logGliderOpeningDelayDiagnostic(player, "phantom_mark_" + source.name().toLowerCase(), true, false, false);
 		phantomJumpWasDown = isPhysicalJumpKeyDown();
 		return true;
 	}
 
 	private static void tickPhantomAscent(Player player) {
-		Integer ticks = PHANTOM_ASCENT_TICKS.get(player);
-		if (ticks == null) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null || !cycle.isPrimed()) {
 			return;
 		}
 
-		int nextTick = ticks.intValue() + 1;
+		int nextTick = cycle.primeElapsed + 1;
 		if (!isPhantomAscentPrimeEnabled(player) || isHoldingPhantomAscentBlockedWeapon(player) || isParCoolHanging(player) || nextTick > 80) {
 			clearPhantomAscent(player);
 			return;
 		}
 
-		if (JumpInputConsumptionState.isCurrentPressConsumed(player)) {
+		if (JumpActionArbiter.isClaimedByOther(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)
+				|| JumpActionArbiter.isClaimedBy(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)) {
 			phantomJumpWasDown = isPhysicalJumpKeyDown();
-			PHANTOM_ASCENT_TICKS.put(player, Integer.valueOf(nextTick));
+			cycle.primeElapsed = nextTick;
 			return;
 		}
 
 		if (isJumpKeyRecentlyPressed()) {
-			primePhantomAscentForNextInput(player);
-			clearPhantomAscent(player);
+			logJumpArbiter(player, "phantom_native_window_input_seen");
+			requestForcedPhantomAscent(player, cycle);
 			return;
 		}
 
-		PHANTOM_ASCENT_TICKS.put(player, Integer.valueOf(nextTick));
+		cycle.primeElapsed = nextTick;
+	}
+
+	private static void tickJumpActionHandoffInput(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| player.onGround()
+				|| player.isInWater()
+				|| GliderCompat.isGlidingWithActiveGlider(player)) {
+			return;
+		}
+
+		JumpActionArbiter.Snapshot jump = JumpActionArbiter.snapshot(player);
+		if (!jump.tracked()
+				|| !jump.jumpDown()
+				|| jump.pressElapsed() < 0
+				|| jump.pressElapsed() > 1) {
+			return;
+		}
+
+		Integer handledSequence = HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES.get(player);
+		if (handledSequence != null && handledSequence.intValue() == jump.pressSequence()) {
+			return;
+		}
+
+		if (tryRoutePhantomGliderJumpHandoff(player, jump)) {
+			HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES.put(player, Integer.valueOf(jump.pressSequence()));
+		}
+	}
+
+	private static boolean tryRoutePhantomGliderJumpHandoff(Player player, JumpActionArbiter.Snapshot jump) {
+		if (!isPhantomAscentUsedAirborne(player)
+				|| !hasGliderItem(player)
+				|| !isCurrentPhantomAscentAnimation(player)
+				&& !isGliderOpeningDelayWindowActive(player)
+				|| JumpActionArbiter.isClaimedBy(player, JumpActionArbiter.Winner.PHANTOM_ASCENT)
+				|| JumpActionArbiter.isClaimedByOther(player, JumpActionArbiter.Winner.GLIDER_TOGGLE)) {
+			return false;
+		}
+
+		if (PENDING_GLIDER_INPUT_ARBITRATION_TICKS.containsKey(player)
+				|| PENDING_GLIDER_PREINPUTS.containsKey(player)
+				|| PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.containsKey(player)
+				|| GLIDER_REPLAY_REQUESTS.containsKey(player)) {
+			return true;
+		}
+
+		boolean cached = cacheUnifiedGliderPreinput(player, GliderPreinputSource.PHANTOM_ASCENT, "jump_handoff_phantom");
+		logGliderOpeningDelayDiagnostic(player, cached ? "jump_handoff_phantom_glider_cache" : "jump_handoff_phantom_glider_drop", true, cached, false);
+		return true;
+	}
+
+	private static boolean hasGliderItem(Player player) {
+		try {
+			return player != null && !CuriosTrinketsUtil.getInstance().getFirstFoundGlider(player).isEmpty();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
 	}
 
 	private static void clearPhantomAscent(Player player) {
-		PhantomAscentPrimeSource source = PHANTOM_ASCENT_SOURCES.get(player);
-		PHANTOM_ASCENT_TICKS.remove(player);
-		PHANTOM_ASCENT_SOURCES.remove(player);
-		if (source == PhantomAscentPrimeSource.WALL_JUMP && !Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player))
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		PhantomAscentPrimeSource source = cycle == null ? null : cycle.source;
+		boolean usedAirborne = cycle != null && cycle.usedAirborne;
+		if (cycle != null) {
+			cycle.clearPrime();
+			removePhantomAscentCycleIfEmpty(player, cycle);
+		}
+		if (source == PhantomAscentPrimeSource.WALL_JUMP && !usedAirborne
 				&& PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.remove(player) != null) {
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_clear", false, false, false);
 		}
 		phantomJumpWasDown = false;
 	}
 
-	private static void markPhantomAscentConsumedJump(Player player, String reason) {
-		if (player == null || !player.isLocalPlayer()) {
+	private static void requestForcedPhantomAscent(Player player, PhantomAscentCycle cycle) {
+		if (player == null || !player.isLocalPlayer() || cycle == null || !cycle.isPrimed()) {
 			return;
 		}
 
-		JumpInputConsumptionState.markConsumed(player, JumpInputConsumptionState.Consumer.PHANTOM_ASCENT, reason, isPhysicalJumpKeyDown());
-		logGliderOpeningDelayDiagnostic(player, "phantom_consumed_jump_mark_" + reason, true, false, false);
-	}
-
-	private static boolean isPhantomAscentConsumedJumpHeld(Player player) {
-		return JumpInputConsumptionState.isCurrentPressConsumed(player);
-	}
-
-	private static boolean isPhantomAscentConsumedJumpPendingDrop(Player player, int queuedTick) {
-		return JumpInputConsumptionState.shouldDropQueuedPress(player, queuedTick);
-	}
-
-	private static void markSpiderWallJumpForPhantomAscent(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
-			return;
-		}
-
-		GliderFrameState.Snapshot snapshot = GliderFrameState.snapshot(player);
-		PlayerPatch<?> playerPatch = snapshot.playerPatch();
-		if (playerPatch != null && snapshot.womBackflipAnimation()) {
-			markWomBackflipPhantomLock(player, "probe_wall_backflip_animation");
-			if (!markForPhantomAscent(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP)) {
-				logWomBackflipGliderGuard(player, "wom_backflip_phantom_prime_skip", "probe_unavailable_or_used", false, false);
-			}
-		}
-	}
-
-	private static boolean isCurrentWallJumpPhantomAscentPrime(Player player) {
-		boolean parcoolWallJump = shouldProtectParCoolWallJumpForPhantom(player);
-		GliderFrameState.Snapshot snapshot = GliderFrameState.snapshot(player);
-		boolean womWallJump = EPMConfig.spiderWallJumpPrimesPhantomAscent()
-				&& snapshot.womBackflipAnimation()
-				&& (PHANTOM_ASCENT_TICKS.containsKey(player) || canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP));
-
-		return parcoolWallJump || womWallJump;
-	}
-
-	private static boolean isCurrentParCoolWallJumpAnimation(Player player) {
-		return EPMConfig.wallJumpPrimesPhantomAscent() && GliderFrameState.snapshot(player).parCoolWallJumpAnimation();
-	}
-
-	private static void primePhantomAscentForNextInput(Player player) {
+		PhantomAscentPrimeSource source = cycle.source;
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (playerPatch == null) {
+		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch) || source == null) {
+			clearPhantomAscent(player);
 			return;
 		}
-
-		PhantomAscentPrimeSource source = PHANTOM_ASCENT_SOURCES.get(player);
 
 		if (isHoldingPhantomAscentBlockedWeapon(player)) {
 			clearPhantomAscent(player);
@@ -2863,45 +3399,53 @@ public final class EPMClientHooks {
 			phantomAscent.setResource(0.0F);
 		}
 
-		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			cancelCurrentActionBeforeNativePhantomAscent(player, localPlayerPatch, source);
-			PENDING_FORCED_PHANTOM_ASCENT_TICKS.put(player, Integer.valueOf(1));
-			PENDING_FORCED_PHANTOM_ASCENT_SOURCES.put(player, source);
-		}
+		prepareForcedPhantomAscent(player, localPlayerPatch, cycle, source);
+		cycle.forcedTriggerTick = player.tickCount;
+		cycle.forcedSource = source;
+		logJumpArbiter(player, "phantom_forced_trigger_queued");
 	}
 
-	private static void tickPendingForcedPhantomAscent(Player player) {
-		Integer ticks = PENDING_FORCED_PHANTOM_ASCENT_TICKS.get(player);
-		if (ticks == null) {
+	private static void tickForcedPhantomAscent(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null || cycle.forcedTriggerTick < 0) {
 			return;
 		}
 
-		if (ticks.intValue() > 3) {
-			PENDING_FORCED_PHANTOM_ASCENT_TICKS.remove(player);
-			PENDING_FORCED_PHANTOM_ASCENT_SOURCES.remove(player);
+		int elapsed = player.tickCount - cycle.forcedTriggerTick;
+		if (elapsed < 1) {
+			return;
+		}
+		if (elapsed > 3) {
+			cycle.forcedTriggerTick = -1;
+			cycle.forcedSource = null;
+			removePhantomAscentCycleIfEmpty(player, cycle);
+			logJumpArbiter(player, "phantom_forced_trigger_expired");
 			return;
 		}
 
-		PENDING_FORCED_PHANTOM_ASCENT_TICKS.remove(player);
-		PhantomAscentPrimeSource source = PENDING_FORCED_PHANTOM_ASCENT_SOURCES.remove(player);
+		PhantomAscentPrimeSource source = cycle.forcedSource == null ? cycle.source : cycle.forcedSource;
+		cycle.forcedTriggerTick = -1;
+		cycle.forcedSource = null;
+		removePhantomAscentCycleIfEmpty(player, cycle);
+
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			triggerNativePhantomAscent(player, localPlayerPatch, source);
+			triggerForcedPhantomAscent(player, localPlayerPatch, source);
 		}
 	}
 
-	private static void cancelCurrentActionBeforeNativePhantomAscent(Player player, LocalPlayerPatch playerPatch, PhantomAscentPrimeSource source) {
-		PHANTOM_ASCENT_USED_AIRBORNE.put(player, Boolean.TRUE);
-		PHANTOM_ASCENT_STARTED_TICKS.put(player, Integer.valueOf(player.tickCount));
+	private static void prepareForcedPhantomAscent(Player player, LocalPlayerPatch playerPatch, PhantomAscentCycle cycle, PhantomAscentPrimeSource source) {
+		cycle.source = source;
+		cycle.start(player);
 		markPhantomAscentConsumedJump(player, "native_start");
 		clearGliderOpeningDelayState(player);
-		if (PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.containsKey(player) || PHANTOM_ASCENT_SOURCES.get(player) == PhantomAscentPrimeSource.WALL_JUMP) {
+		if (PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.containsKey(player) || source == PhantomAscentPrimeSource.WALL_JUMP) {
 			PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.put(player, Integer.valueOf(player.tickCount));
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_handoff_start", true, false, false);
 		}
 
 		if (source == PhantomAscentPrimeSource.DEMOLITION_LEAP) {
-			cancelDemolitionLeapBeforeNativePhantomAscent(player, playerPatch);
+			cancelDemolitionLeapBeforeForcedPhantomAscent(player, playerPatch);
 		}
 
 		stopPlaying(playerPatch,
@@ -2926,10 +3470,9 @@ public final class EPMClientHooks {
 			playerPatch.setModelYRot(player.getYRot(), true);
 		} catch (RuntimeException | LinkageError ignored) {
 		}
-
 	}
 
-	private static void cancelDemolitionLeapBeforeNativePhantomAscent(Player player, LocalPlayerPatch playerPatch) {
+	private static void cancelDemolitionLeapBeforeForcedPhantomAscent(Player player, LocalPlayerPatch playerPatch) {
 		logForcedPhantomAscent(player, playerPatch, PhantomAscentPrimeSource.DEMOLITION_LEAP, "phantom_force_demolition_cancel_before");
 		stopPlaying(playerPatch, Animations.BIPED_DEMOLITION_LEAP, Animations.BIPED_DEMOLITION_LEAP_CHARGING);
 
@@ -2945,23 +3488,7 @@ public final class EPMClientHooks {
 		logForcedPhantomAscent(player, playerPatch, PhantomAscentPrimeSource.DEMOLITION_LEAP, "phantom_force_demolition_cancel_after");
 	}
 
-	private static void logForcedPhantomAscent(Player player, PlayerPatch<?> playerPatch, PhantomAscentPrimeSource source, String phase) {
-		if (source != PhantomAscentPrimeSource.DEMOLITION_LEAP || player == null || !player.isLocalPlayer()) {
-			return;
-		}
-
-		EPM.LOGGER.info(
-				"[EPM/DemolitionLeap] phase={} tick={} source={} inaction={} holdingAny={} currentAnimation={} delta={}",
-				phase,
-				Integer.valueOf(player.tickCount),
-				source.name(),
-				Boolean.valueOf(entityStateInaction(playerPatch)),
-				Boolean.valueOf(isHoldingAny(playerPatch)),
-				assetName(currentBaseAnimation(playerPatch)),
-				player.getDeltaMovement());
-	}
-
-	private static void triggerNativePhantomAscent(Player player, LocalPlayerPatch playerPatch, PhantomAscentPrimeSource source) {
+	private static void triggerForcedPhantomAscent(Player player, LocalPlayerPatch playerPatch, PhantomAscentPrimeSource source) {
 		SkillContainer phantomAscent = findPhantomAscent(playerPatch);
 		if (phantomAscent == null || phantomAscent.getDataManager() == null || !(player instanceof LocalPlayer localPlayer)) {
 			return;
@@ -2993,22 +3520,132 @@ public final class EPMClientHooks {
 		logForcedPhantomAscent(player, playerPatch, source, "phantom_force_trigger_after");
 	}
 
-	private static void clearAirbornePhantomAscentLockIfLanded(Player player) {
-		if (!player.onGround()) {
+	private static void logForcedPhantomAscent(Player player, PlayerPatch<?> playerPatch, PhantomAscentPrimeSource source, String phase) {
+		if (source != PhantomAscentPrimeSource.DEMOLITION_LEAP || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
-		PHANTOM_ASCENT_USED_AIRBORNE.remove(player);
-		PENDING_FORCED_PHANTOM_ASCENT_TICKS.remove(player);
-		PENDING_FORCED_PHANTOM_ASCENT_SOURCES.remove(player);
-		PHANTOM_ASCENT_AIR_ATTACK_WINDOW_SENT.remove(player);
-		PHANTOM_ASCENT_STARTED_TICKS.remove(player);
-		JumpInputConsumptionState.clear(player);
-		DELAYED_PHANTOM_ASCENT_AIR_ATTACKS.remove(player);
-		PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.remove(player);
+		EPM.LOGGER.info(
+				"[EPM/DemolitionLeap] phase={} tick={} source={} inaction={} holdingAny={} currentAnimation={} delta={}",
+				phase,
+				Integer.valueOf(player.tickCount),
+				source.name(),
+				Boolean.valueOf(entityStateInaction(playerPatch)),
+				Boolean.valueOf(isHoldingAny(playerPatch)),
+				assetName(currentBaseAnimation(playerPatch)),
+				player.getDeltaMovement());
+	}
+
+	private static void markPhantomAscentConsumedJump(Player player, String reason) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		JumpActionArbiter.claim(player, JumpActionArbiter.Winner.PHANTOM_ASCENT, reason, true);
+		logGliderOpeningDelayDiagnostic(player, "phantom_consumed_jump_mark_" + reason, true, false, false);
+	}
+
+	private static boolean isPhantomAscentConsumedJumpHeld(Player player) {
+		return JumpActionArbiter.isClaimedBy(player, JumpActionArbiter.Winner.PHANTOM_ASCENT);
+	}
+
+	private static boolean isPhantomAscentConsumedJumpPendingDrop(Player player, int queuedTick) {
+		return JumpActionArbiter.shouldDropQueuedPress(player, queuedTick);
+	}
+
+	private static void markSpiderWallJumpForPhantomAscent(Player player) {
+		if (player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		GliderFrameState.Snapshot snapshot = GliderFrameState.snapshot(player);
+		PlayerPatch<?> playerPatch = snapshot.playerPatch();
+		if (playerPatch != null && snapshot.womBackflipAnimation()) {
+			markWomBackflipPhantomLock(player, "probe_wall_backflip_animation");
+			if (!markForPhantomAscent(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP)) {
+				logWomBackflipGliderGuard(player, "wom_backflip_phantom_prime_skip", "probe_unavailable_or_used", false, false);
+			}
+		}
+	}
+
+	private static boolean isCurrentWallJumpPhantomAscentPrime(Player player) {
+		boolean parcoolWallJump = shouldProtectParCoolWallJumpForPhantom(player);
+		GliderFrameState.Snapshot snapshot = GliderFrameState.snapshot(player);
+		boolean womWallJump = EPMConfig.spiderWallJumpPrimesPhantomAscent()
+				&& snapshot.womBackflipAnimation()
+				&& (isPhantomAscentPrimed(player) || canStartPhantomAscentPrime(player, PhantomAscentPrimeSource.SPIDER_WALL_JUMP));
+
+		return parcoolWallJump || womWallJump;
+	}
+
+	private static boolean isCurrentParCoolWallJumpAnimation(Player player) {
+		return EPMConfig.wallJumpPrimesPhantomAscent() && GliderFrameState.snapshot(player).parCoolWallJumpAnimation();
+	}
+
+	private static void clearParCoolWallJumpPriorityStateAfterPhantom(Player player) {
+		if (player == null) {
+			return;
+		}
+
+		PARCOOL_WALL_JUMP_STARTED_TICKS.remove(player);
+		PARCOOL_WALL_RUN_HANDOFF_TICKS.remove(player);
+		WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.remove(player);
+		PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
+		ParCoolWallJumpHandoffState.clear(player);
+	}
+
+	private static void clearAirbornePhantomAscentLockIfLanded(Player player) {
+		if (player == null || !player.onGround()) {
+			return;
+		}
+
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null || !cycle.seenAirborne) {
+			return;
+		}
+
+		clearPhantomAscentAirborneCycle(player, "landed");
+	}
+
+	private static void clearPhantomAscentAirborneCycle(Player player, String reason) {
+		if (player == null) {
+			return;
+		}
+
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		Integer queuedTicks = cycle == null || !cycle.isPrimed() ? null : Integer.valueOf(cycle.primeElapsed);
+		PhantomAscentPrimeSource source = cycle == null ? null : cycle.source;
+		boolean queued = queuedTicks != null;
+		boolean used = cycle != null && cycle.usedAirborne;
+		boolean started = cycle != null && cycle.startedTick >= 0;
+		boolean attackWindow = cycle != null && cycle.airAttackWindowSent;
+		boolean delayedAttack = cycle != null && cycle.delayedAirAttack != null;
+		boolean sprintSuppress = cycle != null && cycle.airAttackSprintSuppressTicks >= 0;
+		boolean pendingGliderArbitration = PENDING_GLIDER_INPUT_ARBITRATION_TICKS.containsKey(player);
+		boolean pendingGliderPreinput = PENDING_GLIDER_PREINPUTS.containsKey(player);
+		boolean pendingGliderAfterPhantom = PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.containsKey(player);
+		boolean handledJumpHandoff = HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES.containsKey(player);
+		boolean pendingWomGlider = PENDING_WOM_BACKFLIP_GLIDER_TOGGLE.containsKey(player);
+		boolean pendingParCoolGlider = PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.containsKey(player);
+		boolean parCoolWallJumpInput = PARCOOL_WALL_JUMP_INPUT_DOWN.containsKey(player);
+		boolean parCoolWallJumpStart = PARCOOL_WALL_JUMP_STARTED_TICKS.containsKey(player);
+		boolean parCoolWallJumpLock = PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.containsKey(player);
+		boolean parCoolWallJumpSuppress = PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.containsKey(player);
+		boolean parCoolWallRunHandoff = PARCOOL_WALL_RUN_HANDOFF_TICKS.containsKey(player);
+		boolean wallRunSuppress = WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.containsKey(player);
+		boolean lastWallMovement = LAST_WALL_MOVEMENT_FOR_GLIDER_TICKS.containsKey(player);
+		boolean womBackflipLock = WOM_BACKFLIP_PHANTOM_LOCK_TICKS.containsKey(player);
+		boolean gliderOpeningDelay = GLIDER_OPENING_DELAY_STATES.containsKey(player)
+				|| PENDING_GLIDER_OPENING_SOUNDS.containsKey(player);
+		JumpActionArbiter.Snapshot jumpSnapshot = JumpActionArbiter.snapshot(player);
+
+		PHANTOM_ASCENT_CYCLES.remove(player);
+		JumpActionArbiter.clear(player);
+		JUMP_PRIORITY_LOG_TICKS.remove(player);
 		PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
 		PENDING_GLIDER_PREINPUTS.remove(player);
 		PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.remove(player);
+		HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES.remove(player);
 		PENDING_WOM_BACKFLIP_GLIDER_TOGGLE.remove(player);
 		PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
 		PARCOOL_WALL_JUMP_INPUT_DOWN.remove(player);
@@ -3017,9 +3654,74 @@ public final class EPMClientHooks {
 		PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.remove(player);
 		PARCOOL_WALL_RUN_HANDOFF_TICKS.remove(player);
 		WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.remove(player);
+		ParCoolWallJumpHandoffState.clear(player);
 		LAST_WALL_MOVEMENT_FOR_GLIDER_TICKS.remove(player);
 		WOM_BACKFLIP_PHANTOM_LOCK_TICKS.remove(player);
 		clearGliderOpeningDelayState(player);
+		phantomJumpWasDown = false;
+
+		boolean cleared = queued
+				|| used
+				|| started
+				|| attackWindow
+				|| delayedAttack
+				|| sprintSuppress
+				|| pendingGliderArbitration
+				|| pendingGliderPreinput
+				|| pendingGliderAfterPhantom
+				|| handledJumpHandoff
+				|| pendingWomGlider
+				|| pendingParCoolGlider
+				|| parCoolWallJumpInput
+				|| parCoolWallJumpStart
+				|| parCoolWallJumpLock
+				|| parCoolWallJumpSuppress
+				|| parCoolWallRunHandoff
+				|| wallRunSuppress
+				|| lastWallMovement
+				|| womBackflipLock
+				|| gliderOpeningDelay
+				|| jumpSnapshot.tracked();
+		if (!cleared) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		EPM.LOGGER.info(
+				"[EPM/PhantomCycle] phase=clear reason={} tick={} queued={} queuedTicks={} source={} used={} started={} attackWindow={} delayedAttack={} sprintSuppress={} pendingGliderArbitration={} pendingGliderPreinput={} pendingGliderAfterPhantom={} handledJumpHandoff={} pendingWomGlider={} pendingParCoolGlider={} parCoolWallJumpInput={} parCoolWallJumpStart={} parCoolWallJumpLock={} parCoolWallJumpSuppress={} parCoolWallRunHandoff={} wallRunSuppress={} lastWallMovement={} womBackflipLock={} gliderOpeningDelay={} jumpTracked={} jumpDown={} jumpWinner={} jumpReason={} onGround={} inWater={} animation={} delta={}",
+				reason == null ? "unknown" : reason,
+				Integer.valueOf(player.tickCount),
+				Boolean.valueOf(queued),
+				queuedTicks,
+				source,
+				Boolean.valueOf(used),
+				Boolean.valueOf(started),
+				Boolean.valueOf(attackWindow),
+				Boolean.valueOf(delayedAttack),
+				Boolean.valueOf(sprintSuppress),
+				Boolean.valueOf(pendingGliderArbitration),
+				Boolean.valueOf(pendingGliderPreinput),
+				Boolean.valueOf(pendingGliderAfterPhantom),
+				Boolean.valueOf(handledJumpHandoff),
+				Boolean.valueOf(pendingWomGlider),
+				Boolean.valueOf(pendingParCoolGlider),
+				Boolean.valueOf(parCoolWallJumpInput),
+				Boolean.valueOf(parCoolWallJumpStart),
+				Boolean.valueOf(parCoolWallJumpLock),
+				Boolean.valueOf(parCoolWallJumpSuppress),
+				Boolean.valueOf(parCoolWallRunHandoff),
+				Boolean.valueOf(wallRunSuppress),
+				Boolean.valueOf(lastWallMovement),
+				Boolean.valueOf(womBackflipLock),
+				Boolean.valueOf(gliderOpeningDelay),
+				Boolean.valueOf(jumpSnapshot.tracked()),
+				Boolean.valueOf(jumpSnapshot.jumpDown()),
+				jumpSnapshot.winner(),
+				jumpSnapshot.reason(),
+				Boolean.valueOf(player.onGround()),
+				Boolean.valueOf(player.isInWater()),
+				assetName(currentBaseAnimation(playerPatch)),
+				player.getDeltaMovement());
 	}
 
 	private static void cancelPhantomAscentForAirAttack(LocalPlayerPatch playerPatch) {
@@ -3033,7 +3735,10 @@ public final class EPMClientHooks {
 
 	private static void beginPhantomAscentAirAttackSprintSuppression(LocalPlayerPatch playerPatch) {
 		Player player = playerPatch.getOriginal();
-		PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.put(player, Integer.valueOf(PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS));
+		PhantomAscentCycle cycle = getOrCreatePhantomAscentCycle(player);
+		if (cycle != null) {
+			cycle.airAttackSprintSuppressTicks = PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS;
+		}
 		NaturalSprinterState.suppress(playerPatch);
 		PENDING_FAST_RUN_DASHES.remove(playerPatch);
 		clearVaultFastRunHold(player);
@@ -3042,14 +3747,15 @@ public final class EPMClientHooks {
 	}
 
 	private static void tickPhantomAscentAirAttackSprintSuppression(Player player) {
-		Integer ticks = PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.get(player);
-		if (ticks == null) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null || cycle.airAttackSprintSuppressTicks < 0) {
 			return;
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (ticks.intValue() <= 0 || player.onGround() || player.isDeadOrDying() || player.isInWater()) {
-			PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.remove(player);
+		if (cycle.airAttackSprintSuppressTicks <= 0 || player.onGround() || player.isDeadOrDying() || player.isInWater()) {
+			cycle.airAttackSprintSuppressTicks = -1;
+			removePhantomAscentCycleIfEmpty(player, cycle);
 			if (playerPatch != null) {
 				PENDING_FAST_RUN_DASHES.remove(playerPatch);
 			}
@@ -3063,11 +3769,11 @@ public final class EPMClientHooks {
 		clearVaultFastRunHold(player);
 		cancelAutoSprintAfterWallJump(player);
 		clearParCoolAnimator(player);
-		PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
+		cycle.airAttackSprintSuppressTicks--;
 	}
 
 	private static int phantomAscentElapsedTicks(Player player) {
-		Integer startTick = PHANTOM_ASCENT_STARTED_TICKS.get(player);
+		Integer startTick = phantomAscentStartedTick(player);
 		return startTick == null ? PHANTOM_ASCENT_AIR_ATTACK_DELAY_TICKS : player.tickCount - startTick.intValue();
 	}
 
@@ -3144,18 +3850,49 @@ public final class EPMClientHooks {
 		return registryName == null ? String.valueOf(animation) : registryName.toString();
 	}
 
-	private static boolean entityStateInaction(PlayerPatch<?> playerPatch) {
-		try {
-			return playerPatch != null && playerPatch.getEntityState() != null && playerPatch.getEntityState().inaction();
-		} catch (RuntimeException | LinkageError ignored) {
-			return false;
-		}
+	private static void logNaturalSprinterStepPulse(
+			String phase,
+			String reason,
+			PlayerPatch<?> playerPatch,
+			NaturalSprinterFastRunStep step) {
+		logNaturalSprinterStepPulse(phase, reason, playerPatch, step, null);
 	}
 
-	private static boolean isHoldingAny(PlayerPatch<?> playerPatch) {
+	private static void logNaturalSprinterStepPulse(
+			String phase,
+			String reason,
+			PlayerPatch<?> playerPatch,
+			NaturalSprinterFastRunStep step,
+			NaturalSprinterFastRunStep.Trigger trigger) {
+		if (!debugNaturalSprinterStepPulse()) {
+			return;
+		}
+
+		Player player = playerPatch == null ? null : playerPatch.getOriginal();
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase={} reason={} trigger={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} startupEffects={} manualEffects={} stepAnimation={} currentAnimation={} elapsed={} naturalSprinterAnimations={} fastRunStartStepAnimation={} autoFastRunDash={}",
+				phase,
+				reason,
+				trigger == null ? "unspecified" : trigger,
+				Integer.valueOf(player == null ? -1 : player.tickCount),
+				Boolean.valueOf(step != null && step.isPresent()),
+				Boolean.valueOf(step != null && step.procedural()),
+				Boolean.valueOf(step != null && step.rightStep()),
+				Boolean.valueOf(step != null && step.defaultNaturalSprinter()),
+				Boolean.valueOf(step != null && step.startupEffects()),
+				Boolean.valueOf(step != null && step.manualEffects()),
+				step == null ? "null" : assetName(step.animation()),
+				assetName(currentBaseAnimation(playerPatch)),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+				Boolean.valueOf(EPMConfig.naturalSprinterAnimations()),
+				Boolean.valueOf(EPMConfig.fastRunStartStepAnimation()),
+				Boolean.valueOf(EPMConfig.autoFastRunDash()));
+	}
+
+	private static boolean debugNaturalSprinterStepPulse() {
 		try {
-			return playerPatch != null && playerPatch.isHoldingAny();
-		} catch (RuntimeException | LinkageError ignored) {
+			return EPMConfig.debugNaturalSprinterFastRunStepState();
+		} catch (IllegalStateException ignored) {
 			return false;
 		}
 	}
@@ -3338,7 +4075,7 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (!EPMConfig.fastRunVaultChainFix() || ticks.intValue() <= 0) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix() || ticks.intValue() <= 0) {
 			clearVaultFastRunState(player);
 			return;
 		}
@@ -3352,7 +4089,10 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (ticks.intValue() <= 0 || !EPMConfig.autoSprintAfterWallJump() || hasHardVaultFastRunBlocker(player)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| ticks.intValue() <= 0
+				|| !EPMConfig.autoSprintAfterWallJump()
+				|| hasHardVaultFastRunBlocker(player)) {
 			cancelAutoSprintAfterWallJump(player);
 			return;
 		}
@@ -3362,23 +4102,15 @@ public final class EPMClientHooks {
 		WALL_JUMP_AUTO_SPRINT_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
 	}
 
-	private static void tickTaczWallJumpShootCancel(Player player) {
-		Integer ticks = TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.get(player);
-		if (ticks == null) {
-			return;
-		}
-
-		if (ticks.intValue() <= 0 || player.onGround() || player.isSpectator() || player.isInWater()) {
-			cancelTaczWallJumpShootCancel(player);
-			return;
-		}
-
-		TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.put(player, Integer.valueOf(ticks.intValue() - 1));
-	}
-
 	private static void tickTaczShootFastRunSuppression(Player player) {
 		Integer ticks = TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.get(player);
 		if (ticks == null) {
+			return;
+		}
+
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS.remove(player);
+			cancelTaczShootFastRunRestore(player);
 			return;
 		}
 
@@ -3398,6 +4130,11 @@ public final class EPMClientHooks {
 	private static void tickTaczShootFastRunRestore(Player player) {
 		Integer ticks = TACZ_SHOOT_FAST_RUN_RESTORE_TICKS.get(player);
 		if (ticks == null) {
+			return;
+		}
+
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			cancelTaczShootFastRunRestore(player);
 			return;
 		}
 
@@ -3423,7 +4160,10 @@ public final class EPMClientHooks {
 	}
 
 	private static void tickTaczShootStopFastRunDashSuppression(Player player) {
-		if (player == null || !player.isLocalPlayer() || !isHoldingTaczGun(player)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !isHoldingTaczGun(player)) {
 			TACZ_SHOOT_ACTIVE.remove(player);
 			TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
 			return;
@@ -3460,7 +4200,11 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (ticks.intValue() <= 0 || player == null || !player.isLocalPlayer() || !isHoldingTaczGun(player)) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| ticks.intValue() <= 0
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !isHoldingTaczGun(player)) {
 			TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_TICKS.remove(player);
 			return;
 		}
@@ -3470,7 +4214,8 @@ public final class EPMClientHooks {
 
 	private static boolean shouldKeepTaczShootFastRunSuppression(Player player) {
 		Minecraft minecraft = Minecraft.getInstance();
-		return player != null
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& player != null
 				&& player.isLocalPlayer()
 				&& minecraft != null
 				&& minecraft.options != null
@@ -3759,11 +4504,14 @@ public final class EPMClientHooks {
 		WALL_JUMP_AUTO_SPRINT_TICKS.remove(player);
 	}
 
-	private static void cancelTaczWallJumpShootCancel(Player player) {
-		TACZ_WALL_JUMP_SHOOT_CANCEL_TICKS.remove(player);
-	}
-
 	private static void restoreClingMoveClimbUpVelocity(Player player, boolean consume) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			if (consume) {
+				EPIC_PARCOOL_CLING_MOVE_CLIMB_UP_TICKS.remove(player);
+			}
+			return;
+		}
+
 		Integer startTick = EPIC_PARCOOL_CLING_MOVE_CLIMB_UP_TICKS.get(player);
 		if (startTick == null || startTick.intValue() != player.tickCount || player.onGround()) {
 			if (consume) {
@@ -3794,7 +4542,11 @@ public final class EPMClientHooks {
 	private static void startEpicParCoolClimbUpAirControl(Player player) {
 		int ticks = EPMConfig.epicParCoolClimbUpLateralAirControlTicks();
 		double velocity = EPMConfig.epicParCoolClimbUpLateralAirControlVelocity();
-		if (ticks <= 0 || velocity <= 0.0D || player == null || !player.isLocalPlayer()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| ticks <= 0
+				|| velocity <= 0.0D
+				|| player == null
+				|| !player.isLocalPlayer()) {
 			EPIC_PARCOOL_CLIMB_UP_AIR_CONTROL_START_TICKS.remove(player);
 			return;
 		}
@@ -3803,6 +4555,11 @@ public final class EPMClientHooks {
 	}
 
 	private static void tickEpicParCoolClimbUpAirControl(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			EPIC_PARCOOL_CLIMB_UP_AIR_CONTROL_START_TICKS.remove(player);
+			return;
+		}
+
 		if (!hasEpicParCoolClimbUpAirControlWindow(player)) {
 			return;
 		}
@@ -3821,7 +4578,12 @@ public final class EPMClientHooks {
 
 		int durationTicks = EPMConfig.epicParCoolClimbUpLateralAirControlTicks();
 		double velocity = EPMConfig.epicParCoolClimbUpLateralAirControlVelocity();
-		if (durationTicks <= 0 || velocity <= 0.0D || player == null || !player.isLocalPlayer() || player.onGround()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| durationTicks <= 0
+				|| velocity <= 0.0D
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| player.onGround()) {
 			EPIC_PARCOOL_CLIMB_UP_AIR_CONTROL_START_TICKS.remove(player);
 			return false;
 		}
@@ -3941,6 +4703,22 @@ public final class EPMClientHooks {
 		}
 	}
 
+	private static boolean entityStateInaction(PlayerPatch<?> playerPatch) {
+		try {
+			return playerPatch != null && playerPatch.getEntityState() != null && playerPatch.getEntityState().inaction();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static boolean isHoldingAny(PlayerPatch<?> playerPatch) {
+		try {
+			return playerPatch != null && playerPatch.isHoldingAny();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
 	private static void applyClimbUpLateralAirControl(Player player, int direction) {
 		double velocity = EPMConfig.epicParCoolClimbUpLateralAirControlVelocity();
 		if (velocity <= 0.0D) {
@@ -4047,13 +4825,96 @@ public final class EPMClientHooks {
 		return !stack.isEmpty() && HF_MURASAMA.equals(ForgeRegistries.ITEMS.getKey(stack.getItem()));
 	}
 
+	private static PhantomAscentCycle phantomAscentCycle(Player player) {
+		return player == null ? null : PHANTOM_ASCENT_CYCLES.get(player);
+	}
+
+	private static PhantomAscentCycle getOrCreatePhantomAscentCycle(Player player) {
+		if (player == null) {
+			return null;
+		}
+
+		PhantomAscentCycle cycle = PHANTOM_ASCENT_CYCLES.get(player);
+		if (cycle == null) {
+			cycle = new PhantomAscentCycle();
+			PHANTOM_ASCENT_CYCLES.put(player, cycle);
+		}
+		return cycle;
+	}
+
+	private static boolean hasPhantomAscentCycle(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.hasState();
+	}
+
+	private static boolean isPhantomAscentPrimed(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.isPrimed();
+	}
+
+	private static Integer phantomAscentPrimeTicks(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle == null || !cycle.isPrimed() ? null : Integer.valueOf(cycle.primeElapsed);
+	}
+
+	private static PhantomAscentPrimeSource phantomAscentSource(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle == null ? null : cycle.source;
+	}
+
+	private static boolean isPhantomAscentUsedAirborne(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.usedAirborne;
+	}
+
+	private static Integer phantomAscentStartedTick(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle == null || cycle.startedTick < 0 ? null : Integer.valueOf(cycle.startedTick);
+	}
+
+	private static boolean hasPhantomAscentStarted(Player player) {
+		return phantomAscentStartedTick(player) != null;
+	}
+
+	private static boolean hasPhantomAscentAirAttackWindow(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.airAttackWindowSent;
+	}
+
+	private static DelayedAnimatorControl delayedPhantomAscentAirAttack(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle == null ? null : cycle.delayedAirAttack;
+	}
+
+	private static boolean hasDelayedPhantomAscentAirAttack(Player player) {
+		return delayedPhantomAscentAirAttack(player) != null;
+	}
+
+	private static boolean hasPhantomAscentAirAttackSprintSuppression(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.airAttackSprintSuppressTicks >= 0;
+	}
+
+	private static void updatePhantomAscentAirborneState(Player player) {
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle != null && !player.onGround()) {
+			cycle.seenAirborne = true;
+		}
+	}
+
+	private static void removePhantomAscentCycleIfEmpty(Player player, PhantomAscentCycle cycle) {
+		if (player != null && cycle != null && !cycle.hasState()) {
+			PHANTOM_ASCENT_CYCLES.remove(player);
+		}
+	}
+
 	private static boolean isPhantomAscentAirborneLocked(Player player) {
-		return player != null && Boolean.TRUE.equals(PHANTOM_ASCENT_USED_AIRBORNE.get(player)) && !player.onGround();
+		return player != null && isPhantomAscentUsedAirborne(player) && !player.onGround();
 	}
 
 	private static boolean isPhantomAscentPrimeEnabled(Player player) {
-		PhantomAscentPrimeSource source = PHANTOM_ASCENT_SOURCES.get(player);
-		return source != null && source.enabled();
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		return cycle != null && cycle.isPrimed() && cycle.source != null && cycle.source.enabled();
 	}
 
 	private static boolean isJumpKeyRecentlyPressed() {
@@ -4061,6 +4922,10 @@ public final class EPMClientHooks {
 		boolean pressed = down && !phantomJumpWasDown;
 		phantomJumpWasDown = down;
 		return pressed;
+	}
+
+	private static boolean isEpicFightJumpActionPressed() {
+		return isPhysicalJumpKeyDown();
 	}
 
 	private static boolean isPhysicalJumpKeyDown() {
@@ -4126,11 +4991,70 @@ public final class EPMClientHooks {
 			AnimatorControlPacket.Priority priority) {
 	}
 
+	private static final class PhantomAscentCycle {
+		private PhantomAscentPrimeSource source;
+		private int primeTick = -1;
+		private int primeElapsed = -1;
+		private int startedTick = -1;
+		private boolean usedAirborne;
+		private boolean seenAirborne;
+		private boolean airAttackWindowSent;
+		private DelayedAnimatorControl delayedAirAttack;
+		private int airAttackSprintSuppressTicks = -1;
+		private int forcedTriggerTick = -1;
+		private PhantomAscentPrimeSource forcedSource;
+
+		private void prime(PhantomAscentPrimeSource source, Player player) {
+			this.source = source;
+			this.primeTick = player.tickCount;
+			this.primeElapsed = 0;
+			this.startedTick = -1;
+			this.usedAirborne = false;
+			this.seenAirborne = !player.onGround();
+			this.airAttackWindowSent = false;
+			this.delayedAirAttack = null;
+			this.airAttackSprintSuppressTicks = -1;
+			this.forcedTriggerTick = -1;
+			this.forcedSource = null;
+		}
+
+		private void start(Player player) {
+			this.usedAirborne = true;
+			this.startedTick = player.tickCount;
+			this.primeTick = -1;
+			this.primeElapsed = -1;
+			this.seenAirborne = this.seenAirborne || !player.onGround();
+		}
+
+		private boolean isPrimed() {
+			return this.source != null && this.primeTick >= 0;
+		}
+
+		private void clearPrime() {
+			this.source = null;
+			this.primeTick = -1;
+			this.primeElapsed = -1;
+			this.seenAirborne = false;
+			this.forcedTriggerTick = -1;
+			this.forcedSource = null;
+		}
+
+		private boolean hasState() {
+			return this.isPrimed()
+					|| this.usedAirborne
+					|| this.startedTick >= 0
+					|| this.airAttackWindowSent
+					|| this.delayedAirAttack != null
+					|| this.airAttackSprintSuppressTicks >= 0
+					|| this.forcedTriggerTick >= 0;
+		}
+	}
+
 	private static final class NaturalSprinterStepFastRunState {
 		private final int startTick;
-		private AssetAccessor<? extends StaticAnimation> startupStep;
+		private NaturalSprinterFastRunStep startupStep;
 
-		private NaturalSprinterStepFastRunState(int startTick, AssetAccessor<? extends StaticAnimation> startupStep) {
+		private NaturalSprinterStepFastRunState(int startTick, NaturalSprinterFastRunStep startupStep) {
 			this.startTick = startTick;
 			this.startupStep = startupStep;
 		}
@@ -4139,9 +5063,9 @@ public final class EPMClientHooks {
 	private static final class DeferredNaturalSprinterDodgeStep {
 		private final int startTick;
 		private int clearTick = -1;
-		private AssetAccessor<? extends StaticAnimation> deferredStep;
+		private NaturalSprinterFastRunStep deferredStep;
 
-		private DeferredNaturalSprinterDodgeStep(int startTick, AssetAccessor<? extends StaticAnimation> deferredStep) {
+		private DeferredNaturalSprinterDodgeStep(int startTick, NaturalSprinterFastRunStep deferredStep) {
 			this.startTick = startTick;
 			this.deferredStep = deferredStep;
 		}

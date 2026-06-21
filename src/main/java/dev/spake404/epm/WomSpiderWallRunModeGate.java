@@ -9,7 +9,7 @@ public final class WomSpiderWallRunModeGate {
 	}
 
 	public static boolean shouldDisableParCoolHorizontalWallRun(Player player) {
-		if (player == null) {
+		if (player == null || !EPMParCoolGate.allowCrossModSkillCompat()) {
 			return false;
 		}
 
@@ -19,12 +19,16 @@ public final class WomSpiderWallRunModeGate {
 	}
 
 	public static boolean shouldDisableOriginalWomSprintTrigger(PlayerPatch<?> playerPatch) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return false;
+		}
+
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
 		return canUseParCoolReplacement(player, playerPatch);
 	}
 
 	public static boolean shouldDisableParCoolHorizontalWallRunKey(Player player) {
-		if (player == null) {
+		if (player == null || !EPMParCoolGate.allowCrossModSkillCompat()) {
 			return false;
 		}
 
@@ -34,7 +38,7 @@ public final class WomSpiderWallRunModeGate {
 	}
 
 	public static boolean shouldDisableParCoolWallSlide(Player player) {
-		if (player == null) {
+		if (player == null || !EPMParCoolGate.allowCrossModSkillCompat()) {
 			return false;
 		}
 
@@ -44,7 +48,7 @@ public final class WomSpiderWallRunModeGate {
 	}
 
 	public static boolean shouldDisableParCoolWallSlideAction(Player player) {
-		if (player == null) {
+		if (player == null || !EPMParCoolGate.allowCrossModSkillCompat()) {
 			return false;
 		}
 
@@ -59,7 +63,8 @@ public final class WomSpiderWallRunModeGate {
 	}
 
 	static boolean canUseParCoolReplacement(Player player, PlayerPatch<?> playerPatch) {
-		return hasSpiderWallRunModeContext(player, playerPatch)
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& hasSpiderWallRunModeContext(player, playerPatch)
 				&& EPMConfig.parCoolSpiderWallRunMode();
 	}
 

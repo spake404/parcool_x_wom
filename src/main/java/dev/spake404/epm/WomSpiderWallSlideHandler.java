@@ -85,6 +85,9 @@ public final class WomSpiderWallSlideHandler {
 		boolean jumpDown = isJumpKeyDown();
 		WallSlideState previous = ACTIVE_WALL_SLIDES.get(player);
 		if (jumpDown && previous != null && previous.jumpKeyUp() && localPlayerPatch.hasStamina(WALL_BACKFLIP_STAMINA_COST)) {
+			if (!EPMClientHooks.claimWomWallJump(player, "wom_wallslide_backflip")) {
+				return;
+			}
 			triggerWallBackflip(player, localPlayerPatch, slowGlide);
 			return;
 		}

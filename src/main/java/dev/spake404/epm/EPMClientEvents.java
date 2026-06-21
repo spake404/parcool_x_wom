@@ -2,7 +2,9 @@ package dev.spake404.epm;
 
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -25,5 +27,35 @@ public final class EPMClientEvents {
 		if (DemolitionLeapCatJumpHandler.shouldSuppressSneak(event.getEntity())) {
 			event.getInput().shiftKeyDown = false;
 		}
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void captureCameraEventStart(ViewportEvent.ComputeCameraAngles event) {
+		CameraEventDebug.captureStart(event);
+	}
+
+	@SubscribeEvent(priority = EventPriority.MONITOR)
+	public static void logCameraEventEnd(ViewportEvent.ComputeCameraAngles event) {
+		CameraEventDebug.logEnd(event);
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void logClientTickStart(TickEvent.ClientTickEvent event) {
+		RotationTraceDebug.logClientTick(event, "highest");
+	}
+
+	@SubscribeEvent(priority = EventPriority.MONITOR)
+	public static void logClientTickEnd(TickEvent.ClientTickEvent event) {
+		RotationTraceDebug.logClientTick(event, "monitor");
+	}
+
+	@SubscribeEvent(priority = EventPriority.HIGHEST)
+	public static void logRenderTickStart(TickEvent.RenderTickEvent event) {
+		RotationTraceDebug.logRenderTick(event, "highest");
+	}
+
+	@SubscribeEvent(priority = EventPriority.MONITOR)
+	public static void logRenderTickEnd(TickEvent.RenderTickEvent event) {
+		RotationTraceDebug.logRenderTick(event, "monitor");
 	}
 }

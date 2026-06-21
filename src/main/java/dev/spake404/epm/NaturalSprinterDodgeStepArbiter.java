@@ -208,6 +208,7 @@ final class NaturalSprinterDodgeStepArbiter {
 	private static boolean hasSharedKeyArbiterConfig(Player player) {
 		if (player == null
 				|| !player.isLocalPlayer()
+				|| !EPMParCoolGate.allowCrossModSkillCompat()
 				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()) {

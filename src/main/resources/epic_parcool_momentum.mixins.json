@@ -21,6 +21,7 @@
     "WorldUtilMixin"
   ],
   "client": [
+    "AbstractClientPlayerPatchMixin",
     "AquaManeuvreSkillMixin",
     "AnimatorControlPacketAccessor",
     "BreakfallReadyMixin",
@@ -28,8 +29,11 @@
     "ChargeJumpMixin",
     "ClimbUpDebugMixin",
     "ClingToCliffDebugMixin",
+    "CombatMasteryIIMixin",
     "ControlEngineAccessor",
     "DemolitionLeapSkillMixin",
+    "EntityAccessor",
+    "EntityRotationDebugMixin",
     "FastRunMixin",
     "GliderAnimationHandlerMixin",
     "GliderDataMixin",
@@ -41,6 +45,8 @@
     "LocalPlayerReloadMixin",
     "LocalPlayerShootMixin",
     "MinecraftAttackMixin",
+    "MouseHandlerAccessor",
+    "MouseHandlerRotationDebugMixin",
     "NaturalSprinterSkillMixin",
     "ParCoolAnimationAccessor",
     "ParCoolSettingScreenMixin",
@@ -49,6 +55,7 @@
     "SpiderTechniquesSkillMixin",
     "SPAnimatorControlAccessor",
     "SPAnimatorControlMixin",
+    "SynchedEntityDataDebugMixin",
     "VaultChainMixin",
     "VaultDebugMixin"
   ],

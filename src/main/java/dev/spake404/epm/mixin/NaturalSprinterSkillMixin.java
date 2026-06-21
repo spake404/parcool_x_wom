@@ -3,6 +3,7 @@ package dev.spake404.epm.mixin;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import dev.spake404.epm.EPMParCoolGate;
 import yesman.epicfight.api.client.input.InputManager;
 import yesman.epicfight.api.client.input.action.InputAction;
 import yesman.epicfight.api.client.input.action.MinecraftInputAction;
@@ -18,6 +19,7 @@ public abstract class NaturalSprinterSkillMixin {
 			require = 0
 	)
 	private static boolean parcoolxwom$disableNaturalSprinterSlide(InputAction action) {
-		return action != MinecraftInputAction.SNEAK && InputManager.isActionActive(action);
+		return (!EPMParCoolGate.allowCrossModSkillCompat() || action != MinecraftInputAction.SNEAK)
+				&& InputManager.isActionActive(action);
 	}
 }

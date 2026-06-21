@@ -63,21 +63,33 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addHeader("Aqua Maneuvre");
 		addBool("aquaManeuvreFastSwimAnimation", "AQUA_MANEUVRE_FAST_SWIM_ANIMATION");
 
+		// EpicFightX
+		addHeader("EpicFightX");
+		addBool("epicFightXCombatMasteryFastRunControlCompatibility", "EPICFIGHTX_COMBAT_MASTERY_FAST_RUN_CONTROL_COMPATIBILITY");
+		addEnum("epicFightXCombatMasterySprintTriggerMode", "EPICFIGHTX_COMBAT_MASTERY_SPRINT_TRIGGER_MODE",
+				new String[]{"Toggle", "Auto", "PressKey"});
+
 		// Vault
 		addHeader("Vault");
 		addBool("fastRunVaultChainFix", "FAST_RUN_VAULT_CHAIN_FIX");
 		addDouble("vaultHeightScale", "VAULT_HEIGHT_SCALE", 0.86, 2.0, 0.1);
-		addBool("debugVaultState", "DEBUG_VAULT_STATE");
-
-		// Debug
-		addHeader("Debug");
-		addBool("debugGliderState", "DEBUG_GLIDER_STATE");
 
 		// Climb
 		addHeader("Climb");
 		addDouble("epicParCoolClimbUpVerticalVelocity", "EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY", 0.6, 0.8, 0.05);
 		addDouble("epicParCoolClimbUpLateralAirControlVelocity", "EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY", 0.0, 0.05, 0.01);
 		addInt("epicParCoolClimbUpLateralAirControlTicks", "EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS", 0, 20, 1);
+
+		// Debug
+		addHeader("Debug");
+		addBool("debugSpiderTechniquesAttackState", "DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE");
+		addBool("debugSpiderWallRunState", "DEBUG_SPIDER_WALL_RUN_STATE");
+		addBool("debugAquaManeuvreFastSwimState", "DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE");
+		addBool("debugEpicFightXCombatMasterySprintState", "DEBUG_EPICFIGHTX_COMBAT_MASTERY_SPRINT_STATE");
+		addBool("debugVaultState", "DEBUG_VAULT_STATE");
+		addBool("debugGliderState", "DEBUG_GLIDER_STATE");
+		addBool("debugNaturalSprinterFastRunStepState", "DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE");
+		addBool("debugCameraEventState", "DEBUG_CAMERA_EVENT_STATE");
 	}
 
 	private static void addHeader(String title) {

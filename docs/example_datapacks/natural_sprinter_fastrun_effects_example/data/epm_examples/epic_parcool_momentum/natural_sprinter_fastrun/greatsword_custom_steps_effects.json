@@ -1,0 +1,20 @@
+{
+  "enabled": false,
+  "match": {
+    "type": "greatsword"
+  },
+  "run": "examplemod:biped/fastrun/greatsword",
+  "left_step": "examplemod:biped/fastrun/greatsword_left_step",
+  "right_step": "examplemod:biped/fastrun/greatsword_right_step",
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon",
+  "priority": 0
+}

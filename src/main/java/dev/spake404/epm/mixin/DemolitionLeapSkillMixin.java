@@ -2,6 +2,7 @@ package dev.spake404.epm.mixin;
 
 import dev.spake404.epm.DemolitionLeapCatJumpHandler;
 import dev.spake404.epm.DemolitionLeapAirJumpHandler;
+import dev.spake404.epm.EPMParCoolGate;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.FriendlyByteBuf;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,6 +24,10 @@ public abstract class DemolitionLeapSkillMixin {
 
 	@Inject(method = "gatherHoldArguments", at = @At("HEAD"), cancellable = true)
 	private void epm$holdActualContainerSlot(SkillContainer container, ControlEngine controlEngine, FriendlyByteBuf buffer, CallbackInfo callback) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
+			return;
+		}
+
 		controlEngine.setHoldingKey(container.getSlot(), getKeyMapping());
 		container.getExecutor().startSkillHolding((HoldableSkill) (Object) this);
 		callback.cancel();

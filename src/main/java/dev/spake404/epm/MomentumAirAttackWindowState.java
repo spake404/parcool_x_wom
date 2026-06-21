@@ -16,7 +16,12 @@ public final class MomentumAirAttackWindowState {
 	}
 
 	public static void markWallJump(Player player) {
-		if (player == null || !EPMConfig.wallJumpPrimesAirAttack() || player.onGround() || player.isSpectator() || player.isInWater()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| player == null
+				|| !EPMConfig.wallJumpPrimesAirAttack()
+				|| player.onGround()
+				|| player.isSpectator()
+				|| player.isInWater()) {
 			return;
 		}
 

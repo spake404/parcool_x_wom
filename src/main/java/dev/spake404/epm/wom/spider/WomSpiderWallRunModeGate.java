@@ -63,10 +63,18 @@ public final class WomSpiderWallRunModeGate {
 
 	public static boolean canStabilizeOriginalWomWallRun(Player player, PlayerPatch<?> playerPatch) {
 		return hasSpiderWallRunModeContext(player, playerPatch)
-				&& (EPMConfig.defaultSpiderWallRunMode() || EPMConfig.womSpiderWallRunMode());
+				&& (EPMConfig.defaultSpiderWallRunMode()
+				|| EPMConfig.womSpiderWallRunMode()
+				|| canUseParCoolOriginalAdapter(player, playerPatch));
 	}
 
 	public static boolean canUseParCoolReplacement(Player player, PlayerPatch<?> playerPatch) {
+		// Test build: ParCool mode now routes into WOM's original wall-run through a thin input adapter.
+		// Keep the legacy replacement handler parked so it can be compared or restored without deleting it.
+		return false;
+	}
+
+	public static boolean canUseParCoolOriginalAdapter(Player player, PlayerPatch<?> playerPatch) {
 		return EPMParCoolGate.allowCrossModSkillCompat()
 				&& hasSpiderWallRunModeContext(player, playerPatch)
 				&& EPMConfig.parCoolSpiderWallRunMode();

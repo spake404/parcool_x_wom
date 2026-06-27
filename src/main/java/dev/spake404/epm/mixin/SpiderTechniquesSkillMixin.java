@@ -4,6 +4,7 @@ import dev.spake404.epm.compat.ModCompat;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDiagnostics;
 import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDirectionFix;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunControlAdapter;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunModeGate;
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +44,9 @@ public abstract class SpiderTechniquesSkillMixin {
 
 	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lyesman/epicfight/api/client/input/InputManager;isActionActive(Lyesman/epicfight/api/client/input/action/InputAction;)Z"), require = 0)
 	private boolean parcoolxwom$disableOriginalSprintWallRunTrigger(InputAction action, SkillContainer container, MovementInputEvent event) {
+		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunControlAdapter.shouldOwnOriginalWomSprintInput(event)) {
+			return WomSpiderWallRunControlAdapter.shouldTriggerOriginalWomSprintInput(event);
+		}
 		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunModeGate.shouldDisableOriginalWomSprintTrigger(event.getPlayerPatch())) {
 			return false;
 		}

@@ -224,6 +224,9 @@ public final class WomOriginalSpiderWallRunDirectionFix {
 	}
 
 	private static float modelYaw(Player player, PlayerPatch<?> playerPatch) {
+		if (WomSpiderWallRunControlAdapter.shouldUseOriginalWomWallRunControls(player, playerPatch)) {
+			return player == null ? 0.0F : player.getViewYRot(1.0F);
+		}
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
 			return localPlayerPatch.getModelYRot();
 		}

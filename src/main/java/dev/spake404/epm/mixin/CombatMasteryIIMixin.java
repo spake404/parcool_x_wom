@@ -1,5 +1,8 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.epicfightx.EpicFightXCombatMasteryCompat;
+import dev.spake404.epm.epicfightx.EpicFightXCombatMasteryHandoff;
+import dev.spake404.epm.EPM;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -7,8 +10,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.asanginxst.epicfightx.skills.passive.CombatMastery_II;
-import dev.spake404.epm.EpicFightXCombatMasteryCompat;
-import dev.spake404.epm.EpicFightXCombatMasteryHandoff;
 import net.minecraft.nbt.CompoundTag;
 import yesman.epicfight.skill.SkillContainer;
 import yesman.epicfight.skill.SkillDataManager;

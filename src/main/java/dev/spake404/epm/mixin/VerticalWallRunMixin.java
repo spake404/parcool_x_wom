@@ -1,5 +1,9 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMParCoolGate;
+import dev.spake404.epm.wom.spider.SpiderTechniquesState;
 import java.nio.ByteBuffer;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,9 +14,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.alrex.parcool.common.action.impl.VerticalWallRun;
 import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
-import dev.spake404.epm.EPMConfig;
-import dev.spake404.epm.EPMParCoolGate;
-import dev.spake404.epm.SpiderTechniquesState;
 import net.minecraft.world.entity.player.Player;
 import yesman.epicfight.world.capabilities.EpicFightCapabilities;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;

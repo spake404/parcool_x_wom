@@ -1,5 +1,6 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import java.util.List;
 import java.util.Set;
 

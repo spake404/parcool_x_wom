@@ -1,8 +1,9 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMClientHooks;
-import dev.spake404.epm.WomSpiderWallRunHandler;
-import dev.spake404.epm.WomSpiderWallSlideHandler;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
+import dev.spake404.epm.wom.spider.WomSpiderWallSlideHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.threetag.palladiumcore.network.MessageC2S;

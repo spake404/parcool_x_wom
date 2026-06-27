@@ -1,7 +1,8 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.DemolitionLeapCatJumpHandler;
-import dev.spake404.epm.DemolitionLeapAirJumpHandler;
+import dev.spake404.epm.demolition.DemolitionLeapAirJumpHandler;
+import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
+import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMParCoolGate;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.FriendlyByteBuf;

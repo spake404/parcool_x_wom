@@ -1,10 +1,10 @@
 package dev.spake404.epm.gui;
 
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.EPM;
 import com.alrex.parcool.client.gui.ColorTheme;
 import com.alrex.parcool.client.gui.ParCoolSettingScreen;
 import com.alrex.parcool.common.info.ActionInfo;
-import dev.spake404.epm.EPM;
-import dev.spake404.epm.EPMConfig;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.network.chat.Component;
@@ -35,7 +35,9 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addHeader("Phantom Ascent");
 		addBool("catLeapPrimesPhantomAscent", "CAT_LEAP_PRIMES_PHANTOM_ASCENT");
 		addBool("wallJumpPrimesPhantomAscent", "WALL_JUMP_PRIMES_PHANTOM_ASCENT");
+		addBool("climbUpPrimesPhantomAscent", "CLIMB_UP_PRIMES_PHANTOM_ASCENT");
 		addBool("spiderWallJumpPrimesPhantomAscent", "SPIDER_WALL_JUMP_PRIMES_PHANTOM_ASCENT");
+		addBool("replacePhantomAscentDoubleJumpAnimations", "REPLACE_PHANTOM_ASCENT_DOUBLE_JUMP_ANIMATIONS");
 		addBool("disablePhantomAscentUnderwaterSwimming", "DISABLE_PHANTOM_ASCENT_UNDERWATER_SWIMMING");
 		addDouble("phantomAscentFallProtectionDamageThreshold", "PHANTOM_ASCENT_FALL_PROTECTION_DAMAGE_THRESHOLD", 0.0, 100.0, 0.5);
 
@@ -58,6 +60,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addEnum("spiderTechniquesWallRunMode", "SPIDER_TECHNIQUES_WALL_RUN_MODE",
 				new String[]{"DEFAULT", "PARCOOL", "WOM"});
 		addDouble("parCoolWallRunAnimationTransition", "PARCOOL_WALL_RUN_ANIMATION_TRANSITION", 0.0, 0.5, 0.02);
+		addDouble("spiderWallJumpWomFrontAngle", "SPIDER_WALL_JUMP_WOM_FRONT_ANGLE", 0.0, 90.0, 5.0);
 
 		// Aqua Maneuvre
 		addHeader("Aqua Maneuvre");
@@ -72,6 +75,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		// Vault
 		addHeader("Vault");
 		addBool("fastRunVaultChainFix", "FAST_RUN_VAULT_CHAIN_FIX");
+		addBool("vaultStartFastRunGrace", "VAULT_START_FAST_RUN_GRACE");
 		addDouble("vaultHeightScale", "VAULT_HEIGHT_SCALE", 0.86, 2.0, 0.1);
 
 		// Climb
@@ -84,11 +88,15 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addHeader("Debug");
 		addBool("debugSpiderTechniquesAttackState", "DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE");
 		addBool("debugSpiderWallRunState", "DEBUG_SPIDER_WALL_RUN_STATE");
+		addBool("debugDemolitionLeapState", "DEBUG_DEMOLITION_LEAP_STATE");
+		addBool("debugActionArbitrationState", "DEBUG_ACTION_ARBITRATION_STATE");
+		addBool("debugClingToCliffState", "DEBUG_CLING_TO_CLIFF_STATE");
 		addBool("debugAquaManeuvreFastSwimState", "DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE");
 		addBool("debugEpicFightXCombatMasterySprintState", "DEBUG_EPICFIGHTX_COMBAT_MASTERY_SPRINT_STATE");
 		addBool("debugVaultState", "DEBUG_VAULT_STATE");
 		addBool("debugGliderState", "DEBUG_GLIDER_STATE");
 		addBool("debugNaturalSprinterFastRunStepState", "DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE");
+		addBool("debugExhaustionPoseState", "DEBUG_EXHAUSTION_POSE_STATE");
 		addBool("debugCameraEventState", "DEBUG_CAMERA_EVENT_STATE");
 	}
 

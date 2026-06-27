@@ -1,6 +1,7 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.GliderCompat;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.glider.GliderCompat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

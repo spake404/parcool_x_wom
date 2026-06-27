@@ -1,9 +1,10 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.MomentumAirAttackWindowState;
+import dev.spake404.epm.compat.ModCompat;
+import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMClientHooks;
-import dev.spake404.epm.ModCompat;
-import dev.spake404.epm.SpiderTechniquesState;
+import dev.spake404.epm.phantom.MomentumAirAttackWindowState;
+import dev.spake404.epm.wom.spider.SpiderTechniquesState;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;

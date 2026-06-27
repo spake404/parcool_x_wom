@@ -1,5 +1,6 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMClientHooks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;

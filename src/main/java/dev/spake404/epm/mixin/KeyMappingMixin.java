@@ -1,7 +1,8 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunModeGate;
 import com.alrex.parcool.client.input.KeyBindings;
-import dev.spake404.epm.WomSpiderWallRunModeGate;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;

@@ -1,5 +1,6 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import yesman.epicfight.network.common.AnimatorControlPacket;

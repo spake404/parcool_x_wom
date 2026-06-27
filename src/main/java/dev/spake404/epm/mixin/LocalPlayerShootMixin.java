@@ -1,5 +1,9 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMClientHooks;
+import dev.spake404.epm.EPMParCoolGate;
 import com.alrex.parcool.common.action.Action;
 import com.alrex.parcool.common.action.impl.CatLeap;
 import com.alrex.parcool.common.action.impl.FastRun;
@@ -9,10 +13,6 @@ import com.tacz.guns.api.entity.ShootResult;
 import com.tacz.guns.client.gameplay.LocalPlayerShoot;
 import com.tacz.guns.entity.shooter.ShooterDataHolder;
 import com.tacz.guns.entity.sync.ModSyncedEntityData;
-import dev.spake404.epm.EPM;
-import dev.spake404.epm.EPMConfig;
-import dev.spake404.epm.EPMClientHooks;
-import dev.spake404.epm.EPMParCoolGate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;

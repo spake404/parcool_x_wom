@@ -1,9 +1,10 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMParCoolGate;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import dev.spake404.epm.EPMParCoolGate;
 import yesman.epicfight.api.client.input.InputManager;
 import yesman.epicfight.api.client.input.action.InputAction;
 import yesman.epicfight.api.client.input.action.MinecraftInputAction;

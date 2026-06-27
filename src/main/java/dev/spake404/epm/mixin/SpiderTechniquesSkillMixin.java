@@ -1,10 +1,11 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.ModCompat;
-import dev.spake404.epm.WomOriginalSpiderWallRunDirectionFix;
-import dev.spake404.epm.WomOriginalSpiderWallRunDiagnostics;
-import dev.spake404.epm.WomSpiderWallRunHandler;
-import dev.spake404.epm.WomSpiderWallRunModeGate;
+import dev.spake404.epm.compat.ModCompat;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDiagnostics;
+import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDirectionFix;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunModeGate;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;

@@ -1,8 +1,9 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.debug.RotationTraceDebug;
+import dev.spake404.epm.EPM;
 import java.util.List;
 
-import dev.spake404.epm.RotationTraceDebug;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;

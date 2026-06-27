@@ -1,11 +1,12 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMClientHooks;
 import com.alrex.parcool.client.animation.PlayerModelRotator;
 import com.alrex.parcool.client.animation.PlayerModelTransformer;
 import com.alrex.parcool.client.animation.impl.JumpChargingAnimator;
 import com.alrex.parcool.common.capability.Parkourability;
-import dev.spake404.epm.DemolitionLeapCatJumpHandler;
-import dev.spake404.epm.EPMClientHooks;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

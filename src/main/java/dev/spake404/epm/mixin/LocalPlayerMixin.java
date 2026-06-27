@@ -1,6 +1,7 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.DemolitionLeapCatJumpHandler;
+import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
+import dev.spake404.epm.EPM;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

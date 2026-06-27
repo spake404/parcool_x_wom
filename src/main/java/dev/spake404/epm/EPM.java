@@ -2,6 +2,9 @@ package dev.spake404.epm;
 
 import dev.spake404.epm.animation.EpmAnimations;
 import dev.spake404.epm.animation.EpmLivingMotions;
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.event.EPMEvents;
+import dev.spake404.epm.network.EPMNetwork;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;

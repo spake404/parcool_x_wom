@@ -41,6 +41,7 @@
     "JumpChargingAnimatorMixin",
     "KeyMappingMixin",
     "LocalPlayerMixin",
+    "LocalPlayerPatchAnimationMixin",
     "PlayerGliderLayerMixin",
     "LocalPlayerReloadMixin",
     "LocalPlayerShootMixin",

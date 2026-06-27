@@ -1,5 +1,6 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;

@@ -1,11 +1,12 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.epicfightx.EpicFightXCombatMasteryCompat;
+import dev.spake404.epm.EPM;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import dev.spake404.epm.EpicFightXCombatMasteryCompat;
 import yesman.epicfight.client.world.capabilites.entitypatch.player.LocalPlayerPatch;
 
 @Mixin(targets = "yesman.epicfight.client.world.capabilites.entitypatch.player.AbstractClientPlayerPatch", remap = false)

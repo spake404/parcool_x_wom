@@ -1,11 +1,12 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.compat.ModCompat;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMClientHooks;
+import dev.spake404.epm.phantom.MomentumAirAttackWindowState;
+import dev.spake404.epm.wom.spider.SpiderTechniquesState;
 import com.p1nero.invincible.api.skill.ComboNode;
 import com.p1nero.invincible.skill.ComboBasicAttack;
-import dev.spake404.epm.EPMClientHooks;
-import dev.spake404.epm.MomentumAirAttackWindowState;
-import dev.spake404.epm.ModCompat;
-import dev.spake404.epm.SpiderTechniquesState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

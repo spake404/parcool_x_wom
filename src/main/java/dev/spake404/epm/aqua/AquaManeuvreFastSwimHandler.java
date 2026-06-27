@@ -1,19 +1,19 @@
 package dev.spake404.epm.aqua;
 
+import dev.spake404.epm.animation.EpmAnimations;
+import dev.spake404.epm.animation.EpmLivingMotions;
+import dev.spake404.epm.animation.WomAnimationRefs;
+import dev.spake404.epm.compat.ModCompat;
+import dev.spake404.epm.compat.WomCompatBridge;
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.EPM;
+import dev.spake404.epm.EPMParCoolGate;
 import com.alrex.parcool.client.input.KeyBindings;
 import com.alrex.parcool.client.input.KeyRecorder;
 import com.alrex.parcool.common.action.impl.FastRun;
 import com.alrex.parcool.common.action.impl.FastSwim;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.config.ParCoolConfig;
-import dev.spake404.epm.EPM;
-import dev.spake404.epm.EPMConfig;
-import dev.spake404.epm.EPMParCoolGate;
-import dev.spake404.epm.ModCompat;
-import dev.spake404.epm.WomAnimationRefs;
-import dev.spake404.epm.WomCompatBridge;
-import dev.spake404.epm.animation.EpmAnimations;
-import dev.spake404.epm.animation.EpmLivingMotions;
 import net.minecraft.client.player.Input;
 import net.minecraft.world.entity.player.Player;
 import yesman.epicfight.api.animation.types.StaticAnimation;

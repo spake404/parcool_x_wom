@@ -37,12 +37,19 @@ Optional compatibility:
 | ClingToCliff / ClimbUp improvements | Makes EpicParCool ClimbUp more reliable after cling movement and corner movement, with configurable vertical and lateral compensation. |
 | Demolition Leap integration | Replaces ParCool CatLeap/ChargeJump with Epic Fight Demolition Leap via Shift+Space, supports air double jump after launch, and optionally replaces ParCool charge animation with Demolition Leap's charging animation before learning the skill. |
 | WallJump improvements | Adds configurable sprint restoration, TaCZ shooting interruption, aerial attack windows, Phantom Ascent chaining, and fall-protection thresholds. |
-| Vault tuning | Adds a configurable ParCool Vault height scale for more stable three-block-air vaults. |
+| Vault tuning | Adds a configurable ParCool Vault height scale, FastRun Vault chain support, and an optional recent-FastRun grace for cases where FastRun stops just before Vault can start. |
 | Spider Techniques compatibility | Reduces conflicts between WOM Spider Techniques and ParCool wall actions, including optional ParCool vertical wall-run disabling. |
 | ParCool Dodge handling | Forcibly disables ParCool's built-in Dodge and hides its key binding so Epic Fight dodge skills can own combat dodging. |
 | Runtime performance | Keeps compatibility checks scoped to active states and avoids unnecessary per-tick work where possible. |
 
 ## Changelog
+
+### 4.0.1
+
+- Fixed intermittent Vault starts after FastRun hits a wall and exits before ParCool Vault evaluates the same obstacle.
+- Added `vaultStartFastRunGrace`, enabled by default, to allow a short recent-FastRun window while still requiring native Vault geometry and hard safety checks.
+- Moved the recent-FastRun tracking out of `FastRun.onClientTick`; it now records only from FastRun stop callbacks and successful `canActWithRunning` checks.
+- Full bilingual notes: [CHANGELOG_4.0.1.md](CHANGELOG_4.0.1.md).
 
 ### 4.0.0
 

@@ -1,5 +1,6 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.EPM;
 import com.alrex.parcool.client.gui.ColorTheme;
 import com.alrex.parcool.client.gui.SettingActionLimitationScreen;
 import com.alrex.parcool.common.action.ActionList;

@@ -1,8 +1,9 @@
 package dev.spake404.epm.mixin;
 
-import com.hm.efn.comboevents.condition.state.EFNOnGroundCondition;
+import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMParCoolGate;
-import dev.spake404.epm.MomentumAirAttackWindowState;
+import dev.spake404.epm.phantom.MomentumAirAttackWindowState;
+import com.hm.efn.comboevents.condition.state.EFNOnGroundCondition;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

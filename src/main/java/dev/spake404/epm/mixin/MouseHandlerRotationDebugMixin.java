@@ -1,6 +1,7 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.RotationTraceDebug;
+import dev.spake404.epm.debug.RotationTraceDebug;
+import dev.spake404.epm.EPM;
 import net.minecraft.client.MouseHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

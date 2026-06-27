@@ -1,11 +1,12 @@
 package dev.spake404.epm.mixin;
 
+import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
+import dev.spake404.epm.EPM;
 import java.nio.ByteBuffer;
 
 import com.alrex.parcool.common.action.impl.CatLeap;
 import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
-import dev.spake404.epm.DemolitionLeapCatJumpHandler;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

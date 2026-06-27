@@ -1,5 +1,33 @@
 package dev.spake404.epm;
 
+import dev.spake404.epm.animation.AnimationQuery;
+import dev.spake404.epm.animation.EpmAnimations;
+import dev.spake404.epm.animation.EpmLivingMotions;
+import dev.spake404.epm.animation.WomAnimationRefs;
+import dev.spake404.epm.climb.ClingToCliffDebug;
+import dev.spake404.epm.compat.ModCompat;
+import dev.spake404.epm.compat.WomCompatBridge;
+import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.glider.GliderCompat;
+import dev.spake404.epm.glider.GliderFrameState;
+import dev.spake404.epm.mixin.AnimatorControlPacketAccessor;
+import dev.spake404.epm.mixin.ParCoolAnimationAccessor;
+import dev.spake404.epm.mixin.SPAnimatorControlAccessor;
+import dev.spake404.epm.naturalsprinter.NaturalSprinterFastRunHandler;
+import dev.spake404.epm.naturalsprinter.NaturalSprinterFastRunStep;
+import dev.spake404.epm.naturalsprinter.NaturalSprinterProceduralStepPulse;
+import dev.spake404.epm.naturalsprinter.NaturalSprinterState;
+import dev.spake404.epm.network.EPMNetwork;
+import dev.spake404.epm.phantom.MomentumAirAttackWindowState;
+import dev.spake404.epm.phantom.PhantomAscentAirAttackState;
+import dev.spake404.epm.vault.VaultDebug;
+import dev.spake404.epm.vault.VaultStartFastRunGrace;
+import dev.spake404.epm.walljump.JumpActionArbiter;
+import dev.spake404.epm.walljump.ParCoolWallJumpHandoffState;
+import dev.spake404.epm.wom.spider.WomSpiderWallHooks;
+import dev.spake404.epm.wom.spider.WomSpiderWallJumpPriority;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
+import dev.spake404.epm.wom.spider.WomSpiderWallSlideHandler;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.animation.impl.FastRunningAnimator;
@@ -23,9 +51,6 @@ import com.alrex.parcool.common.capability.IStamina;
 import com.alrex.parcool.common.capability.Parkourability;
 import com.alrex.parcool.config.ParCoolConfig;
 import com.alrex.parcool.utilities.WorldUtil;
-import dev.spake404.epm.mixin.AnimatorControlPacketAccessor;
-import dev.spake404.epm.mixin.ParCoolAnimationAccessor;
-import dev.spake404.epm.mixin.SPAnimatorControlAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
@@ -39,6 +64,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import yesman.epicfight.api.animation.AnimationManager;
+import yesman.epicfight.api.animation.LivingMotions;
 import yesman.epicfight.api.client.input.PlayerInputState;
 import yesman.epicfight.api.animation.property.AnimationProperty.PlaybackSpeedModifier;
 import yesman.epicfight.api.animation.property.AnimationProperty.StaticAnimationProperty;
@@ -46,6 +72,8 @@ import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 import yesman.epicfight.api.client.input.InputManager;
 import yesman.epicfight.api.client.input.action.MinecraftInputAction;
+import yesman.epicfight.api.client.forgeevent.UpdatePlayerMotionEvent;
+import yesman.epicfight.api.forgeevent.InitAnimatorEvent;
 import yesman.epicfight.client.world.capabilites.entitypatch.player.LocalPlayerPatch;
 import yesman.epicfight.gameasset.Animations;
 import yesman.epicfight.skill.Skill;
@@ -84,10 +112,12 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> EPIC_PARCOOL_CLING_MOVE_CLIMB_UP_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> EPIC_PARCOOL_CLIMB_UP_AIR_CONTROL_START_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, AssetAccessor<? extends StaticAnimation>> PENDING_FAST_RUN_DASHES = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, NaturalSprinterFastRunDashSource> PENDING_FAST_RUN_DASH_SOURCES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, NaturalSprinterStepFastRunState> NATURAL_SPRINTER_STEP_FAST_RUN_STATES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> NATURAL_SPRINTER_BREAKFALL_START_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, AssetAccessor<? extends StaticAnimation>> NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, DeferredNaturalSprinterDodgeStep> NATURAL_SPRINTER_DODGE_DEFERRED_STEPS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, NaturalSprinterStepPlaybackOwner> NATURAL_SPRINTER_STEP_PLAYBACK_OWNERS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, SkillContainer> PHANTOM_ASCENT_CONTAINERS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, ExhaustionPoseSnapshot> EXHAUSTION_POSE_SNAPSHOTS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, GliderOpeningDelayState> GLIDER_OPENING_DELAY_STATES = new WeakHashMap<>();
@@ -145,11 +175,99 @@ public final class EPMClientHooks {
 	private static final int NATURAL_SPRINTER_DODGE_STEP_CLEAR_GRACE_TICKS = 6;
 	private static final int NATURAL_SPRINTER_DODGE_STEP_MAX_DELAY_TICKS = 60;
 	private static final int NATURAL_SPRINTER_STEP_FAST_RUN_STARTUP_MAX_TICKS = 6;
+	private static final int NATURAL_SPRINTER_BREAKFALL_STEP_OWNER_MAX_TICKS =
+			NATURAL_SPRINTER_BREAKFALL_DASH_STARTUP_GRACE_TICKS + NATURAL_SPRINTER_STEP_FAST_RUN_STARTUP_MAX_TICKS;
 	private static volatile boolean jumpSpeedModifierInstalled;
 	private static boolean phantomJumpWasDown;
 	private static final ThreadLocal<PhantomAscentPrimeSource> ACTIVE_FORCED_PHANTOM_ASCENT_SOURCE = new ThreadLocal<>();
 
 	private EPMClientHooks() {
+	}
+
+	public static void registerDoubleJumpFallAnimation(InitAnimatorEvent event) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| event == null
+				|| !(event.getEntityPatch() instanceof PlayerPatch<?>)) {
+			return;
+		}
+
+		AssetAccessor<? extends StaticAnimation> animation = EpmAnimations.doubleJumpFall();
+		if (animation != null) {
+			event.getAnimator().addLivingAnimation(EpmLivingMotions.DOUBLE_JUMP_FALL, animation);
+		}
+	}
+
+	public static void chooseDoubleJumpFallAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
+		if (event == null
+				|| event.getMotion() != LivingMotions.FALL) {
+			return;
+		}
+		if (!isDoubleJumpAnimationReplacementEnabled()) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = event.getPlayerPatch();
+		Player player = playerPatch == null ? null : playerPatch.getOriginal();
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null
+				|| !cycle.usedAirborne
+				|| !cycle.seenAirborne
+				|| player == null
+				|| player.onGround()
+				|| player.isInWater()
+				|| player.isDeadOrDying()) {
+			return;
+		}
+
+		cycle.doubleJumpFallPlayed = true;
+		event.setMotion(EpmLivingMotions.DOUBLE_JUMP_FALL);
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> replaceDoubleJumpAnimation(
+			Player player,
+			AssetAccessor<? extends StaticAnimation> animation) {
+		if (animation == null) {
+			return null;
+		}
+
+		if (!isDoubleJumpAnimationReplacementEnabled()) {
+			return animation;
+		}
+
+		if (WomAnimationRefs.isAny(
+				animation,
+				Animations.BIPED_PHANTOM_ASCENT_FORWARD,
+				Animations.BIPED_PHANTOM_ASCENT_BACKWARD)) {
+			AssetAccessor<? extends StaticAnimation> jump = EpmAnimations.doubleJumpJump();
+			return jump == null ? animation : jump;
+		}
+
+		PhantomAscentCycle cycle = phantomAscentCycle(player);
+		if (cycle == null || !cycle.usedAirborne || cycle.playingSelectedLanding) {
+			return animation;
+		}
+
+		if (WomAnimationRefs.isAny(animation, Animations.BIPED_FALL)) {
+			AssetAccessor<? extends StaticAnimation> fall = EpmAnimations.doubleJumpFall();
+			if (fall != null) {
+				cycle.doubleJumpFallPlayed = true;
+				return fall;
+			}
+		}
+
+		if (WomAnimationRefs.isAny(animation, Animations.BIPED_LANDING)) {
+			AssetAccessor<? extends StaticAnimation> land = EpmAnimations.doubleJumpLand();
+			if (land != null && player != null && player.getRandom().nextBoolean()) {
+				return land;
+			}
+		}
+
+		return animation;
+	}
+
+	private static boolean isDoubleJumpAnimationReplacementEnabled() {
+		return EPMParCoolGate.allowCrossModSkillCompat()
+				&& EPMConfig.replacePhantomAscentDoubleJumpAnimations();
 	}
 
 	public static void startNaturalSprinterCatLeap(Player player) {
@@ -195,7 +313,7 @@ public final class EPMClientHooks {
 	}
 
 	public static void logForcedDemolitionPhantomBypass(Player player, String phase, boolean originalValue) {
-		if (!isForcedDemolitionPhantomAscent(player)) {
+		if (!EPMConfig.debugDemolitionLeapState() || !isForcedDemolitionPhantomAscent(player)) {
 			return;
 		}
 
@@ -226,6 +344,19 @@ public final class EPMClientHooks {
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_native_window_start", true, false, false);
 			logGliderOpeningDelayDiagnostic(player, "parcool_wall_jump_phantom_lock_mark", true, false, false);
 		}
+	}
+
+	public static void markClimbUpForPhantomAscent(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		dropClimbUpGliderRequests(player, "climb_up_start");
+		if (!EPMConfig.climbUpPrimesPhantomAscent()) {
+			return;
+		}
+
+		markForPhantomAscent(player, PhantomAscentPrimeSource.CLIMB_UP);
 	}
 
 	public static void markWomWallRunToParCoolWallJumpStarted(Player player) {
@@ -311,6 +442,12 @@ public final class EPMClientHooks {
 			return true;
 		}
 
+		WomSpiderWallJumpPriority.Decision decision = WomSpiderWallJumpPriority.resolve(player);
+		if (!decision.preferWom() && hasParCoolWallJumpPriorityCandidate(player)) {
+			logJumpArbiter(player, "wom_wall_jump_yield_parcool_" + decision.reason());
+			return false;
+		}
+
 		return JumpActionArbiter.claim(
 				player,
 				JumpActionArbiter.Winner.WOM_WALL_JUMP,
@@ -340,7 +477,7 @@ public final class EPMClientHooks {
 	}
 
 	private static void logJumpArbiter(Player player, String phase) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMConfig.debugActionArbitrationState() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -451,8 +588,9 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean hasWomWallJumpPriorityCandidate(Player player) {
-		return WomSpiderWallRunHandler.isWallRunActive(player)
-				|| WomSpiderWallSlideHandler.shouldOwnWallState(player)
+		return (WomSpiderWallRunHandler.isWallRunActive(player)
+				|| WomSpiderWallSlideHandler.shouldOwnWallState(player))
+				&& WomSpiderWallJumpPriority.shouldPreferWom(player)
 				|| isWomBackflipPhantomLockActive(player);
 	}
 
@@ -603,14 +741,12 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		PENDING_FAST_RUN_DASHES.put(playerPatch, animation);
+		queuePendingFastRunDash(playerPatch, animation, NaturalSprinterFastRunDashSource.ORDINARY);
 	}
-
-	static void playNaturalSprinterFastRunStep(PlayerPatch<?> playerPatch, NaturalSprinterFastRunStep step) {
+	public static void playNaturalSprinterFastRunStep(PlayerPatch<?> playerPatch, NaturalSprinterFastRunStep step) {
 		playNaturalSprinterFastRunStep(playerPatch, step, NaturalSprinterFastRunStep.Trigger.MANUAL);
 	}
-
-	static void playNaturalSprinterFastRunStep(
+	public static void playNaturalSprinterFastRunStep(
 			PlayerPatch<?> playerPatch,
 			NaturalSprinterFastRunStep step,
 			NaturalSprinterFastRunStep.Trigger trigger) {
@@ -619,13 +755,15 @@ public final class EPMClientHooks {
 			logNaturalSprinterStepPulse("play_skip", "missing_step", playerPatch, step, safeTrigger);
 			return;
 		}
+		if (shouldSuppressDuplicateBreakfallNaturalSprinterStep(playerPatch, step, safeTrigger)) {
+			logNaturalSprinterStepPulse("play_skip", "suppress_duplicate_breakfall_step", playerPatch, step, safeTrigger);
+			return;
+		}
 
 		if (!step.procedural()) {
 			if (step.fullEffectsFor(safeTrigger)) {
 				NaturalSprinterProceduralStepPulse.playStepVisualAndAudioEffects(playerPatch,
-						safeTrigger == NaturalSprinterFastRunStep.Trigger.STARTUP
-								? "configured_startup_step"
-								: "configured_manual_step");
+						naturalSprinterStepEffectSource("configured", safeTrigger));
 			}
 			logNaturalSprinterStepPulse("play_step_animation", "queued_animation_step", playerPatch, step, safeTrigger);
 			queueNaturalSprinterFastRunDash(playerPatch, step.animation());
@@ -652,18 +790,67 @@ public final class EPMClientHooks {
 
 		logNaturalSprinterStepPulse("play_procedural_request", "request", playerPatch, step, safeTrigger);
 		if (step.fullEffectsFor(safeTrigger)) {
-			NaturalSprinterProceduralStepPulse.playStepEffects(playerPatch, "procedural_startup_step");
+			NaturalSprinterProceduralStepPulse.playStepEffects(playerPatch, naturalSprinterStepEffectSource("procedural", safeTrigger));
 		} else {
-			NaturalSprinterProceduralStepPulse.playCleanStepEffects(playerPatch, "procedural_manual_step");
+			NaturalSprinterProceduralStepPulse.playCleanStepEffects(playerPatch, naturalSprinterStepEffectSource("procedural_clean", safeTrigger));
 		}
 		NaturalSprinterProceduralStepPulse.request(playerPatch, step.proceduralRunAnimation(), step.rightStep());
+	}
+
+	private static boolean shouldSuppressDuplicateBreakfallNaturalSprinterStep(
+			PlayerPatch<?> playerPatch,
+			NaturalSprinterFastRunStep step,
+			NaturalSprinterFastRunStep.Trigger trigger) {
+		if (trigger != NaturalSprinterFastRunStep.Trigger.MANUAL || playerPatch == null || step == null || !step.isPresent()) {
+			return false;
+		}
+
+		Player player = playerPatch.getOriginal();
+		NaturalSprinterStepPlaybackOwner owner = NATURAL_SPRINTER_STEP_PLAYBACK_OWNERS.get(player);
+		if (owner == null) {
+			return false;
+		}
+		if (owner.source != NaturalSprinterFastRunDashSource.BREAKFALL_DELAYED_AUTO
+				|| player.tickCount - owner.tick > NATURAL_SPRINTER_BREAKFALL_STEP_OWNER_MAX_TICKS) {
+			NATURAL_SPRINTER_STEP_PLAYBACK_OWNERS.remove(player);
+			return false;
+		}
+		if (!isSameAnimation(owner.animation, step.animation())) {
+			return false;
+		}
+
+		AssetAccessor<?> currentAnimation = currentBaseAnimation(playerPatch);
+		if (isSameAnimation(currentAnimation, owner.animation)) {
+			return true;
+		}
+
+		NATURAL_SPRINTER_STEP_PLAYBACK_OWNERS.remove(player);
+		return false;
+	}
+
+	private static void rememberBreakfallNaturalSprinterStepPlayback(
+			Player player,
+			AssetAccessor<? extends StaticAnimation> animation) {
+		if (player == null || animation == null) {
+			return;
+		}
+
+		NATURAL_SPRINTER_STEP_PLAYBACK_OWNERS.put(player,
+				new NaturalSprinterStepPlaybackOwner(player.tickCount, animation, NaturalSprinterFastRunDashSource.BREAKFALL_DELAYED_AUTO));
+	}
+
+	private static String naturalSprinterStepEffectSource(String prefix, NaturalSprinterFastRunStep.Trigger trigger) {
+		return prefix + "_" + switch (trigger) {
+			case STARTUP -> "startup_step";
+			case AUTO_STARTUP -> "auto_startup_step";
+			case MANUAL -> "manual_step";
+		};
 	}
 
 	public static boolean requestNaturalSprinterStepFastRun(Player player, AssetAccessor<? extends StaticAnimation> stepAnimation) {
 		return requestNaturalSprinterStepFastRun(player, NaturalSprinterFastRunStep.animation(stepAnimation));
 	}
-
-	static boolean requestNaturalSprinterStepFastRun(Player player, NaturalSprinterFastRunStep step) {
+	public static boolean requestNaturalSprinterStepFastRun(Player player, NaturalSprinterFastRunStep step) {
 		IStamina stamina = player == null ? null : IStamina.get(player);
 		if (step == null || !step.isPresent() || !canKeepNaturalSprinterStepFastRun(player, stamina)) {
 			clearNaturalSprinterStepFastRun(player);
@@ -854,7 +1041,7 @@ public final class EPMClientHooks {
 		}
 
 		FastRun fastRun = parkourability.get(FastRun.class);
-		if (fastRun != null && (fastRun.isDoing() || fastRunGrace)) {
+		if (fastRun != null && (fastRun.isDoing() || fastRunGrace || VaultStartFastRunGrace.hasRecent(player))) {
 			VAULT_HOLD_FAST_RUN.put(player, Boolean.TRUE);
 			setSprintingWithDiagnostic(player, true, "vault_start_from_fast_run");
 		}
@@ -954,6 +1141,15 @@ public final class EPMClientHooks {
 		return EPMParCoolGate.allowCrossModSkillCompat()
 				&& EPMConfig.fastRunVaultChainFix()
 				&& (Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player)) || VAULT_FAST_RUN_GRACE_TICKS.containsKey(player));
+	}
+
+	public static boolean vaultFastRunHoldForDebug(Player player) {
+		return player != null && Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player));
+	}
+
+	public static int vaultFastRunGraceTicksForDebug(Player player) {
+		Integer ticks = player == null ? null : VAULT_FAST_RUN_GRACE_TICKS.get(player);
+		return ticks == null ? 0 : ticks.intValue();
 	}
 
 	public static boolean shouldPreserveFastRunToggleDuringVault(Player player) {
@@ -1129,7 +1325,7 @@ public final class EPMClientHooks {
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			PENDING_FAST_RUN_DASHES.remove(localPlayerPatch);
+			removePendingFastRunDash(localPlayerPatch);
 			stopPlaying(localPlayerPatch,
 					WomAnimationRefs.epicParCoolWallJumpLeftStart(),
 					WomAnimationRefs.epicParCoolWallJumpRightStart(),
@@ -1180,7 +1376,7 @@ public final class EPMClientHooks {
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
-			PENDING_FAST_RUN_DASHES.remove(localPlayerPatch);
+			removePendingFastRunDash(localPlayerPatch);
 			stopPlaying(localPlayerPatch,
 					WomAnimationRefs.epicParCoolWallJumpLeftStart(),
 					WomAnimationRefs.epicParCoolWallJumpRightStart(),
@@ -1237,7 +1433,7 @@ public final class EPMClientHooks {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch != null) {
 			NaturalSprinterState.suppress(playerPatch);
-			PENDING_FAST_RUN_DASHES.remove(playerPatch);
+			removePendingFastRunDash(playerPatch);
 		}
 
 		clearParCoolAnimator(player);
@@ -1953,6 +2149,21 @@ public final class EPMClientHooks {
 		PENDING_GLIDER_OPENING_SOUNDS.remove(player);
 	}
 
+	private static void dropClimbUpGliderRequests(Player player, String phase) {
+		if (player == null) {
+			return;
+		}
+
+		boolean arbitrationRemoved = PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player) != null;
+		boolean preinputRemoved = PENDING_GLIDER_PREINPUTS.remove(player) != null;
+		boolean pendingAfterPhantomRemoved = PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.remove(player) != null;
+		boolean replayRemoved = GLIDER_REPLAY_REQUESTS.remove(player) != null;
+		boolean openingSoundRemoved = PENDING_GLIDER_OPENING_SOUNDS.remove(player) != null;
+		if (arbitrationRemoved || preinputRemoved || pendingAfterPhantomRemoved || replayRemoved || openingSoundRemoved) {
+			logGliderOpeningDelayDiagnostic(player, phase + "_glider_drop", true, false, false);
+		}
+	}
+
 	private static boolean isParCoolWallRunHandoffGliderBlockActive(Player player) {
 		Integer localStart = PARCOOL_WALL_RUN_HANDOFF_TICKS.get(player);
 		if (localStart == null || player == null || player.onGround() || player.isInWater()) {
@@ -2303,7 +2514,7 @@ public final class EPMClientHooks {
 	}
 
 	private static void logWomBackflipGliderGuard(Player player, String phase, String reason, boolean canceled, boolean cacheAllowed) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMConfig.debugGliderState() || player == null || !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -2990,9 +3201,35 @@ public final class EPMClientHooks {
 				&& !player.isInWater();
 	}
 
+	private static void queuePendingFastRunDash(
+			PlayerPatch<?> playerPatch,
+			AssetAccessor<? extends StaticAnimation> animation,
+			NaturalSprinterFastRunDashSource source) {
+		if (playerPatch == null || animation == null) {
+			return;
+		}
+
+		PENDING_FAST_RUN_DASHES.put(playerPatch, animation);
+		if (source == null || source == NaturalSprinterFastRunDashSource.ORDINARY) {
+			PENDING_FAST_RUN_DASH_SOURCES.remove(playerPatch);
+		} else {
+			PENDING_FAST_RUN_DASH_SOURCES.put(playerPatch, source);
+		}
+	}
+
+	private static AssetAccessor<? extends StaticAnimation> removePendingFastRunDash(PlayerPatch<?> playerPatch) {
+		if (playerPatch == null) {
+			return null;
+		}
+
+		PENDING_FAST_RUN_DASH_SOURCES.remove(playerPatch);
+		return PENDING_FAST_RUN_DASHES.remove(playerPatch);
+	}
+
 	private static void playPendingFastRunDash(Player player) {
 		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.naturalSprinterAnimations()) {
 			PENDING_FAST_RUN_DASHES.clear();
+			PENDING_FAST_RUN_DASH_SOURCES.clear();
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.remove(player);
 			return;
@@ -3001,7 +3238,7 @@ public final class EPMClientHooks {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (shouldStopFastRunForGlider(player)) {
 			if (playerPatch != null) {
-				PENDING_FAST_RUN_DASHES.remove(playerPatch);
+				removePendingFastRunDash(playerPatch);
 			}
 			suppressFastRunAnimationForGlider(player);
 			return;
@@ -3009,7 +3246,7 @@ public final class EPMClientHooks {
 
 		if (isPhantomAscentAirborneLocked(player)) {
 			if (playerPatch != null) {
-				PENDING_FAST_RUN_DASHES.remove(playerPatch);
+				removePendingFastRunDash(playerPatch);
 			}
 			return;
 		}
@@ -3018,9 +3255,13 @@ public final class EPMClientHooks {
 			return;
 		}
 
+		NaturalSprinterFastRunDashSource source = PENDING_FAST_RUN_DASH_SOURCES.remove(playerPatch);
 		AssetAccessor<? extends StaticAnimation> animation = PENDING_FAST_RUN_DASHES.remove(playerPatch);
 		if (animation != null) {
 			playerPatch.playAnimationInClientSide(animation, 0.0F);
+			if (source == NaturalSprinterFastRunDashSource.BREAKFALL_DELAYED_AUTO) {
+				rememberBreakfallNaturalSprinterStepPlayback(player, animation);
+			}
 		}
 	}
 
@@ -3064,7 +3305,7 @@ public final class EPMClientHooks {
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		if (playerPatch != null && NaturalSprinterState.hasNaturalSprinter(playerPatch) && !isPhantomAscentAirborneLocked(player)) {
-			PENDING_FAST_RUN_DASHES.put(playerPatch, delayedDash);
+			queuePendingFastRunDash(playerPatch, delayedDash, NaturalSprinterFastRunDashSource.BREAKFALL_DELAYED_AUTO);
 		}
 	}
 
@@ -3080,7 +3321,7 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		AssetAccessor<? extends StaticAnimation> pendingDash = PENDING_FAST_RUN_DASHES.remove(playerPatch);
+		AssetAccessor<? extends StaticAnimation> pendingDash = removePendingFastRunDash(playerPatch);
 		if (pendingDash != null) {
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.put(player, pendingDash);
 		}
@@ -3102,17 +3343,17 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean isParCoolDodgeBlockingNaturalSprinterStep(Player player) {
-		return EPMParCoolGate.allowCrossModSkillCompat()
-				&& (NaturalSprinterFastRunHandler.isParCoolDodgeDoing(player)
-						|| hasParCoolDodgeAnimator(player)
-						|| hasDodgeRollBaseAnimation(player));
+		return classifyParCoolStepContext(player) == ParCoolStepContext.DODGE;
+	}
+
+	public static boolean isBreakfallFollowupBlockingNaturalSprinterStepDodge(Player player) {
+		return classifyParCoolStepContext(player) == ParCoolStepContext.BREAKFALL_FOLLOWUP;
 	}
 
 	public static void deferStepForDodge(Player player, AssetAccessor<? extends StaticAnimation> animation) {
 		deferStepForDodge(player, NaturalSprinterFastRunStep.animation(animation));
 	}
-
-	static void deferStepForDodge(Player player, NaturalSprinterFastRunStep step) {
+	public static void deferStepForDodge(Player player, NaturalSprinterFastRunStep step) {
 		if (player == null || step == null || !step.isPresent()) {
 			return;
 		}
@@ -3141,6 +3382,13 @@ public final class EPMClientHooks {
 		}
 
 		int elapsedTicks = player.tickCount - state.startTick;
+		if (isBreakfallFollowupBlockingNaturalSprinterStepDodge(player)) {
+			clearDeferredDodgeStep(player);
+			logNaturalSprinterStepPulse("dodge_deferred_clear", "breakfall_followup", EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class), state.deferredStep,
+					NaturalSprinterFastRunStep.Trigger.MANUAL);
+			return;
+		}
+
 		boolean dodgeBlockingStep = isParCoolDodgeBlockingNaturalSprinterStep(player);
 		if (dodgeBlockingStep && elapsedTicks < NATURAL_SPRINTER_DODGE_STEP_MAX_DELAY_TICKS) {
 			state.clearTick = -1;
@@ -3246,6 +3494,23 @@ public final class EPMClientHooks {
 	private static boolean hasDodgeRollBaseAnimation(Player player) {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		return isDodgeRollAnimation(currentBaseAnimation(playerPatch));
+	}
+
+	private static ParCoolStepContext classifyParCoolStepContext(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || player == null || !player.isLocalPlayer()) {
+			return ParCoolStepContext.NONE;
+		}
+
+		if (NaturalSprinterFastRunHandler.isParCoolDodgeDoing(player) || hasParCoolDodgeAnimator(player)) {
+			return ParCoolStepContext.DODGE;
+		}
+		if (isBreakfallFollowupDoing(player)) {
+			return ParCoolStepContext.BREAKFALL_FOLLOWUP;
+		}
+		if (hasDodgeRollBaseAnimation(player)) {
+			return ParCoolStepContext.DODGE;
+		}
+		return ParCoolStepContext.NONE;
 	}
 
 	private static boolean isBreakfallFollowupDoing(Player player) {
@@ -3521,7 +3786,10 @@ public final class EPMClientHooks {
 	}
 
 	private static void logForcedPhantomAscent(Player player, PlayerPatch<?> playerPatch, PhantomAscentPrimeSource source, String phase) {
-		if (source != PhantomAscentPrimeSource.DEMOLITION_LEAP || player == null || !player.isLocalPlayer()) {
+		if (!EPMConfig.debugDemolitionLeapState()
+				|| source != PhantomAscentPrimeSource.DEMOLITION_LEAP
+				|| player == null
+				|| !player.isLocalPlayer()) {
 			return;
 		}
 
@@ -3604,11 +3872,68 @@ public final class EPMClientHooks {
 			return;
 		}
 
+		playDoubleJumpLandingChoice(player, cycle);
 		clearPhantomAscentAirborneCycle(player, "landed");
+	}
+
+	private static void playDoubleJumpLandingChoice(Player player, PhantomAscentCycle cycle) {
+		if (!isDoubleJumpAnimationReplacementEnabled()
+				|| player == null
+				|| cycle == null
+				|| !cycle.usedAirborne
+				|| cycle.playingSelectedLanding
+				|| player.isInWater()
+				|| player.isDeadOrDying()) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (!(playerPatch instanceof LocalPlayerPatch localPlayerPatch) || !playerPatch.isEpicFightMode()) {
+			return;
+		}
+
+		AssetAccessor<? extends StaticAnimation> land = EpmAnimations.doubleJumpLand();
+		AssetAccessor<? extends StaticAnimation> chosen = land != null && player.getRandom().nextBoolean()
+				? land
+				: Animations.BIPED_LANDING;
+		if (chosen == null) {
+			return;
+		}
+
+		cycle.playingSelectedLanding = true;
+		try {
+			localPlayerPatch.playAnimationInClientSide(chosen, 0.0F);
+		} finally {
+			cycle.playingSelectedLanding = false;
+		}
 	}
 
 	private static void clearPhantomAscentAirborneCycle(Player player, String reason) {
 		if (player == null) {
+			return;
+		}
+
+		if (!EPMConfig.debugActionArbitrationState()) {
+			PHANTOM_ASCENT_CYCLES.remove(player);
+			JumpActionArbiter.clear(player);
+			JUMP_PRIORITY_LOG_TICKS.remove(player);
+			PENDING_GLIDER_INPUT_ARBITRATION_TICKS.remove(player);
+			PENDING_GLIDER_PREINPUTS.remove(player);
+			PENDING_GLIDER_TOGGLE_AFTER_PHANTOM.remove(player);
+			HANDLED_JUMP_HANDOFF_PRESS_SEQUENCES.remove(player);
+			PENDING_WOM_BACKFLIP_GLIDER_TOGGLE.remove(player);
+			PENDING_PARCOOL_WALL_JUMP_GLIDER_TOGGLE.remove(player);
+			PARCOOL_WALL_JUMP_INPUT_DOWN.remove(player);
+			PARCOOL_WALL_JUMP_STARTED_TICKS.remove(player);
+			PARCOOL_WALL_JUMP_PHANTOM_LOCK_TICKS.remove(player);
+			PARCOOL_WALL_JUMP_HANDOFF_SUPPRESS_TICKS.remove(player);
+			PARCOOL_WALL_RUN_HANDOFF_TICKS.remove(player);
+			WALLRUN_TO_PARCOOL_WALL_JUMP_GLIDER_SUPPRESS_TICKS.remove(player);
+			ParCoolWallJumpHandoffState.clear(player);
+			LAST_WALL_MOVEMENT_FOR_GLIDER_TICKS.remove(player);
+			WOM_BACKFLIP_PHANTOM_LOCK_TICKS.remove(player);
+			clearGliderOpeningDelayState(player);
+			phantomJumpWasDown = false;
 			return;
 		}
 
@@ -3740,7 +4065,7 @@ public final class EPMClientHooks {
 			cycle.airAttackSprintSuppressTicks = PHANTOM_ASCENT_AIR_ATTACK_SPRINT_SUPPRESS_DURATION_TICKS;
 		}
 		NaturalSprinterState.suppress(playerPatch);
-		PENDING_FAST_RUN_DASHES.remove(playerPatch);
+		removePendingFastRunDash(playerPatch);
 		clearVaultFastRunHold(player);
 		cancelAutoSprintAfterWallJump(player);
 		clearParCoolAnimator(player);
@@ -3757,14 +4082,14 @@ public final class EPMClientHooks {
 			cycle.airAttackSprintSuppressTicks = -1;
 			removePhantomAscentCycleIfEmpty(player, cycle);
 			if (playerPatch != null) {
-				PENDING_FAST_RUN_DASHES.remove(playerPatch);
+				removePendingFastRunDash(playerPatch);
 			}
 			return;
 		}
 
 		if (playerPatch != null) {
 			NaturalSprinterState.suppress(playerPatch);
-			PENDING_FAST_RUN_DASHES.remove(playerPatch);
+			removePendingFastRunDash(playerPatch);
 		}
 		clearVaultFastRunHold(player);
 		cancelAutoSprintAfterWallJump(player);
@@ -4000,7 +4325,7 @@ public final class EPMClientHooks {
 		logGliderOpeningDelayDiagnostic(player, phase, false, false, false);
 		if (playerPatch != null) {
 			NaturalSprinterState.suppress(playerPatch);
-			PENDING_FAST_RUN_DASHES.remove(playerPatch);
+			removePendingFastRunDash(playerPatch);
 			if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
 				stopPlaying(localPlayerPatch, WomAnimationRefs.bipedSprintJump());
 			}
@@ -4442,6 +4767,7 @@ public final class EPMClientHooks {
 
 		VAULT_HOLD_FAST_RUN.remove(player);
 		VAULT_FAST_RUN_GRACE_TICKS.remove(player);
+		VaultStartFastRunGrace.clear(player);
 		clearVaultLogTicks(player);
 	}
 
@@ -4604,7 +4930,10 @@ public final class EPMClientHooks {
 	}
 
 	private static void logExhaustionPose(Player player) {
-		if (player == null || !player.isLocalPlayer()) {
+		if (!EPMConfig.debugExhaustionPoseState() || player == null || !player.isLocalPlayer()) {
+			if (player != null) {
+				EXHAUSTION_POSE_SNAPSHOTS.remove(player);
+			}
 			return;
 		}
 
@@ -4762,6 +5091,10 @@ public final class EPMClientHooks {
 				|| player.isInWaterOrBubble()
 				|| player.isFallFlying()
 				|| player.getVehicle() != null;
+	}
+
+	public static boolean hasHardVaultFastRunBlockerForVaultStartGrace(Player player) {
+		return hasHardVaultFastRunBlocker(player);
 	}
 
 	private static boolean isParCoolHanging(Player player) {
@@ -4966,6 +5299,12 @@ public final class EPMClientHooks {
 				return EPMConfig.wallJumpPrimesPhantomAscent();
 			}
 		},
+		CLIMB_UP {
+			@Override
+			boolean enabled() {
+				return EPMConfig.climbUpPrimesPhantomAscent();
+			}
+		},
 		SPIDER_WALL_JUMP {
 			@Override
 			boolean enabled() {
@@ -4998,6 +5337,8 @@ public final class EPMClientHooks {
 		private int startedTick = -1;
 		private boolean usedAirborne;
 		private boolean seenAirborne;
+		private boolean doubleJumpFallPlayed;
+		private boolean playingSelectedLanding;
 		private boolean airAttackWindowSent;
 		private DelayedAnimatorControl delayedAirAttack;
 		private int airAttackSprintSuppressTicks = -1;
@@ -5011,6 +5352,8 @@ public final class EPMClientHooks {
 			this.startedTick = -1;
 			this.usedAirborne = false;
 			this.seenAirborne = !player.onGround();
+			this.doubleJumpFallPlayed = false;
+			this.playingSelectedLanding = false;
 			this.airAttackWindowSent = false;
 			this.delayedAirAttack = null;
 			this.airAttackSprintSuppressTicks = -1;
@@ -5024,6 +5367,8 @@ public final class EPMClientHooks {
 			this.primeTick = -1;
 			this.primeElapsed = -1;
 			this.seenAirborne = this.seenAirborne || !player.onGround();
+			this.doubleJumpFallPlayed = false;
+			this.playingSelectedLanding = false;
 		}
 
 		private boolean isPrimed() {
@@ -5068,6 +5413,32 @@ public final class EPMClientHooks {
 		private DeferredNaturalSprinterDodgeStep(int startTick, NaturalSprinterFastRunStep deferredStep) {
 			this.startTick = startTick;
 			this.deferredStep = deferredStep;
+		}
+	}
+
+	private enum NaturalSprinterFastRunDashSource {
+		ORDINARY,
+		BREAKFALL_DELAYED_AUTO
+	}
+
+	private enum ParCoolStepContext {
+		NONE,
+		DODGE,
+		BREAKFALL_FOLLOWUP
+	}
+
+	private static final class NaturalSprinterStepPlaybackOwner {
+		private final int tick;
+		private final AssetAccessor<? extends StaticAnimation> animation;
+		private final NaturalSprinterFastRunDashSource source;
+
+		private NaturalSprinterStepPlaybackOwner(
+				int tick,
+				AssetAccessor<? extends StaticAnimation> animation,
+				NaturalSprinterFastRunDashSource source) {
+			this.tick = tick;
+			this.animation = animation;
+			this.source = source;
 		}
 	}
 

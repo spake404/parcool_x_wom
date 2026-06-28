@@ -10,6 +10,8 @@ public final class EPMConfig {
 	public static final ForgeConfigSpec SPEC;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_ANIMATIONS;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_MANUAL_STEP;
+	private static final ForgeConfigSpec.BooleanValue NO_WOM_PROCEDURAL_WEAPON_FAST_RUN;
+	private static final ForgeConfigSpec.IntValue GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS;
 	private static final ForgeConfigSpec.EnumValue<StepDodgeConflictMode> NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE;
 	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS;
 	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_DOUBLE_TAP_GAP_TICKS;
@@ -60,24 +62,38 @@ public final class EPMConfig {
 
 	static {
 		ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
-		builder.push("Natural Sprinter");
+		builder.push("FastRun");
 		NATURAL_SPRINTER_ANIMATIONS = builder
 				.translation("epic_parcool_momentum.configuration.naturalSprinterAnimations")
 				.comment(
-						"true: uses WOM Natural Sprinter animations for EpicParCool FastRun and related step/jump visuals.",
-						"false: keeps this mod's Natural Sprinter compatibility logic, but shows normal run/EpicParCool animations and disables the R-key Natural Sprinter step.")
+						"true: enables this mod's FastRun animation replacement and related step/jump visuals.",
+						"false: keeps EpicParCool's default FastRun animation behavior and disables the R-key FastRun step.")
 				.define("naturalSprinterAnimations", true);
 		NATURAL_SPRINTER_MANUAL_STEP = builder
 				.translation("epic_parcool_momentum.configuration.naturalSprinterManualStep")
 				.comment(
-						"true: pressing the configured Natural Sprinter Step key can trigger a step during EpicParCool FastRun.",
+						"true: pressing the configured FastRun Step key can trigger a step during EpicParCool FastRun.",
+						"When WOM Natural Sprinter is available, its step resource is consumed. Otherwise this mod uses a generic cooldown.",
 						"This only works when naturalSprinterAnimations is also true.")
 				.define("naturalSprinterManualStep", true);
+		NO_WOM_PROCEDURAL_WEAPON_FAST_RUN = builder
+				.translation("epic_parcool_momentum.configuration.noWomProceduralWeaponFastRun")
+				.comment(
+						"true: when WOM is not installed and no datapack FastRun rule matches the held weapon, uses the weapon's Epic Fight RUN animation as a procedural FastRun base.",
+						"false: unmatched no-WOM weapons use EpicParCool's default FastRun animation.",
+						"If the weapon RUN animation cannot be resolved, this option falls back to EpicParCool's default FastRun animation.")
+				.define("noWomProceduralWeaponFastRun", true);
+		GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.genericFastRunStepCooldownTicks")
+				.comment(
+						"Cooldown, in ticks, for FastRun step when WOM Natural Sprinter is unavailable.",
+						"Natural Sprinter's own step resource is still used when available. 10 ticks is 0.5 seconds at 20 TPS.")
+				.defineInRange("genericFastRunStepCooldownTicks", 10, 1, 100);
 		NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE = builder
 				.translation("epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode")
 				.comment(
-						"Controls how Natural Sprinter Step and ParCool Dodge share one key.",
-						"When ParCool Dodge is disabled in ParCool settings, this option is ignored and the shared key behaves as Natural Sprinter Step.",
+						"Controls how FastRun Step and ParCool Dodge share one key.",
+						"When ParCool Dodge is disabled in ParCool settings, this option is ignored and the shared key behaves as FastRun Step.",
 						"disabled: do not arbitrate. Step and Dodge keep their normal behavior.",
 						"short_dodge_long_step: short press triggers Dodge; holding then releasing triggers Step. This is the default.",
 						"short_step_hold_dodge: short press triggers Step; holding triggers Dodge. Releasing after Dodge has fully ended can trigger Step.",
@@ -324,7 +340,7 @@ public final class EPMConfig {
 				.define("debugGliderState", false);
 		DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE = builder
 				.translation("epic_parcool_momentum.configuration.debugNaturalSprinterFastRunStepState")
-				.comment("Temporary debug option. true: logs Natural Sprinter FastRun startup step and procedural pulse state.")
+				.comment("Temporary debug option. true: logs FastRun startup step and procedural pulse state.")
 				.define("debugNaturalSprinterFastRunStepState", false);
 		DEBUG_EXHAUSTION_POSE_STATE = builder
 				.translation("epic_parcool_momentum.configuration.debugExhaustionPoseState")
@@ -357,6 +373,14 @@ public final class EPMConfig {
 
 	public static boolean naturalSprinterManualStep() {
 		return NATURAL_SPRINTER_MANUAL_STEP.get();
+	}
+
+	public static boolean noWomProceduralWeaponFastRun() {
+		return NO_WOM_PROCEDURAL_WEAPON_FAST_RUN.get();
+	}
+
+	public static int genericFastRunStepCooldownTicks() {
+		return GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS.get();
 	}
 
 	public static StepDodgeConflictMode naturalSprinterStepDodgeConflictMode() {

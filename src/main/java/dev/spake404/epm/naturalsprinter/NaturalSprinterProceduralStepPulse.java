@@ -546,8 +546,8 @@ public final class NaturalSprinterProceduralStepPulse {
 
 		int appliedTransforms = 0;
 		appliedTransforms += translate(pose, "Root", side * 0.045F * stepPower, -0.095F * bodyDropDelta, 0.30F * forwardDriveDelta) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Torso", 0.30F * torsoLeanDelta, side * 0.035F * upperStepPowerDelta, side * 0.075F * upperStepPowerDelta) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Chest", 0.22F * torsoLeanDelta, side * 0.06F * upperStepPowerDelta, side * 0.055F * upperStepPowerDelta) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Torso", 0.30F * torsoLeanDelta, 0.0F, 0.0F) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Chest", 0.22F * torsoLeanDelta, 0.0F, 0.0F) ? 1 : 0;
 
 		appliedTransforms += translate(pose, "Leg_R_IK", 0.0F, state.rightStep ? -0.56F * plant : 0.44F * plant, (state.rightStep ? 0.34F : -0.18F) * stepPower) ? 1 : 0;
 		appliedTransforms += translate(pose, "Leg_L_IK", 0.0F, state.rightStep ? 0.44F * plant : -0.56F * plant, (state.rightStep ? -0.18F : 0.34F) * stepPower) ? 1 : 0;
@@ -640,8 +640,8 @@ public final class NaturalSprinterProceduralStepPulse {
 		float side = Boolean.FALSE.equals(LAST_STEP_RIGHT.get(entity)) ? -1.0F : 1.0F;
 		float scale = currentSustainedFastRunPoseScale(entity, partialTicks, settings);
 		translate(pose, "Root", 0.0F, -0.095F * scale, 0.30F * scale);
-		rotate(pose, "Torso", 0.30F * scale, side * 0.035F * scale, side * 0.075F * scale);
-		rotate(pose, "Chest", 0.22F * scale, side * 0.06F * scale, side * 0.055F * scale);
+		rotate(pose, "Torso", 0.30F * scale, 0.0F, 0.0F);
+		rotate(pose, "Chest", 0.22F * scale, 0.0F, 0.0F);
 	}
 
 	private static NaturalSprinterFastRunAnimationOverrides.RunPoseSettings sustainedRunPoseSettings(DynamicAnimation animation, LivingEntity entity) {

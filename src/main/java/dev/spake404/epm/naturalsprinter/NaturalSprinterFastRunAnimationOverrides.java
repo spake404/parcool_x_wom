@@ -1,6 +1,8 @@
 package dev.spake404.epm.naturalsprinter;
 
 import dev.spake404.epm.EPM;
+import dev.spake404.epm.animation.AnimationQuery;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -12,11 +14,13 @@ import java.util.Set;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.GsonHelper;
@@ -28,13 +32,18 @@ import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 
 public final class NaturalSprinterFastRunAnimationOverrides {
-	private static final String DIRECTORY = EPM.MODID + "/natural_sprinter_fastrun";
+	private static final String DIRECTORY = EPM.MODID + "/fastrun";
+	private static final ResourceLocation WOM_DEFAULT_WEAPON_RUN = ResourceLocation.fromNamespaceAndPath("wom", "biped/skill/biped_sprint");
+	private static final ResourceLocation WOM_DEFAULT_BAREHAND_RUN = ResourceLocation.fromNamespaceAndPath("wom", "biped/skill/biped_sprint_barehand");
 	private static final Gson GSON = new GsonBuilder().create();
 	private static final RuleSet EMPTY_RULE_SET = RuleSet.create(List.of());
 	private static final Map<ResourceLocation, AssetAccessor<? extends StaticAnimation>> CLIENT_ANIMATION_CACHE = new HashMap<>();
 	private static final Set<ResourceLocation> MISSING_ANIMATION_LOGGED = new HashSet<>();
 	private static volatile RuleSet serverRules = EMPTY_RULE_SET;
 	private static volatile RuleSet clientRules = EMPTY_RULE_SET;
+	private static volatile Map<ResourceLocation, ResourceLocation> serverWeaponTypes = Map.of();
+	private static volatile Map<ResourceLocation, ResourceLocation> clientWeaponTypes = Map.of();
+	private static volatile Set<ResourceLocation> clientConfiguredRunAnimationIds = Set.of();
 
 	private NaturalSprinterFastRunAnimationOverrides() {
 	}
@@ -47,16 +56,35 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 		return serverRules.rules();
 	}
 
-	public static void applyClientRules(List<RuleData> rules) {
+	public static Map<ResourceLocation, ResourceLocation> serverWeaponTypes() {
+		return serverWeaponTypes;
+	}
+
+	public static void applyClientRules(List<RuleData> rules, Map<ResourceLocation, ResourceLocation> weaponTypes) {
 		clientRules = RuleSet.create(rules);
+		clientWeaponTypes = Map.copyOf(weaponTypes);
+		clientConfiguredRunAnimationIds = configuredRunAnimationIds(rules);
 		CLIENT_ANIMATION_CACHE.clear();
 		MISSING_ANIMATION_LOGGED.clear();
-		EPM.LOGGER.info("Loaded {} Natural Sprinter FastRun animation override(s) on client", Integer.valueOf(clientRules.rules().size()));
+		EPM.LOGGER.info(
+				"Loaded {} Natural Sprinter FastRun animation override(s) and {} weapon type mapping(s) on client",
+				Integer.valueOf(clientRules.rules().size()),
+				Integer.valueOf(clientWeaponTypes.size()));
 	}
-public static RuleData select(ResourceLocation itemId, String weaponType) {
-		return clientRules.select(itemId, normalizeType(weaponType));
+
+	public static RuleData select(ResourceLocation itemId) {
+		return clientRules.select(itemId, weaponTypeForItem(itemId));
 	}
-public static ResourceLocation itemId(ItemStack stack) {
+
+	static RuleData select(ResourceLocation itemId, ResourceLocation weaponType) {
+		return clientRules.select(itemId, weaponType);
+	}
+
+	public static ResourceLocation weaponTypeForItem(ResourceLocation itemId) {
+		return itemId == null ? null : clientWeaponTypes.get(itemId);
+	}
+
+	public static ResourceLocation itemId(ItemStack stack) {
 		if (stack == null || stack.isEmpty()) {
 			return null;
 		}
@@ -66,6 +94,14 @@ public static ResourceLocation itemId(ItemStack stack) {
 		} catch (RuntimeException | LinkageError ignored) {
 			return null;
 		}
+	}
+
+	static boolean isWomDefaultWeaponRun(ResourceLocation animationId) {
+		return WOM_DEFAULT_WEAPON_RUN.equals(animationId);
+	}
+
+	static boolean isWomDefaultBarehandRun(ResourceLocation animationId) {
+		return WOM_DEFAULT_BAREHAND_RUN.equals(animationId);
 	}
 
 	static AssetAccessor<? extends StaticAnimation> resolveAnimation(ResourceLocation animationId) {
@@ -92,18 +128,27 @@ public static ResourceLocation itemId(ItemStack stack) {
 			return null;
 		}
 	}
-public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
+
+	public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
 		if (animation == null) {
 			return false;
 		}
 
-		for (RuleData rule : clientRules.rules()) {
-			AssetAccessor<? extends StaticAnimation> runAnimation = resolveAnimation(rule.runAnimation());
-			if (runAnimation != null && animation.equals(runAnimation)) {
-				return true;
+		ResourceLocation animationId = AnimationQuery.safeRegistryName(animation);
+		return animationId != null && clientConfiguredRunAnimationIds.contains(animationId);
+	}
+
+	private static Set<ResourceLocation> configuredRunAnimationIds(List<RuleData> rules) {
+		Set<ResourceLocation> runAnimations = new HashSet<>();
+		for (RuleData rule : rules) {
+			for (AnimationSet animationSet : rule.animationSets()) {
+				if (isWomDefaultWeaponRun(animationSet.runAnimation()) || isWomDefaultBarehandRun(animationSet.runAnimation())) {
+					continue;
+				}
+				runAnimations.add(animationSet.runAnimation());
 			}
 		}
-		return false;
+		return Set.copyOf(runAnimations);
 	}
 
 	private static void logMissingAnimation(ResourceLocation animationId) {
@@ -112,16 +157,24 @@ public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
 		}
 	}
 
-	private static String normalizeType(String type) {
-		return type == null ? null : type.trim().toUpperCase(java.util.Locale.ROOT);
-	}
-
 	private static ResourceLocation optionalResourceLocation(JsonObject object, String key, ResourceLocation sourceId) {
 		if (!object.has(key)) {
 			return null;
 		}
 
 		String value = GsonHelper.getAsString(object, key).trim();
+		ResourceLocation resourceLocation = ResourceLocation.tryParse(value);
+		if (resourceLocation == null) {
+			throw new JsonParseException("Invalid resource location '" + value + "' in " + sourceId + " field '" + key + "'");
+		}
+		return resourceLocation;
+	}
+
+	private static ResourceLocation requiredNamespacedResourceLocation(JsonObject object, String key, ResourceLocation sourceId) {
+		String value = GsonHelper.getAsString(object, key).trim();
+		if (!value.contains(":")) {
+			throw new JsonParseException("Field '" + key + "' in " + sourceId + " must include a namespace, for example 'epicfight:sword'");
+		}
 		ResourceLocation resourceLocation = ResourceLocation.tryParse(value);
 		if (resourceLocation == null) {
 			throw new JsonParseException("Invalid resource location '" + value + "' in " + sourceId + " field '" + key + "'");
@@ -143,17 +196,9 @@ public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
 		}
 
 		ResourceLocation item = hasItem ? optionalResourceLocation(match, "item", id) : null;
-		String type = hasType ? normalizeType(GsonHelper.getAsString(match, "type")) : null;
-		if (hasType && (type == null || type.isBlank())) {
-			throw new JsonParseException("match.type cannot be blank in " + id);
-		}
+		ResourceLocation type = hasType ? requiredNamespacedResourceLocation(match, "type", id) : null;
 
-		ResourceLocation runAnimation = optionalResourceLocation(object, "run", id);
-		ResourceLocation leftStepAnimation = optionalResourceLocation(object, "left_step", id);
-		ResourceLocation rightStepAnimation = optionalResourceLocation(object, "right_step", id);
-		if (runAnimation == null && leftStepAnimation == null && rightStepAnimation == null) {
-			throw new JsonParseException("At least one of run, left_step, or right_step is required in " + id);
-		}
+		List<AnimationSet> animationSets = parseAnimationSets(id, object);
 		StepEffects stepEffects = parseStepEffects(object);
 		RunPoseSettings runPose = parseRunPose(object);
 
@@ -171,14 +216,49 @@ public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
 				id,
 				item,
 				type,
-				runAnimation,
-				leftStepAnimation,
-				rightStepAnimation,
+				animationSets,
 				stepEffects.startupStep(),
 				stepEffects.manualStep(),
 				runPose,
 				fallback,
-				GsonHelper.getAsInt(object, "priority", 0));
+				GsonHelper.getAsInt(object, "main_priority", 0));
+	}
+
+	private static List<AnimationSet> parseAnimationSets(ResourceLocation id, JsonObject object) {
+		if (!object.has("animations")) {
+			throw new JsonParseException("animations array is required in " + id);
+		}
+
+		JsonArray animations = GsonHelper.getAsJsonArray(object, "animations");
+		if (animations.isEmpty()) {
+			throw new JsonParseException("animations array cannot be empty in " + id);
+		}
+
+		List<AnimationSet> animationSets = new ArrayList<>();
+		for (int index = 0; index < animations.size(); index++) {
+			JsonObject animationObject = GsonHelper.convertToJsonObject(animations.get(index), "animation entry " + index + " in " + id);
+			ResourceLocation runAnimation = optionalResourceLocation(animationObject, "run", id);
+			if (runAnimation == null) {
+				throw new JsonParseException("animations[" + index + "].run is required in " + id);
+			}
+
+			ResourceLocation leftStepAnimation = optionalResourceLocation(animationObject, "left_step", id);
+			ResourceLocation rightStepAnimation = optionalResourceLocation(animationObject, "right_step", id);
+			if ((leftStepAnimation == null) != (rightStepAnimation == null)) {
+				throw new JsonParseException("animations[" + index + "] must define both left_step and right_step, or neither, in " + id);
+			}
+
+			animationSets.add(new AnimationSet(
+					runAnimation,
+					leftStepAnimation,
+					rightStepAnimation,
+					GsonHelper.getAsInt(animationObject, "priority", 0)));
+		}
+
+		animationSets.sort(Comparator
+				.comparingInt(AnimationSet::priority).reversed()
+				.thenComparing(animationSet -> animationSet.runAnimation().toString()));
+		return List.copyOf(animationSets);
 	}
 
 	private static StepEffects parseStepEffects(JsonObject object) {
@@ -225,9 +305,11 @@ public static boolean isConfiguredRunAnimation(AssetAccessor<?> animation) {
 	private record StepEffects(boolean startupStep, boolean manualStep) {
 		private static final StepEffects NONE = new StepEffects(false, false);
 	}
-public static record RunPoseSettings(boolean enabled, float scale, float blendTicks) {
+
+	public static record RunPoseSettings(boolean enabled, float scale, float blendTicks) {
 		public static final RunPoseSettings DEFAULT = new RunPoseSettings(true, 0.4F, 3.0F);
 		public static final RunPoseSettings DISABLED = new RunPoseSettings(false, 0.0F, 3.0F);
+
 		public void encode(FriendlyByteBuf buffer) {
 			buffer.writeBoolean(enabled);
 			buffer.writeFloat(scale);
@@ -243,54 +325,22 @@ public static record RunPoseSettings(boolean enabled, float scale, float blendTi
 		BAREHAND,
 		WEAPON
 	}
-public static final class RuleData {
-		private final ResourceLocation id;
-		private final ResourceLocation item;
-		private final String type;
+
+	public static final class AnimationSet {
 		private final ResourceLocation runAnimation;
 		private final ResourceLocation leftStepAnimation;
 		private final ResourceLocation rightStepAnimation;
-		private final boolean startupStepEffects;
-		private final boolean manualStepEffects;
-		private final RunPoseSettings runPose;
-		private final FallbackFamily fallback;
 		private final int priority;
 
-		private RuleData(
-				ResourceLocation id,
-				ResourceLocation item,
-				String type,
+		private AnimationSet(
 				ResourceLocation runAnimation,
 				ResourceLocation leftStepAnimation,
 				ResourceLocation rightStepAnimation,
-				boolean startupStepEffects,
-				boolean manualStepEffects,
-				RunPoseSettings runPose,
-				FallbackFamily fallback,
 				int priority) {
-			this.id = id;
-			this.item = item;
-			this.type = normalizeType(type);
 			this.runAnimation = runAnimation;
 			this.leftStepAnimation = leftStepAnimation;
 			this.rightStepAnimation = rightStepAnimation;
-			this.startupStepEffects = startupStepEffects;
-			this.manualStepEffects = manualStepEffects;
-			this.runPose = runPose == null ? RunPoseSettings.DEFAULT : runPose;
-			this.fallback = fallback;
 			this.priority = priority;
-		}
-
-		ResourceLocation id() {
-			return id;
-		}
-
-		ResourceLocation item() {
-			return item;
-		}
-
-		String type() {
-			return type;
 		}
 
 		ResourceLocation runAnimation() {
@@ -303,6 +353,74 @@ public static final class RuleData {
 
 		ResourceLocation rightStepAnimation() {
 			return rightStepAnimation;
+		}
+
+		int priority() {
+			return priority;
+		}
+
+		private void encode(FriendlyByteBuf buffer) {
+			buffer.writeResourceLocation(runAnimation);
+			writeNullableResourceLocation(buffer, leftStepAnimation);
+			writeNullableResourceLocation(buffer, rightStepAnimation);
+			buffer.writeVarInt(priority);
+		}
+
+		private static AnimationSet decode(FriendlyByteBuf buffer) {
+			ResourceLocation runAnimation = buffer.readResourceLocation();
+			ResourceLocation leftStepAnimation = readNullableResourceLocation(buffer);
+			ResourceLocation rightStepAnimation = readNullableResourceLocation(buffer);
+			int priority = buffer.readVarInt();
+			return new AnimationSet(runAnimation, leftStepAnimation, rightStepAnimation, priority);
+		}
+	}
+
+	public static final class RuleData {
+		private final ResourceLocation id;
+		private final ResourceLocation item;
+		private final ResourceLocation type;
+		private final List<AnimationSet> animationSets;
+		private final boolean startupStepEffects;
+		private final boolean manualStepEffects;
+		private final RunPoseSettings runPose;
+		private final FallbackFamily fallback;
+		private final int mainPriority;
+
+		private RuleData(
+				ResourceLocation id,
+				ResourceLocation item,
+				ResourceLocation type,
+				List<AnimationSet> animationSets,
+				boolean startupStepEffects,
+				boolean manualStepEffects,
+				RunPoseSettings runPose,
+				FallbackFamily fallback,
+				int mainPriority) {
+			this.id = id;
+			this.item = item;
+			this.type = type;
+			this.animationSets = List.copyOf(animationSets);
+			this.startupStepEffects = startupStepEffects;
+			this.manualStepEffects = manualStepEffects;
+			this.runPose = runPose == null ? RunPoseSettings.DEFAULT : runPose;
+			this.fallback = fallback;
+			this.mainPriority = mainPriority;
+		}
+
+		ResourceLocation id() {
+			return id;
+		}
+
+		ResourceLocation item() {
+			return item;
+		}
+
+		ResourceLocation type() {
+			return type;
+		}
+
+		List<AnimationSet> animationSets() {
+			return animationSets;
 		}
 
 		boolean startupStepEffects() {
@@ -321,71 +439,76 @@ public static final class RuleData {
 			return fallback;
 		}
 
-		int priority() {
-			return priority;
+		int mainPriority() {
+			return mainPriority;
 		}
+
 		public void encode(FriendlyByteBuf buffer) {
 			writeNullableResourceLocation(buffer, id);
 			writeNullableResourceLocation(buffer, item);
-			writeNullableString(buffer, type);
-			writeNullableResourceLocation(buffer, runAnimation);
-			writeNullableResourceLocation(buffer, leftStepAnimation);
-			writeNullableResourceLocation(buffer, rightStepAnimation);
+			writeNullableResourceLocation(buffer, type);
+			buffer.writeVarInt(animationSets.size());
+			for (AnimationSet animationSet : animationSets) {
+				animationSet.encode(buffer);
+			}
 			buffer.writeBoolean(startupStepEffects);
 			buffer.writeBoolean(manualStepEffects);
 			runPose.encode(buffer);
 			writeNullableString(buffer, fallback == null ? null : fallback.name());
-			buffer.writeVarInt(priority);
+			buffer.writeVarInt(mainPriority);
 		}
+
 		public static RuleData decode(FriendlyByteBuf buffer) {
 			ResourceLocation id = readNullableResourceLocation(buffer);
 			ResourceLocation item = readNullableResourceLocation(buffer);
-			String type = readNullableString(buffer);
-			ResourceLocation runAnimation = readNullableResourceLocation(buffer);
-			ResourceLocation leftStepAnimation = readNullableResourceLocation(buffer);
-			ResourceLocation rightStepAnimation = readNullableResourceLocation(buffer);
+			ResourceLocation type = readNullableResourceLocation(buffer);
+			int animationSetCount = buffer.readVarInt();
+			List<AnimationSet> animationSets = new ArrayList<>(animationSetCount);
+			for (int index = 0; index < animationSetCount; index++) {
+				animationSets.add(AnimationSet.decode(buffer));
+			}
 			boolean startupStepEffects = buffer.readBoolean();
 			boolean manualStepEffects = buffer.readBoolean();
 			RunPoseSettings runPose = RunPoseSettings.decode(buffer);
 			String fallbackName = readNullableString(buffer);
 			FallbackFamily fallback = fallbackName == null ? null : FallbackFamily.valueOf(fallbackName);
-			int priority = buffer.readVarInt();
-			return new RuleData(id, item, type, runAnimation, leftStepAnimation, rightStepAnimation,
-					startupStepEffects, manualStepEffects, runPose, fallback, priority);
-		}
-
-		private static void writeNullableResourceLocation(FriendlyByteBuf buffer, ResourceLocation value) {
-			buffer.writeBoolean(value != null);
-			if (value != null) {
-				buffer.writeResourceLocation(value);
-			}
-		}
-
-		private static ResourceLocation readNullableResourceLocation(FriendlyByteBuf buffer) {
-			return buffer.readBoolean() ? buffer.readResourceLocation() : null;
-		}
-
-		private static void writeNullableString(FriendlyByteBuf buffer, String value) {
-			buffer.writeBoolean(value != null);
-			if (value != null) {
-				buffer.writeUtf(value);
-			}
-		}
-
-		private static String readNullableString(FriendlyByteBuf buffer) {
-			return buffer.readBoolean() ? buffer.readUtf() : null;
+			int mainPriority = buffer.readVarInt();
+			return new RuleData(id, item, type, animationSets,
+					startupStepEffects, manualStepEffects, runPose, fallback, mainPriority);
 		}
 	}
 
-	private record RuleSet(List<RuleData> rules, Map<ResourceLocation, RuleData> itemRules, Map<String, RuleData> typeRules) {
+	private static void writeNullableResourceLocation(FriendlyByteBuf buffer, ResourceLocation value) {
+		buffer.writeBoolean(value != null);
+		if (value != null) {
+			buffer.writeResourceLocation(value);
+		}
+	}
+
+	private static ResourceLocation readNullableResourceLocation(FriendlyByteBuf buffer) {
+		return buffer.readBoolean() ? buffer.readResourceLocation() : null;
+	}
+
+	private static void writeNullableString(FriendlyByteBuf buffer, String value) {
+		buffer.writeBoolean(value != null);
+		if (value != null) {
+			buffer.writeUtf(value);
+		}
+	}
+
+	private static String readNullableString(FriendlyByteBuf buffer) {
+		return buffer.readBoolean() ? buffer.readUtf() : null;
+	}
+
+	private record RuleSet(List<RuleData> rules, Map<ResourceLocation, RuleData> itemRules, Map<ResourceLocation, RuleData> typeRules) {
 		private static RuleSet create(List<RuleData> inputRules) {
 			List<RuleData> sortedRules = new ArrayList<>(inputRules);
 			sortedRules.sort(Comparator
-					.comparingInt(RuleData::priority).reversed()
+					.comparingInt(RuleData::mainPriority).reversed()
 					.thenComparing(rule -> rule.id() == null ? "" : rule.id().toString()));
 
 			Map<ResourceLocation, RuleData> itemRules = new HashMap<>();
-			Map<String, RuleData> typeRules = new HashMap<>();
+			Map<ResourceLocation, RuleData> typeRules = new HashMap<>();
 			for (RuleData rule : sortedRules) {
 				if (rule.item() != null) {
 					itemRules.putIfAbsent(rule.item(), rule);
@@ -397,7 +520,7 @@ public static final class RuleData {
 			return new RuleSet(Collections.unmodifiableList(sortedRules), Map.copyOf(itemRules), Map.copyOf(typeRules));
 		}
 
-		private RuleData select(ResourceLocation itemId, String weaponType) {
+		private RuleData select(ResourceLocation itemId, ResourceLocation weaponType) {
 			if (itemId != null) {
 				RuleData itemRule = itemRules.get(itemId);
 				if (itemRule != null) {
@@ -416,6 +539,7 @@ public static final class RuleData {
 		@Override
 		protected void apply(Map<ResourceLocation, JsonElement> objects, ResourceManager resourceManager, ProfilerFiller profiler) {
 			List<RuleData> rules = new ArrayList<>();
+			Map<ResourceLocation, ResourceLocation> weaponTypes = loadWeaponTypes(resourceManager);
 			objects.entrySet().stream()
 					.sorted(Map.Entry.comparingByKey(Comparator.comparing(ResourceLocation::toString)))
 					.forEach(entry -> {
@@ -430,7 +554,54 @@ public static final class RuleData {
 					});
 
 			serverRules = RuleSet.create(rules);
-			EPM.LOGGER.info("Loaded {} Natural Sprinter FastRun animation override(s)", Integer.valueOf(serverRules.rules().size()));
+			serverWeaponTypes = Map.copyOf(weaponTypes);
+			EPM.LOGGER.info(
+					"Loaded {} Natural Sprinter FastRun animation override(s) and {} weapon type mapping(s)",
+					Integer.valueOf(serverRules.rules().size()),
+					Integer.valueOf(serverWeaponTypes.size()));
+		}
+
+		private static Map<ResourceLocation, ResourceLocation> loadWeaponTypes(ResourceManager resourceManager) {
+			Map<ResourceLocation, ResourceLocation> weaponTypes = new HashMap<>();
+			Map<ResourceLocation, Resource> resources = resourceManager.listResources(
+					"capabilities/weapons",
+					resourceLocation -> resourceLocation.getPath().endsWith(".json"));
+			for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
+				loadWeaponType(weaponTypes, entry.getKey(), entry.getValue());
+			}
+			return weaponTypes;
+		}
+
+		private static void loadWeaponType(Map<ResourceLocation, ResourceLocation> weaponTypes, ResourceLocation resourceId, Resource resource) {
+			String path = resourceId.getPath();
+			String prefix = "capabilities/weapons/";
+			String suffix = ".json";
+			if (!path.startsWith(prefix) || !path.endsWith(suffix)) {
+				return;
+			}
+
+			String itemPath = path.substring(prefix.length(), path.length() - suffix.length());
+			if (itemPath.isBlank() || itemPath.startsWith("types/") || itemPath.startsWith("item_keyword/")) {
+				return;
+			}
+
+			try (Reader reader = resource.openAsReader()) {
+				JsonObject object = GSON.fromJson(reader, JsonObject.class);
+				if (object == null || !object.has("type")) {
+					return;
+				}
+
+				String value = GsonHelper.getAsString(object, "type").trim();
+				ResourceLocation weaponType = ResourceLocation.tryParse(value);
+				if (weaponType == null) {
+					EPM.LOGGER.warn("Ignoring invalid Epic Fight weapon type '{}' in '{}'", value, resourceId);
+					return;
+				}
+
+				weaponTypes.put(ResourceLocation.fromNamespaceAndPath(resourceId.getNamespace(), itemPath), weaponType);
+			} catch (Exception exception) {
+				EPM.LOGGER.warn("Could not read Epic Fight weapon capability '{}': {}", resourceId, exception.getMessage());
+			}
 		}
 	}
 }

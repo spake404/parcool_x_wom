@@ -1,7 +1,8 @@
 {
   "modmenu.descriptionTranslation.epic_parcool_momentum": "Momentum-focused compatibility for Epic Fight, ParCool, EpicParCool, and optional addon integrations.",
-  "epic_parcool_momentum.configuration.naturalSprinterAnimations": "Natural Sprinter animations",
-  "epic_parcool_momentum.configuration.naturalSprinterManualStep": "Natural Sprinter R-key step",
+  "epic_parcool_momentum.configuration.naturalSprinterAnimations": "FastRun animations",
+  "epic_parcool_momentum.configuration.naturalSprinterManualStep": "FastRun R-key step",
+  "epic_parcool_momentum.configuration.noWomProceduralWeaponFastRun": "No-WOM procedural weapon FastRun",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode": "Step/Dodge shared-key mode",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode.disabled": "Disabled",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode.short_dodge_long_step": "Mode 1: Short Dodge",
@@ -52,13 +53,13 @@
   "epic_parcool_momentum.configuration.vaultHeightScale": "Vault height scale",
   "epic_parcool_momentum.configuration.debugVaultState": "Debug Vault state",
   "epic_parcool_momentum.configuration.debugGliderState": "Debug Glider/FastRun state",
-  "epic_parcool_momentum.configuration.debugNaturalSprinterFastRunStepState": "Debug Natural Sprinter FastRun step state",
+  "epic_parcool_momentum.configuration.debugNaturalSprinterFastRunStepState": "Debug FastRun step state",
   "epic_parcool_momentum.configuration.debugExhaustionPoseState": "Debug exhaustion pose state",
   "epic_parcool_momentum.configuration.debugCameraEventState": "Debug camera event state",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpVerticalVelocity": "EpicParCool ClimbUp vertical velocity",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlVelocity": "EpicParCool ClimbUp lateral air-control velocity",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlTicks": "EpicParCool ClimbUp lateral air-control ticks",
   "key.categories.epic_parcool_momentum": "Epic ParCool Momentum",
-  "key.epic_parcool_momentum.natural_sprinter_step": "Natural Sprinter Step",
+  "key.epic_parcool_momentum.natural_sprinter_step": "FastRun Step",
   "epic_parcool_momentum.parcool.dodge_notice": "Dodge (Disabled by default and can be enabled manually. To prevent conflicts, do not bind Step and Dodge to the same key.)"
 }

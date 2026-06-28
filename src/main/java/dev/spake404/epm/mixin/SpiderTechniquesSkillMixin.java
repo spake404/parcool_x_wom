@@ -31,21 +31,38 @@ import yesman.epicfight.world.entity.eventlistener.MovementInputEvent;
 public abstract class SpiderTechniquesSkillMixin {
 	@Inject(method = "lambda$onInitiate$1", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$replaceWallRunInput(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
+		WomSpiderWallRunControlAdapter.beforeOriginalWomInput(event);
 		if (WomSpiderWallRunHandler.handleMovementInput(event)
 				|| WomOriginalSpiderWallRunDirectionFix.beforeOriginalInput(container, event)) {
+			WomSpiderWallRunControlAdapter.afterOriginalWomInput(event);
 			ci.cancel();
 		}
 	}
 
 	@Inject(method = "lambda$onInitiate$1", at = @At("TAIL"), require = 0)
 	private void parcoolxwom$stabilizeOriginalWomSideWallRun(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
-		WomOriginalSpiderWallRunDiagnostics.logAfterOriginalInput(container, event);
+		try {
+			WomOriginalSpiderWallRunDiagnostics.logAfterOriginalInput(container, event);
+		} finally {
+			WomSpiderWallRunControlAdapter.afterOriginalWomInput(event);
+		}
 	}
 
-	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lyesman/epicfight/api/client/input/InputManager;isActionActive(Lyesman/epicfight/api/client/input/action/InputAction;)Z"), require = 0)
-	private boolean parcoolxwom$disableOriginalSprintWallRunTrigger(InputAction action, SkillContainer container, MovementInputEvent event) {
+	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lyesman/epicfight/api/client/input/InputManager;isActionActive(Lyesman/epicfight/api/client/input/action/InputAction;)Z", ordinal = 0), require = 0)
+	private boolean parcoolxwom$redirectOriginalWallRunSprintInput(InputAction action, SkillContainer container, MovementInputEvent event) {
 		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunControlAdapter.shouldOwnOriginalWomSprintInput(event)) {
-			return WomSpiderWallRunControlAdapter.shouldTriggerOriginalWomSprintInput(event);
+			return WomSpiderWallRunControlAdapter.shouldTriggerOriginalWomWallRunSprintInput(event);
+		}
+		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunModeGate.shouldDisableOriginalWomSprintTrigger(event.getPlayerPatch())) {
+			return false;
+		}
+		return InputManager.isActionActive(action);
+	}
+
+	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lyesman/epicfight/api/client/input/InputManager;isActionActive(Lyesman/epicfight/api/client/input/action/InputAction;)Z", ordinal = 1), require = 0)
+	private boolean parcoolxwom$redirectOriginalWallGlideSprintInput(InputAction action, SkillContainer container, MovementInputEvent event) {
+		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunControlAdapter.shouldOwnOriginalWomSprintInput(event)) {
+			return WomSpiderWallRunControlAdapter.shouldTriggerOriginalWomWallGlideSprintInput(event);
 		}
 		if (action == MinecraftInputAction.SPRINT && WomSpiderWallRunModeGate.shouldDisableOriginalWomSprintTrigger(event.getPlayerPatch())) {
 			return false;

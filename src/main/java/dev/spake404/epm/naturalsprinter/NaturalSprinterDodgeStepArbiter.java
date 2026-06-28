@@ -1,6 +1,5 @@
 package dev.spake404.epm.naturalsprinter;
 
-import dev.spake404.epm.compat.ModCompat;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMClientHooks;
@@ -224,7 +223,6 @@ public final class NaturalSprinterDodgeStepArbiter {
 		if (player == null
 				|| !player.isLocalPlayer()
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
-				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()) {
 			return false;

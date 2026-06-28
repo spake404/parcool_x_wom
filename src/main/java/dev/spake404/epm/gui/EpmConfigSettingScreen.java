@@ -19,10 +19,11 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 	private static final List<Row> ROWS = new ArrayList<>();
 
 	static {
-		// Natural Sprinter
-		addHeader("Natural Sprinter");
+		// FastRun
+		addHeader("FastRun");
 		addBool("naturalSprinterAnimations", "NATURAL_SPRINTER_ANIMATIONS");
 		addBool("naturalSprinterManualStep", "NATURAL_SPRINTER_MANUAL_STEP");
+		addBool("noWomProceduralWeaponFastRun", "NO_WOM_PROCEDURAL_WEAPON_FAST_RUN");
 		addEnum("naturalSprinterStepDodgeConflictMode", "NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE",
 				new String[]{"DISABLED", "SHORT_DODGE_LONG_STEP", "SHORT_STEP_HOLD_DODGE", "SINGLE_STEP_DOUBLE_DODGE"});
 		addInt("naturalSprinterStepDodgeLongPressTicks", "NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS", 1, 40, 1);

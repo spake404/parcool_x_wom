@@ -11,7 +11,10 @@ import dev.spake404.epm.EPMClientHooks;
 import dev.spake404.epm.EPMParCoolGate;
 import dev.spake404.epm.input.EPMKeyMappings;
 import dev.spake404.epm.mixin.AnimatorAccessor;
+import dev.spake404.epm.mixin.ClientAnimatorAccessor;
+import dev.spake404.epm.network.EPMNetwork;
 import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.Optional;
 import java.util.WeakHashMap;
 
@@ -29,9 +32,9 @@ import yesman.epicfight.api.animation.Animator;
 import yesman.epicfight.api.animation.LivingMotion;
 import yesman.epicfight.api.animation.LivingMotions;
 import yesman.epicfight.api.animation.types.DynamicAnimation;
-import yesman.epicfight.api.animation.types.MovementAnimation;
 import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
+import yesman.epicfight.api.client.animation.ClientAnimator;
 import yesman.epicfight.api.client.forgeevent.UpdatePlayerMotionEvent;
 import yesman.epicfight.api.forgeevent.InitAnimatorEvent;
 import yesman.epicfight.world.capabilities.EpicFightCapabilities;
@@ -40,11 +43,19 @@ import yesman.epicfight.world.capabilities.item.CapabilityItem;
 
 public final class NaturalSprinterFastRunHandler {
 	private static final int FAST_RUN_ANIMATION_REPLAY_COOLDOWN_TICKS = 2;
+	private static final float GENERIC_FAST_RUN_STEP_STAMINA_COST = 2.0F;
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> FAST_RUN_ACTIVE = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> MANUAL_FAST_RUN_KEY_CONSUMED = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Integer> FAST_RUN_ANIMATION_REPLAY_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> NEXT_FAST_RUN_STEP_RIGHT = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, String> LAST_SPRINT_PROFILE_LOG = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, Integer> LAST_NO_OVERRIDE_LOG_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, AssetAccessor<? extends StaticAnimation>> LAST_FAST_RUN_TARGET = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, ResourceLocation> LAST_FAST_RUN_ITEM = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, ResourceLocation> LAST_FAST_RUN_WEAPON_TYPE = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, Integer> STALE_COMBAT_ANIMATION_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, Integer> LAST_STALE_COMBAT_RECOVERY_TICK = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, CachedSprintProfile> SPRINT_PROFILE_CACHE = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> MANUAL_FAST_RUN_STEP_KEY_HELD = new WeakHashMap<>();
 	private static TaczGunTypeResolver taczGunTypeResolver;
 	private static TaczReloadStateResolver taczReloadStateResolver;
@@ -66,7 +77,7 @@ public final class NaturalSprinterFastRunHandler {
 	}
 
 	public static void chooseFastRunAnimation(UpdatePlayerMotionEvent.BaseLayer event) {
-		if (!EPMParCoolGate.allowCrossModSkillCompat() || !ModCompat.isWomLoaded()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()) {
 			clearFastRunState(event.getPlayerPatch());
 			return;
 		}
@@ -85,14 +96,14 @@ public final class NaturalSprinterFastRunHandler {
 			return;
 		}
 
-		if (!NaturalSprinterState.hasNaturalSprinter(playerPatch) || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMConfig.naturalSprinterAnimations()) {
 			clearFastRunState(playerPatch);
 			event.setMotion(LivingMotions.RUN);
 			return;
 		}
 
 		AssetAccessor<?> currentAnimation = currentBaseAnimation(playerPatch);
-		if (isWomWallMovementVisual(currentAnimation)) {
+		if (ModCompat.isWomLoaded() && isWomWallMovementVisual(currentAnimation)) {
 			holdFastRunActiveWithoutVisualOverride(playerPatch, currentAnimation);
 			return;
 		}
@@ -122,8 +133,7 @@ public final class NaturalSprinterFastRunHandler {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		boolean hasPatch = playerPatch != null;
 		boolean logicalClient = hasPatch && playerPatch.isLogicalClient();
-		boolean hasNaturalSprinter = logicalClient && NaturalSprinterState.hasNaturalSprinter(playerPatch);
-		if (!hasPatch || !logicalClient || !hasNaturalSprinter) {
+		if (!hasPatch || !logicalClient) {
 			return false;
 		}
 
@@ -146,7 +156,7 @@ public final class NaturalSprinterFastRunHandler {
 			return EPMClientHooks.requestNaturalSprinterStepFastRun(player, step);
 		}
 
-		if (!NaturalSprinterState.consumeStep(playerPatch)) {
+		if (!consumeFastRunStepBudget(playerPatch, fromStepDodgeConflict ? "manual_deferred_release" : "manual")) {
 			return false;
 		}
 
@@ -163,7 +173,6 @@ public final class NaturalSprinterFastRunHandler {
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		return playerPatch != null
 				&& playerPatch.isLogicalClient()
-				&& NaturalSprinterState.hasNaturalSprinter(playerPatch)
 				&& currentSprintStep(playerPatch).isPresent();
 	}
 
@@ -171,7 +180,6 @@ public final class NaturalSprinterFastRunHandler {
 		return player != null
 				&& player.isLocalPlayer()
 				&& EPMParCoolGate.allowCrossModSkillCompat()
-				&& ModCompat.isWomLoaded()
 				&& EPMConfig.naturalSprinterAnimations()
 				&& EPMConfig.naturalSprinterManualStep()
 				&& canManualFastRunStep(player)
@@ -184,7 +192,6 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
-				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()) {
 			MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player);
@@ -219,21 +226,75 @@ public final class NaturalSprinterFastRunHandler {
 		}
 	}
 
+	public static void tickNoWomStaleCombatAnimationRecovery(Player player) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat()
+				|| ModCompat.isWomLoaded()
+				|| player == null
+				|| !player.isLocalPlayer()
+				|| !EPMConfig.naturalSprinterAnimations()) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		if (playerPatch == null || !playerPatch.isLogicalClient()) {
+			return;
+		}
+
+		AssetAccessor<?> currentAnimation = currentBaseAnimation(playerPatch);
+		if (!isCombatAnimation(currentAnimation) || !currentMotionIsIdleOrInaction(playerPatch) || !currentAnimationHasEnded(playerPatch, currentAnimation)) {
+			STALE_COMBAT_ANIMATION_TICKS.remove(playerPatch);
+			return;
+		}
+
+		int staleTicks = STALE_COMBAT_ANIMATION_TICKS.getOrDefault(playerPatch, Integer.valueOf(0)).intValue() + 1;
+		STALE_COMBAT_ANIMATION_TICKS.put(playerPatch, Integer.valueOf(staleTicks));
+		if (staleTicks < 2) {
+			return;
+		}
+
+		int tick = playerTick(playerPatch);
+		Integer lastRecoveryTick = LAST_STALE_COMBAT_RECOVERY_TICK.get(playerPatch);
+		if (lastRecoveryTick != null && tick - lastRecoveryTick.intValue() < 10) {
+			return;
+		}
+
+		LAST_STALE_COMBAT_RECOVERY_TICK.put(playerPatch, Integer.valueOf(tick));
+		try {
+			playerPatch.getClientAnimator().resetMotion(true);
+			playerPatch.getClientAnimator().resetCompositeMotion();
+			STALE_COMBAT_ANIMATION_TICKS.remove(playerPatch);
+			logStaleCombatAnimationRecovery(playerPatch, currentAnimation, staleTicks, "reset_motion");
+		} catch (RuntimeException | LinkageError exception) {
+			logStaleCombatAnimationRecovery(playerPatch, currentAnimation, staleTicks, "reset_failed:" + exception.getClass().getSimpleName());
+		}
+	}
+
 	private static void clearFastRunState(PlayerPatch<?> playerPatch) {
 		NaturalSprinterProceduralStepPulse.clear(playerPatch);
 		FAST_RUN_ACTIVE.remove(playerPatch);
 		MANUAL_FAST_RUN_KEY_CONSUMED.remove(playerPatch);
 		FAST_RUN_ANIMATION_REPLAY_TICKS.remove(playerPatch);
 		LAST_SPRINT_PROFILE_LOG.remove(playerPatch);
+		LAST_NO_OVERRIDE_LOG_TICKS.remove(playerPatch);
+		LAST_FAST_RUN_TARGET.remove(playerPatch);
+		LAST_FAST_RUN_ITEM.remove(playerPatch);
+		LAST_FAST_RUN_WEAPON_TYPE.remove(playerPatch);
+		STALE_COMBAT_ANIMATION_TICKS.remove(playerPatch);
+		SPRINT_PROFILE_CACHE.remove(playerPatch);
 	}
 
 	private static void applyFastRunAnimation(PlayerPatch<?> playerPatch) {
-		SprintProfile profile = chooseSprintProfile(playerPatch);
+		FastRunIdentity identity = fastRunIdentity(playerPatch);
+		SprintProfile profile = chooseSprintProfile(playerPatch, identity);
 		AssetAccessor<? extends StaticAnimation> animation = profile.animation();
 		if (animation == null) {
 			NaturalSprinterProceduralStepPulse.configureSustainedFastRunPose(
 					playerPatch,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED);
+			LAST_FAST_RUN_TARGET.remove(playerPatch);
+			LAST_FAST_RUN_ITEM.remove(playerPatch);
+			LAST_FAST_RUN_WEAPON_TYPE.remove(playerPatch);
+			logFastRunNoOverride(playerPatch, profile);
 			return;
 		}
 
@@ -243,17 +304,72 @@ public final class NaturalSprinterFastRunHandler {
 						? profile.runPose()
 						: NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED);
 
+		syncFastRunMotion(playerPatch, profile, animation, identity);
+	}
+
+	private static void syncFastRunMotion(
+			PlayerPatch<?> playerPatch,
+			SprintProfile profile,
+			AssetAccessor<? extends StaticAnimation> animation,
+			FastRunIdentity identity) {
 		AssetAccessor<?> currentAnimation = currentBaseAnimation(playerPatch);
-		if (profile.acceptsCurrentAnimation(currentAnimation)) {
-			logFastRunAnimationSwap(playerPatch, "accepted_current", profile, currentAnimation, animation, false);
+		AssetAccessor<? extends StaticAnimation> previousTarget = LAST_FAST_RUN_TARGET.get(playerPatch);
+		AssetAccessor<? extends StaticAnimation> previousFastRunAnimation = livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN);
+		ResourceLocation item = identity.item();
+		ResourceLocation weaponType = identity.weaponType();
+		boolean itemChanged = !sameResourceLocation(item, LAST_FAST_RUN_ITEM.get(playerPatch));
+		boolean weaponTypeChanged = !sameResourceLocation(weaponType, LAST_FAST_RUN_WEAPON_TYPE.get(playerPatch));
+		AssetAccessor<? extends StaticAnimation> targetAnimation = animation;
+		boolean targetChanged = !isSameAnimation(previousTarget, targetAnimation);
+		boolean installed = installFastRunLivingAnimation(playerPatch, targetAnimation);
+		boolean currentFastRunMotion = currentMotionIs(playerPatch, ParcoolLivingMotions.FAST_RUN);
+
+		if (profile.acceptsCurrentAnimation(currentAnimation) || isSameAnimation(currentAnimation, targetAnimation)) {
+			rememberFastRunTarget(playerPatch, targetAnimation, item, weaponType);
+			logFastRunAnimationSwap(
+					playerPatch,
+					"accepted_current",
+					profile,
+					currentAnimation,
+					targetAnimation,
+					previousTarget,
+					previousFastRunAnimation,
+					false,
+					installed,
+					itemChanged,
+					weaponTypeChanged,
+					targetChanged,
+					currentFastRunMotion);
 			return;
 		}
 
-		putLivingAnimationSilently(playerPatch.getAnimator(), ParcoolLivingMotions.FAST_RUN, animation);
-		boolean swapped = swapPrimarySprintAnimationPreservingTime(playerPatch, profile, animation, currentAnimation);
-		logFastRunAnimationSwap(playerPatch, swapped ? "swap_preserve_time" : "swap_deferred", profile, currentAnimation, animation, swapped);
+		boolean swapped = swapPrimarySprintAnimationPreservingTime(
+				playerPatch,
+				profile,
+				targetAnimation,
+				currentAnimation,
+				previousTarget,
+				previousFastRunAnimation);
+		rememberFastRunTarget(playerPatch, targetAnimation, item, weaponType);
+		String phase = swapped
+				? (isSameAnimationVariant(currentAnimation, targetAnimation) ? "swap_variant_preserve_time" : "swap_preserve_time")
+				: "force_target";
+		logFastRunAnimationSwap(
+				playerPatch,
+				phase,
+				profile,
+				currentAnimation,
+				targetAnimation,
+				previousTarget,
+				previousFastRunAnimation,
+				swapped,
+				installed,
+				itemChanged,
+				weaponTypeChanged,
+				targetChanged,
+				currentFastRunMotion);
 		if (!swapped) {
-			replayFastRunAnimationIfOverridden(playerPatch, animation, currentAnimation);
+			replayFastRunAnimationIfOverridden(playerPatch, targetAnimation, currentAnimation);
 		}
 	}
 
@@ -265,14 +381,18 @@ public final class NaturalSprinterFastRunHandler {
 
 		boolean wasFastRunActive = Boolean.TRUE.equals(FAST_RUN_ACTIVE.put(playerPatch, Boolean.TRUE));
 		StartupStepSource source = startupStepHandled ? StartupStepSource.NONE : fastRunStartStepSource(playerPatch, wasFastRunActive);
-		boolean hasStamina = source.playsStep() && playerPatch.hasStamina(2.0F);
+		boolean hasStamina = source.playsStep() && playerPatch.hasStamina(GENERIC_FAST_RUN_STEP_STAMINA_COST);
 		logStartupStepDecision(playerPatch, startupStepHandled, wasFastRunActive, source, hasStamina);
 		if (!source.playsStep() || !hasStamina) {
 			return;
 		}
 
-		consumeCurrentFastRunKeyPress(playerPatch);
 		NaturalSprinterFastRunStep step = nextSprintStep(playerPatch);
+		if (!step.isPresent() || !consumeFastRunStepBudget(playerPatch, source.name().toLowerCase(java.util.Locale.ROOT))) {
+			return;
+		}
+
+		consumeCurrentFastRunKeyPress(playerPatch);
 		EPMClientHooks.playNaturalSprinterFastRunStep(playerPatch, step, source.stepTrigger());
 	}
 
@@ -376,15 +496,105 @@ public final class NaturalSprinterFastRunHandler {
 	}
 
 	private static NaturalSprinterFastRunStep currentSprintStep(PlayerPatch<?> playerPatch) {
-		SprintProfile profile = chooseSprintProfile(playerPatch);
+		SprintProfile profile = chooseSprintProfile(playerPatch, fastRunIdentity(playerPatch));
 		boolean rightStep = Boolean.TRUE.equals(NEXT_FAST_RUN_STEP_RIGHT.get(playerPatch));
+		if (profile.defaultNaturalSprinter()) {
+			NaturalSprinterFastRunStep defaultStep = naturalSprinterDefaultStep(playerPatch, profile, rightStep);
+			if (defaultStep.isPresent()) {
+				return defaultStep;
+			}
+		}
+
 		AssetAccessor<? extends StaticAnimation> animation = rightStep ? profile.rightStepAnimation() : profile.leftStepAnimation();
 		if (animation != null) {
-			return profile.defaultNaturalSprinter()
-					? NaturalSprinterFastRunStep.defaultAnimation(animation)
-					: NaturalSprinterFastRunStep.configuredAnimation(animation, profile.startupStepEffects(), profile.manualStepEffects());
+			return NaturalSprinterFastRunStep.configuredAnimation(animation, profile.startupStepEffects(), profile.manualStepEffects(), rightStep);
 		}
-		return profile.proceduralStepPulse() ? NaturalSprinterFastRunStep.procedural(profile.animation(), rightStep) : NaturalSprinterFastRunStep.none();
+		if (profile.proceduralStepPulse()) {
+			return NaturalSprinterFastRunStep.procedural(profile.animation(), rightStep);
+		}
+		return NaturalSprinterFastRunStep.none();
+	}
+
+	private static NaturalSprinterFastRunStep naturalSprinterDefaultStep(PlayerPatch<?> playerPatch, SprintProfile profile, boolean rightStep) {
+		DefaultSprintFamily currentFamily = defaultSprintFamilyForWomAnimation(currentBaseAnimation(playerPatch));
+		DefaultSprintFamily profileFamily = profile == null ? null : defaultSprintFamilyForWomAnimation(profile.animation());
+		DefaultSprintFamily family = currentFamily != null ? currentFamily : profileFamily;
+		if (family == null && profile != null) {
+			family = profile.fallback();
+		}
+		if (family == null && hasNaturalSprinter(playerPatch)) {
+			family = chooseDefaultSprintFamily(playerPatch);
+		}
+		if (family == null) {
+			return NaturalSprinterFastRunStep.none();
+		}
+
+		AssetAccessor<? extends StaticAnimation> animation = rightStep ? family.rightStepAnimation() : family.leftStepAnimation();
+		NaturalSprinterFastRunStep step = NaturalSprinterFastRunStep.defaultAnimation(animation, rightStep);
+		logDefaultStepFallback(playerPatch, "natural_sprinter_default_family", currentFamily, profileFamily, family, profile == null ? null : profile.animation(), step);
+		return step;
+	}
+
+	private static boolean isRunLikeAnimationForNoOverrideStep(AssetAccessor<?> animation) {
+		if (animation == null) {
+			return false;
+		}
+		if (isAnyPrimarySprintAnimation(animation)) {
+			return true;
+		}
+
+		ResourceLocation registryName = AnimationQuery.safeRegistryName(animation);
+		if (registryName == null) {
+			return false;
+		}
+
+		String path = registryName.getPath().toLowerCase(java.util.Locale.ROOT);
+		if (path.contains("step")
+				|| path.contains("jump")
+				|| path.contains("fall")
+				|| path.contains("vault")
+				|| path.contains("slide")
+				|| path.contains("stop")
+				|| path.contains("dodge")
+				|| path.contains("roll")) {
+			return false;
+		}
+		return path.contains("run") || path.contains("sprint");
+	}
+
+	private static DefaultSprintFamily defaultSprintFamilyForWomAnimation(AssetAccessor<?> animation) {
+		if (!ModCompat.isWomLoaded() || animation == null) {
+			return null;
+		}
+
+		if (WomAnimationRefs.isAny(animation,
+				WomAnimationRefs.bipedSprintBarehand(),
+				WomAnimationRefs.bipedSprintLeftStepBarehand(),
+				WomAnimationRefs.bipedSprintRightStepBarehand())) {
+			return DefaultSprintFamily.BAREHAND;
+		}
+		if (WomAnimationRefs.isAny(animation,
+				WomAnimationRefs.bipedSprint(),
+				WomAnimationRefs.bipedSprintLeftStep(),
+				WomAnimationRefs.bipedSprintRightStep())) {
+			return DefaultSprintFamily.WEAPON;
+		}
+
+		ResourceLocation registryName = AnimationQuery.safeRegistryName(animation);
+		if (registryName == null || !"wom".equals(registryName.getNamespace())) {
+			return null;
+		}
+
+		String path = registryName.getPath();
+		return switch (path) {
+			case "biped/skill/biped_sprint_barehand",
+					"biped/skill/biped_sprint_left_step_barehand",
+					"biped/skill/biped_sprint_right_step_barehand" -> DefaultSprintFamily.BAREHAND;
+			case "biped/skill/biped_sprint",
+					"biped/skill/biped_sprint_left_step",
+					"biped/skill/biped_sprint_right_step" -> DefaultSprintFamily.WEAPON;
+			default -> null;
+		};
 	}
 
 	private static void advanceSprintStep(PlayerPatch<?> playerPatch) {
@@ -396,15 +606,114 @@ public final class NaturalSprinterFastRunHandler {
 		advanceSprintStep(playerPatch);
 	}
 
+	public static boolean consumeFastRunStepBudget(PlayerPatch<?> playerPatch, String reason) {
+		if (playerPatch == null || playerPatch.getOriginal() == null) {
+			logStepBudget(playerPatch, reason, "none", false, "missing_patch", 0);
+			return false;
+		}
+
+		if (hasNaturalSprinter(playerPatch)) {
+			boolean consumed = NaturalSprinterState.consumeStep(playerPatch);
+			logStepBudget(playerPatch, reason, "natural_sprinter", consumed, consumed ? "consumed" : "unavailable", 0);
+			return consumed;
+		}
+
+		boolean consumed = consumeGenericFastRunStepStamina(playerPatch, true);
+		logStepBudget(playerPatch, reason, "epicfight_stamina", consumed, consumed ? "consumed" : "insufficient_stamina", 0);
+		return consumed;
+	}
+
+	public static boolean consumeGenericFastRunStepStaminaOnServer(PlayerPatch<?> playerPatch) {
+		return consumeGenericFastRunStepStamina(playerPatch, false);
+	}
+
+	private static boolean consumeGenericFastRunStepStamina(PlayerPatch<?> playerPatch, boolean notifyServer) {
+		if (playerPatch == null || playerPatch.getOriginal() == null) {
+			return false;
+		}
+		if (!playerPatch.hasStamina(GENERIC_FAST_RUN_STEP_STAMINA_COST)) {
+			return false;
+		}
+
+		Player player = playerPatch.getOriginal();
+		if (!player.getAbilities().instabuild) {
+			try {
+				playerPatch.resetActionTick();
+				playerPatch.setStamina(Math.max(0.0F, playerPatch.getStamina() - GENERIC_FAST_RUN_STEP_STAMINA_COST));
+			} catch (RuntimeException | LinkageError ignored) {
+				return false;
+			}
+		}
+		if (notifyServer && playerPatch.isLogicalClient()) {
+			EPMNetwork.sendNaturalSprinterFastRunStepStaminaConsumption();
+		}
+		return true;
+	}
+
 	private static void putLivingAnimationSilently(Animator animator, LivingMotion motion, AssetAccessor<? extends StaticAnimation> animation) {
 		if (animator instanceof AnimatorAccessor accessor) {
 			accessor.parcoolxwom$livingAnimations().put(motion, animation);
 		}
 	}
 
+	private static boolean installFastRunLivingAnimation(PlayerPatch<?> playerPatch, AssetAccessor<? extends StaticAnimation> animation) {
+		AssetAccessor<? extends StaticAnimation> currentFastRunAnimation = livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN);
+		boolean activeInstalled = !isSameAnimation(currentFastRunAnimation, animation);
+
+		if (activeInstalled) {
+			try {
+				ClientAnimator animator = playerPatch.getClientAnimator();
+				animator.addLivingAnimation(ParcoolLivingMotions.FAST_RUN, animation);
+			} catch (RuntimeException | LinkageError ignored) {
+				putLivingAnimationSilently(playerPatch == null ? null : playerPatch.getAnimator(), ParcoolLivingMotions.FAST_RUN, animation);
+			}
+		}
+
+		boolean defaultInstalled = installDefaultFastRunLivingAnimation(playerPatch, animation);
+		return activeInstalled || defaultInstalled;
+	}
+
+	private static boolean installDefaultFastRunLivingAnimation(PlayerPatch<?> playerPatch, AssetAccessor<? extends StaticAnimation> animation) {
+		Map<LivingMotion, AssetAccessor<? extends StaticAnimation>> defaultLivingAnimations = defaultLivingAnimations(playerPatch);
+		if (defaultLivingAnimations == null) {
+			return false;
+		}
+
+		AssetAccessor<? extends StaticAnimation> currentDefault = defaultLivingAnimations.get(ParcoolLivingMotions.FAST_RUN);
+		if (isSameAnimation(currentDefault, animation)) {
+			return false;
+		}
+
+		defaultLivingAnimations.put(ParcoolLivingMotions.FAST_RUN, animation);
+		return true;
+	}
+
+	private static Map<LivingMotion, AssetAccessor<? extends StaticAnimation>> defaultLivingAnimations(PlayerPatch<?> playerPatch) {
+		try {
+			ClientAnimator animator = playerPatch == null ? null : playerPatch.getClientAnimator();
+			if (animator instanceof ClientAnimatorAccessor accessor) {
+				return accessor.parcoolxwom$defaultLivingAnimations();
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+		return null;
+	}
+
 	@SuppressWarnings("unchecked")
-	private static boolean swapPrimarySprintAnimationPreservingTime(PlayerPatch<?> playerPatch, SprintProfile profile, AssetAccessor<? extends StaticAnimation> animation, AssetAccessor<?> currentAnimation) {
-		if (!isAnyPrimarySprintAnimation(currentAnimation) || profile.isPrimaryAnimation(currentAnimation)) {
+	private static boolean swapPrimarySprintAnimationPreservingTime(
+			PlayerPatch<?> playerPatch,
+			SprintProfile profile,
+			AssetAccessor<? extends StaticAnimation> animation,
+			AssetAccessor<?> currentAnimation,
+			AssetAccessor<?> previousTarget,
+			AssetAccessor<?> previousFastRunAnimation) {
+		boolean currentIsFastRunOwned = isAnyPrimarySprintAnimation(currentAnimation)
+				|| isSameAnimation(currentAnimation, previousTarget)
+				|| isSameAnimation(currentAnimation, previousFastRunAnimation)
+				|| isSameAnimationVariant(currentAnimation, previousTarget)
+				|| isSameAnimationVariant(currentAnimation, previousFastRunAnimation)
+				|| isSameAnimationVariant(currentAnimation, LAST_FAST_RUN_TARGET.get(playerPatch));
+		if (!currentIsFastRunOwned || profile.isPrimaryAnimation(currentAnimation)) {
 			return false;
 		}
 
@@ -422,12 +731,147 @@ public final class NaturalSprinterFastRunHandler {
 
 	private static boolean isAnyPrimarySprintAnimation(AssetAccessor<?> animation) {
 		return DefaultSprintFamily.isAnyPrimary(animation)
-				|| WomAnimationRefs.isAny(animation, WomAnimationRefs.epicParCoolFastRun())
+				|| isEpicParCoolFastRun(animation)
 				|| NaturalSprinterFastRunAnimationOverrides.isConfiguredRunAnimation(animation);
 	}
 
+	private static boolean isEpicParCoolFastRun(AssetAccessor<?> animation) {
+		return WomAnimationRefs.isAny(animation, WomAnimationRefs.epicParCoolFastRun());
+	}
+
+	private static boolean isFastRunOwnedAnimation(
+			PlayerPatch<?> playerPatch,
+			AssetAccessor<?> currentAnimation,
+			AssetAccessor<?> previousTarget,
+			AssetAccessor<?> previousFastRunAnimation) {
+		return isAnyPrimarySprintAnimation(currentAnimation)
+				|| isSameAnimation(currentAnimation, previousTarget)
+				|| isSameAnimation(currentAnimation, previousFastRunAnimation)
+				|| isSameAnimation(currentAnimation, LAST_FAST_RUN_TARGET.get(playerPatch))
+				|| isSameAnimationVariant(currentAnimation, previousTarget)
+				|| isSameAnimationVariant(currentAnimation, previousFastRunAnimation)
+				|| isSameAnimationVariant(currentAnimation, LAST_FAST_RUN_TARGET.get(playerPatch));
+	}
+
+	private static boolean currentMotionIs(PlayerPatch<?> playerPatch, LivingMotion motion) {
+		try {
+			LivingMotion currentMotion = playerPatch.getClientAnimator().currentMotion();
+			return currentMotion == motion || currentMotion != null && currentMotion.isSame(motion);
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static boolean currentMotionIsIdleOrInaction(PlayerPatch<?> playerPatch) {
+		try {
+			LivingMotion currentMotion = playerPatch.getClientAnimator().currentMotion();
+			if (currentMotion == null) {
+				return false;
+			}
+
+			String motionName = String.valueOf(currentMotion).toUpperCase(java.util.Locale.ROOT);
+			return motionName.contains("IDLE") || motionName.contains("INACTION");
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static boolean currentAnimationHasEnded(PlayerPatch<?> playerPatch, AssetAccessor<?> currentAnimation) {
+		float elapsedTime = AnimationQuery.currentElapsedTime(playerPatch);
+		float totalTime = animationTotalTime(currentAnimation);
+		return AnimationQuery.currentAnimationEnded(playerPatch)
+				|| totalTime > 0.0F && elapsedTime >= totalTime - 0.02F;
+	}
+
+	private static float animationTotalTime(AssetAccessor<?> animation) {
+		if (animation == null) {
+			return -1.0F;
+		}
+
+		try {
+			Object value = animation.get();
+			return value instanceof DynamicAnimation dynamicAnimation ? dynamicAnimation.getTotalTime() : -1.0F;
+		} catch (RuntimeException | LinkageError ignored) {
+			return -1.0F;
+		}
+	}
+
+	private static boolean isCombatAnimation(AssetAccessor<?> animation) {
+		ResourceLocation registryName = AnimationQuery.safeRegistryName(animation);
+		if (registryName == null) {
+			return false;
+		}
+
+		String path = registryName.getPath().toLowerCase(java.util.Locale.ROOT);
+		return path.contains("/combat/");
+	}
+
+	private static void rememberFastRunTarget(
+			PlayerPatch<?> playerPatch,
+			AssetAccessor<? extends StaticAnimation> animation,
+			ResourceLocation item,
+			ResourceLocation weaponType) {
+		LAST_FAST_RUN_TARGET.put(playerPatch, animation);
+		if (item == null) {
+			LAST_FAST_RUN_ITEM.remove(playerPatch);
+		} else {
+			LAST_FAST_RUN_ITEM.put(playerPatch, item);
+		}
+		if (weaponType == null) {
+			LAST_FAST_RUN_WEAPON_TYPE.remove(playerPatch);
+		} else {
+			LAST_FAST_RUN_WEAPON_TYPE.put(playerPatch, weaponType);
+		}
+	}
+
+	private static boolean sameResourceLocation(ResourceLocation first, ResourceLocation second) {
+		return first == null ? second == null : first.equals(second);
+	}
+
+	private static boolean isSameAnimation(AssetAccessor<?> first, AssetAccessor<?> second) {
+		if (first == null || second == null) {
+			return false;
+		}
+		if (first.equals(second)) {
+			return true;
+		}
+
+		ResourceLocation firstRegistryName = AnimationQuery.safeRegistryName(first);
+		ResourceLocation secondRegistryName = AnimationQuery.safeRegistryName(second);
+		if (firstRegistryName == null || secondRegistryName == null) {
+			return false;
+		}
+		return firstRegistryName.equals(secondRegistryName);
+	}
+
+	private static boolean isSameAnimationVariant(AssetAccessor<?> first, AssetAccessor<?> second) {
+		if (first == null || second == null || isSameAnimation(first, second)) {
+			return false;
+		}
+
+		ResourceLocation firstRegistryName = AnimationQuery.safeRegistryName(first);
+		ResourceLocation secondRegistryName = AnimationQuery.safeRegistryName(second);
+		if (firstRegistryName == null || secondRegistryName == null) {
+			return false;
+		}
+		ResourceLocation normalizedFirst = normalizeAnimationRegistryName(firstRegistryName);
+		ResourceLocation normalizedSecond = normalizeAnimationRegistryName(secondRegistryName);
+		return normalizedFirst.equals(normalizedSecond);
+	}
+
+	private static ResourceLocation normalizeAnimationRegistryName(ResourceLocation animationId) {
+		String path = animationId.getPath();
+		String multilayerSuffix = "_multilayer";
+		if (path.endsWith(multilayerSuffix)) {
+			return ResourceLocation.fromNamespaceAndPath(
+					animationId.getNamespace(),
+					path.substring(0, path.length() - multilayerSuffix.length()));
+		}
+		return animationId;
+	}
+
 	private static void replayFastRunAnimationIfOverridden(PlayerPatch<?> playerPatch, AssetAccessor<? extends StaticAnimation> animation, AssetAccessor<?> currentAnimation) {
-		if (!isMovementAnimation(currentAnimation)) {
+		if (!shouldReplayFastRunTarget(currentAnimation)) {
 			return;
 		}
 
@@ -444,12 +888,10 @@ public final class NaturalSprinterFastRunHandler {
 		}
 	}
 
-	private static boolean isMovementAnimation(AssetAccessor<?> animation) {
-		try {
-			return animation != null && animation.get() instanceof MovementAnimation;
-		} catch (RuntimeException | LinkageError ignored) {
-			return false;
-		}
+	private static boolean shouldReplayFastRunTarget(AssetAccessor<?> currentAnimation) {
+		return isEpicParCoolFastRun(currentAnimation)
+				|| isRunLikeAnimationForNoOverrideStep(currentAnimation)
+				|| NaturalSprinterFastRunAnimationOverrides.isConfiguredRunAnimation(currentAnimation);
 	}
 
 	private static boolean isWomWallMovementVisual(AssetAccessor<?> animation) {
@@ -479,26 +921,154 @@ public final class NaturalSprinterFastRunHandler {
 		return AnimationQuery.currentAnimation(playerPatch);
 	}
 
-	private static SprintProfile chooseSprintProfile(PlayerPatch<?> playerPatch) {
-		DefaultSprintFamily defaultFamily = chooseDefaultSprintFamily(playerPatch);
+	private static FastRunIdentity fastRunIdentity(PlayerPatch<?> playerPatch) {
+		ResourceLocation item = mainHandItemId(playerPatch);
+		AssetAccessor<? extends StaticAnimation> ordinaryRunAnimation = livingAnimation(playerPatch, LivingMotions.RUN);
+		return new FastRunIdentity(
+				item,
+				NaturalSprinterFastRunAnimationOverrides.weaponTypeForItem(item),
+				ordinaryRunAnimation,
+				AnimationQuery.safeRegistryName(ordinaryRunAnimation));
+	}
+
+	private static SprintProfile chooseSprintProfile(PlayerPatch<?> playerPatch, FastRunIdentity identity) {
 		NaturalSprinterFastRunAnimationOverrides.RuleData override = NaturalSprinterFastRunAnimationOverrides.select(
-				mainHandItemId(playerPatch),
-				weaponCategoryName(playerPatch));
+				identity.item(),
+				identity.weaponType());
 		if (override == null) {
+			if (!ModCompat.isWomLoaded()) {
+				SprintProfile profile = chooseCachedNoWomSprintProfile(playerPatch, identity, null);
+				logSprintProfile(playerPatch, identity, null, null, profile);
+				return profile;
+			}
+
+			DefaultSprintFamily defaultFamily = chooseDefaultSprintFamily(playerPatch);
 			SprintProfile profile = SprintProfile.defaultProfile(defaultFamily);
-			logSprintProfile(playerPatch, null, defaultFamily, profile);
+			logSprintProfile(playerPatch, identity, null, defaultFamily, profile);
 			return profile;
 		}
 
+		if (!ModCompat.isWomLoaded()) {
+			SprintProfile profile = chooseCachedNoWomSprintProfile(playerPatch, identity, override);
+			logSprintProfile(playerPatch, identity, override, null, profile);
+			return profile;
+		}
+
+		DefaultSprintFamily defaultFamily = chooseDefaultSprintFamily(playerPatch);
 		DefaultSprintFamily fallback = defaultFamily;
-		if (override.fallback() == NaturalSprinterFastRunAnimationOverrides.FallbackFamily.BAREHAND) {
+		if (ModCompat.isWomLoaded() && override.fallback() == NaturalSprinterFastRunAnimationOverrides.FallbackFamily.BAREHAND) {
 			fallback = DefaultSprintFamily.BAREHAND;
-		} else if (override.fallback() == NaturalSprinterFastRunAnimationOverrides.FallbackFamily.WEAPON) {
+		} else if (ModCompat.isWomLoaded() && override.fallback() == NaturalSprinterFastRunAnimationOverrides.FallbackFamily.WEAPON) {
 			fallback = DefaultSprintFamily.WEAPON;
 		}
-		SprintProfile profile = SprintProfile.custom(override, fallback);
-		logSprintProfile(playerPatch, override, fallback, profile);
+		SprintProfile profile = SprintProfile.custom(override, fallback, playerPatch);
+		logSprintProfile(playerPatch, identity, override, fallback, profile);
 		return profile;
+	}
+
+	private static SprintProfile chooseCachedNoWomSprintProfile(
+			PlayerPatch<?> playerPatch,
+			FastRunIdentity identity,
+			NaturalSprinterFastRunAnimationOverrides.RuleData override) {
+		if (override == null && isStaleNoWomWeaponRunFallback(playerPatch, identity)) {
+			SPRINT_PROFILE_CACHE.remove(playerPatch);
+			SprintProfile profile = SprintProfile.defaultFastRun(defaultFastRunAnimation());
+			logStaleNoWomWeaponRunFallback(playerPatch, identity, profile);
+			return profile;
+		}
+
+		SprintProfileCacheKey key = new SprintProfileCacheKey(
+				identity.item(),
+				identity.weaponType(),
+				identity.ordinaryRunAnimationId(),
+				EPMConfig.noWomProceduralWeaponFastRun(),
+				override);
+		CachedSprintProfile cached = SPRINT_PROFILE_CACHE.get(playerPatch);
+		if (cached != null && cached.key().equals(key)) {
+			return cached.profile();
+		}
+
+		SprintProfile profile = override == null
+				? noWomUnmatchedSprintProfile(identity)
+				: SprintProfile.custom(override, null, playerPatch);
+		if (profile.animation() == null) {
+			profile = SprintProfile.defaultFastRun(defaultFastRunAnimation());
+		}
+
+		SPRINT_PROFILE_CACHE.put(playerPatch, new CachedSprintProfile(key, profile));
+		return profile;
+	}
+
+	private static boolean isStaleNoWomWeaponRunFallback(PlayerPatch<?> playerPatch, FastRunIdentity identity) {
+		if (identity == null || identity.ordinaryRunAnimation() == null) {
+			return false;
+		}
+
+		boolean itemChanged = !sameResourceLocation(identity.item(), LAST_FAST_RUN_ITEM.get(playerPatch));
+		boolean weaponTypeChanged = !sameResourceLocation(identity.weaponType(), LAST_FAST_RUN_WEAPON_TYPE.get(playerPatch));
+		if (!itemChanged && !weaponTypeChanged) {
+			return false;
+		}
+
+		AssetAccessor<? extends StaticAnimation> previousTarget = LAST_FAST_RUN_TARGET.get(playerPatch);
+		AssetAccessor<? extends StaticAnimation> previousFastRunAnimation = livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN);
+		return isSameAnimation(identity.ordinaryRunAnimation(), previousTarget)
+				|| isSameAnimationVariant(identity.ordinaryRunAnimation(), previousTarget)
+				|| isSameAnimation(identity.ordinaryRunAnimation(), previousFastRunAnimation)
+				|| isSameAnimationVariant(identity.ordinaryRunAnimation(), previousFastRunAnimation);
+	}
+
+	private static SprintProfile noWomUnmatchedSprintProfile(FastRunIdentity identity) {
+		if (EPMConfig.noWomProceduralWeaponFastRun()) {
+			SprintProfile profile = SprintProfile.weaponRunFallback(
+					identity,
+					null,
+					true,
+					false,
+					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DEFAULT,
+					0);
+			if (profile.animation() != null) {
+				return profile;
+			}
+		}
+		return SprintProfile.defaultFastRun(defaultFastRunAnimation());
+	}
+
+	private static AssetAccessor<? extends StaticAnimation> defaultFastRunAnimation() {
+		return WomAnimationRefs.epicParCoolFastRun();
+	}
+
+	private static AssetAccessor<? extends StaticAnimation> ordinaryRunAnimation(PlayerPatch<?> playerPatch) {
+		AssetAccessor<? extends StaticAnimation> livingRun = livingAnimation(playerPatch, LivingMotions.RUN);
+		return isUsableOrdinaryRunAnimation(livingRun) ? livingRun : null;
+	}
+
+	private static AssetAccessor<? extends StaticAnimation> ordinaryRunAnimation(FastRunIdentity identity) {
+		return identity != null && isUsableOrdinaryRunAnimation(identity.ordinaryRunAnimation())
+				? identity.ordinaryRunAnimation()
+				: null;
+	}
+
+	private static AssetAccessor<? extends StaticAnimation> livingAnimation(PlayerPatch<?> playerPatch, LivingMotion motion) {
+		try {
+			if (playerPatch != null && playerPatch.getAnimator() instanceof AnimatorAccessor accessor) {
+				return accessor.parcoolxwom$livingAnimations().get(motion);
+			}
+		} catch (RuntimeException | LinkageError ignored) {
+		}
+		return null;
+	}
+
+	private static boolean isUsableOrdinaryRunAnimation(AssetAccessor<?> animation) {
+		if (animation == null || isEpicParCoolFastRun(animation) || !isRunLikeAnimationForNoOverrideStep(animation)) {
+			return false;
+		}
+
+		try {
+			return animation.get() instanceof StaticAnimation;
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
 	}
 
 	private static DefaultSprintFamily chooseDefaultSprintFamily(PlayerPatch<?> playerPatch) {
@@ -545,17 +1115,8 @@ public final class NaturalSprinterFastRunHandler {
 		return NaturalSprinterFastRunAnimationOverrides.itemId(playerPatch.getOriginal().getMainHandItem());
 	}
 
-	private static String weaponCategoryName(PlayerPatch<?> playerPatch) {
-		if (playerPatch == null) {
-			return null;
-		}
-
-		try {
-			CapabilityItem mainHand = playerPatch.getHoldingItemCapability(InteractionHand.MAIN_HAND);
-			return mainHand == null ? null : categoryName(mainHand.getWeaponCategory());
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+	private static ResourceLocation weaponTypeId(PlayerPatch<?> playerPatch) {
+		return NaturalSprinterFastRunAnimationOverrides.weaponTypeForItem(mainHandItemId(playerPatch));
 	}
 
 	private static String taczGunType(ItemStack stack) {
@@ -592,6 +1153,10 @@ public final class NaturalSprinterFastRunHandler {
 		return category instanceof Enum<?> enumCategory ? enumCategory.name() : String.valueOf(category);
 	}
 
+	private static boolean hasNaturalSprinter(PlayerPatch<?> playerPatch) {
+		return ModCompat.isWomLoaded() && NaturalSprinterState.hasNaturalSprinter(playerPatch);
+	}
+
 	private static void logStartupStepDecision(
 			PlayerPatch<?> playerPatch,
 			boolean startupStepHandled,
@@ -615,7 +1180,7 @@ public final class NaturalSprinterFastRunHandler {
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
 				mainHandItemId(playerPatch),
-				weaponCategoryName(playerPatch));
+				weaponTypeId(playerPatch));
 	}
 
 	private static void logStepSelection(PlayerPatch<?> playerPatch, String phase, NaturalSprinterFastRunStep step) {
@@ -624,7 +1189,7 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} stepAnimation={} currentAnimation={} elapsed={}",
+				"[EPM/NaturalSprinterStepPulse] phase={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} elapsed={}",
 				phase,
 				Integer.valueOf(playerTick(playerPatch)),
 				Boolean.valueOf(step != null && step.isPresent()),
@@ -632,12 +1197,44 @@ public final class NaturalSprinterFastRunHandler {
 				Boolean.valueOf(step != null && step.rightStep()),
 				Boolean.valueOf(step != null && step.defaultNaturalSprinter()),
 				step == null ? "null" : assetName(step.animation()),
+				step == null ? "null" : assetName(step.proceduralRunAnimation()),
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
 	}
 
+	private static void logDefaultStepFallback(
+			PlayerPatch<?> playerPatch,
+			String reason,
+			DefaultSprintFamily currentFamily,
+			DefaultSprintFamily profileFamily,
+			DefaultSprintFamily family,
+			AssetAccessor<?> profileRunAnimation,
+			NaturalSprinterFastRunStep step) {
+		if (!debugStepPulse()) {
+			return;
+		}
+
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase=no_override_default_step_fallback tick={} reason={} currentFamily={} profileFamily={} selectedFamily={} stepPresent={} rightStep={} profileRun={} stepAnimation={} currentAnimation={} elapsed={} item={} weaponType={} hasNaturalSprinter={}",
+				Integer.valueOf(playerTick(playerPatch)),
+				reason,
+				currentFamily,
+				profileFamily,
+				family,
+				Boolean.valueOf(step != null && step.isPresent()),
+				Boolean.valueOf(step != null && step.rightStep()),
+				assetName(profileRunAnimation),
+				step == null ? "null" : assetName(step.animation()),
+				assetName(currentBaseAnimation(playerPatch)),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+				mainHandItemId(playerPatch),
+				weaponTypeId(playerPatch),
+				Boolean.valueOf(hasNaturalSprinter(playerPatch)));
+	}
+
 	private static void logSprintProfile(
 			PlayerPatch<?> playerPatch,
+			FastRunIdentity identity,
 			NaturalSprinterFastRunAnimationOverrides.RuleData rule,
 			DefaultSprintFamily fallback,
 			SprintProfile profile) {
@@ -650,26 +1247,41 @@ public final class NaturalSprinterFastRunHandler {
 				+ "|" + assetName(profile.animation())
 				+ "|" + assetName(profile.leftStepAnimation())
 				+ "|" + assetName(profile.rightStepAnimation())
+				+ "|" + defaultSprintFamilyForWomAnimation(currentBaseAnimation(playerPatch))
+				+ "|" + defaultSprintFamilyForWomAnimation(profile.animation())
+				+ "|" + profile.animationSetPriority()
 				+ "|" + profile.startupStepEffects()
 				+ "|" + profile.manualStepEffects()
 				+ "|" + profile.runPose().enabled()
 				+ "|" + profile.runPose().scale()
 				+ "|" + profile.runPose().blendTicks()
-				+ "|" + profile.proceduralStepPulse();
+				+ "|" + profile.proceduralStepPulse()
+				+ "|" + profile.weaponRunFallback();
 		if (signature.equals(LAST_SPRINT_PROFILE_LOG.get(playerPatch))) {
 			return;
 		}
 
 		LAST_SPRINT_PROFILE_LOG.put(playerPatch, signature);
+		String source = rule == null
+				? (profile.animation() == null ? "no_override" : (profile.weaponRunFallback() ? "weapon_run_fallback" : "default"))
+				: (profile.weaponRunFallback()
+						? "weapon_run_fallback"
+						: (!profile.customRunAnimation() && !profile.defaultNaturalSprinter() ? "default_fast_run" : "datapack"));
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase=profile tick={} source={} rule={} priority={} item={} weaponType={} fallback={} run={} leftStep={} rightStep={} startupEffects={} manualEffects={} runPose=(enabled={}, scale={}, blendTicks={}) procedural={}",
+				"[EPM/NaturalSprinterStepPulse] phase=profile tick={} source={} rule={} mainPriority={} animationPriority={} item={} weaponType={} hasNaturalSprinter={} womLoaded={} overrideApplied={} fallback={} currentFamily={} profileRunFamily={} run={} leftStep={} rightStep={} startupEffects={} manualEffects={} runPose=(enabled={}, scale={}, blendTicks={}) procedural={} weaponRunFallback={}",
 				Integer.valueOf(playerTick(playerPatch)),
-				rule == null ? "default" : "datapack",
+				source,
 				rule == null ? "null" : rule.id(),
-				Integer.valueOf(rule == null ? 0 : rule.priority()),
-				mainHandItemId(playerPatch),
-				weaponCategoryName(playerPatch),
+				Integer.valueOf(rule == null ? 0 : rule.mainPriority()),
+				Integer.valueOf(profile.animationSetPriority()),
+				identity == null ? null : identity.item(),
+				identity == null ? null : identity.weaponType(),
+				Boolean.valueOf(hasNaturalSprinter(playerPatch)),
+				Boolean.valueOf(ModCompat.isWomLoaded()),
+				Boolean.valueOf(profile.animation() != null),
 				fallback,
+				defaultSprintFamilyForWomAnimation(currentBaseAnimation(playerPatch)),
+				defaultSprintFamilyForWomAnimation(profile.animation()),
 				assetName(profile.animation()),
 				assetName(profile.leftStepAnimation()),
 				assetName(profile.rightStepAnimation()),
@@ -678,7 +1290,8 @@ public final class NaturalSprinterFastRunHandler {
 				Boolean.valueOf(profile.runPose().enabled()),
 				Float.valueOf(profile.runPose().scale()),
 				Float.valueOf(profile.runPose().blendTicks()),
-				Boolean.valueOf(profile.proceduralStepPulse()));
+				Boolean.valueOf(profile.proceduralStepPulse()),
+				Boolean.valueOf(profile.weaponRunFallback()));
 	}
 
 	private static void logFastRunAnimationSwap(
@@ -687,22 +1300,125 @@ public final class NaturalSprinterFastRunHandler {
 			SprintProfile profile,
 			AssetAccessor<?> currentAnimation,
 			AssetAccessor<? extends StaticAnimation> targetAnimation,
-			boolean swapped) {
+			AssetAccessor<?> previousTarget,
+			AssetAccessor<?> previousFastRunAnimation,
+			boolean swapped,
+			boolean installed,
+			boolean itemChanged,
+			boolean weaponTypeChanged,
+			boolean targetChanged,
+			boolean currentFastRunMotion) {
 		if (!debugStepPulse()) {
 			return;
 		}
 
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase={} tick={} currentAnimation={} targetRun={} customRun={} fallback={} primaryCurrent={} acceptedCurrent={} swapped={} elapsed={}",
+				"[EPM/NaturalSprinterStepPulse] phase={} tick={} currentAnimation={} targetRun={} previousTarget={} previousFastRun={} customRun={} fallback={} primaryCurrent={} ownedCurrent={} acceptedCurrent={} installed={} swapped={} itemChanged={} weaponTypeChanged={} targetChanged={} currentFastRunMotion={} elapsed={} item={} weaponType={}",
 				phase,
 				Integer.valueOf(playerTick(playerPatch)),
 				assetName(currentAnimation),
 				assetName(targetAnimation),
+				assetName(previousTarget),
+				assetName(previousFastRunAnimation),
 				Boolean.valueOf(profile.customRunAnimation()),
 				profile.fallback(),
 				Boolean.valueOf(isAnyPrimarySprintAnimation(currentAnimation)),
-				Boolean.valueOf(profile.acceptsCurrentAnimation(currentAnimation)),
+				Boolean.valueOf(isFastRunOwnedAnimation(playerPatch, currentAnimation, previousTarget, previousFastRunAnimation)),
+				Boolean.valueOf(profile.acceptsCurrentAnimation(currentAnimation) || isSameAnimation(currentAnimation, targetAnimation)),
+				Boolean.valueOf(installed),
 				Boolean.valueOf(swapped),
+				Boolean.valueOf(itemChanged),
+				Boolean.valueOf(weaponTypeChanged),
+				Boolean.valueOf(targetChanged),
+				Boolean.valueOf(currentFastRunMotion),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+				mainHandItemId(playerPatch),
+				weaponTypeId(playerPatch));
+	}
+
+	private static void logStaleNoWomWeaponRunFallback(PlayerPatch<?> playerPatch, FastRunIdentity identity, SprintProfile profile) {
+		if (!debugStepPulse()) {
+			return;
+		}
+
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase=stale_no_wom_weapon_run_fallback tick={} item={} weaponType={} ordinaryRun={} previousTarget={} previousFastRun={} fallbackRun={} currentAnimation={} elapsed={}",
+				Integer.valueOf(playerTick(playerPatch)),
+				identity == null ? null : identity.item(),
+				identity == null ? null : identity.weaponType(),
+				assetName(identity == null ? null : identity.ordinaryRunAnimation()),
+				assetName(LAST_FAST_RUN_TARGET.get(playerPatch)),
+				assetName(livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN)),
+				assetName(profile == null ? null : profile.animation()),
+				assetName(currentBaseAnimation(playerPatch)),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
+	}
+
+	private static void logFastRunNoOverride(PlayerPatch<?> playerPatch, SprintProfile profile) {
+		if (!debugStepPulse()) {
+			return;
+		}
+
+		int tick = playerTick(playerPatch);
+		Integer lastLogTick = LAST_NO_OVERRIDE_LOG_TICKS.get(playerPatch);
+		if (lastLogTick != null && tick - lastLogTick.intValue() < 20) {
+			return;
+		}
+		LAST_NO_OVERRIDE_LOG_TICKS.put(playerPatch, Integer.valueOf(tick));
+
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase=no_override tick={} item={} weaponType={} currentAnimation={} elapsed={} hasNaturalSprinter={} womLoaded={} procedural={} reason=no_matching_datapack_or_failed_animation_sets",
+				Integer.valueOf(tick),
+				mainHandItemId(playerPatch),
+				weaponTypeId(playerPatch),
+				assetName(currentBaseAnimation(playerPatch)),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+				Boolean.valueOf(hasNaturalSprinter(playerPatch)),
+				Boolean.valueOf(ModCompat.isWomLoaded()),
+				Boolean.valueOf(profile.proceduralStepPulse()));
+	}
+
+	private static void logStaleCombatAnimationRecovery(
+			PlayerPatch<?> playerPatch,
+			AssetAccessor<?> currentAnimation,
+			int staleTicks,
+			String result) {
+		if (!debugStepPulse()) {
+			return;
+		}
+
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase=stale_combat_recovery tick={} result={} staleTicks={} currentAnimation={} elapsed={} total={} ended={} item={} weaponType={} currentMotionIdleOrInaction={}",
+				Integer.valueOf(playerTick(playerPatch)),
+				result,
+				Integer.valueOf(staleTicks),
+				assetName(currentAnimation),
+				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+				Float.valueOf(AnimationQuery.currentAnimationTotalTime(playerPatch)),
+				Boolean.valueOf(AnimationQuery.currentAnimationEnded(playerPatch)),
+				mainHandItemId(playerPatch),
+				weaponTypeId(playerPatch),
+				Boolean.valueOf(currentMotionIsIdleOrInaction(playerPatch)));
+	}
+
+	private static void logStepBudget(PlayerPatch<?> playerPatch, String reason, String budget, boolean consumed, String result, int remainingCooldownTicks) {
+		if (!debugStepPulse()) {
+			return;
+		}
+
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase=step_budget tick={} reason={} budget={} consumed={} result={} remainingCooldownTicks={} item={} weaponType={} hasNaturalSprinter={} womLoaded={} currentAnimation={} elapsed={}",
+				Integer.valueOf(playerTick(playerPatch)),
+				reason,
+				budget,
+				Boolean.valueOf(consumed),
+				result,
+				Integer.valueOf(remainingCooldownTicks),
+				mainHandItemId(playerPatch),
+				weaponTypeId(playerPatch),
+				Boolean.valueOf(hasNaturalSprinter(playerPatch)),
+				Boolean.valueOf(ModCompat.isWomLoaded()),
+				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
 	}
 
@@ -804,6 +1520,24 @@ public final class NaturalSprinterFastRunHandler {
 		}
 	}
 
+	private record FastRunIdentity(
+			ResourceLocation item,
+			ResourceLocation weaponType,
+			AssetAccessor<? extends StaticAnimation> ordinaryRunAnimation,
+			ResourceLocation ordinaryRunAnimationId) {
+	}
+
+	private record SprintProfileCacheKey(
+			ResourceLocation item,
+			ResourceLocation weaponType,
+			ResourceLocation ordinaryRunAnimationId,
+			boolean noWomProceduralWeaponFastRun,
+			NaturalSprinterFastRunAnimationOverrides.RuleData override) {
+	}
+
+	private record CachedSprintProfile(SprintProfileCacheKey key, SprintProfile profile) {
+	}
+
 	private enum StartupStepSource {
 		NONE(NaturalSprinterFastRunStep.Trigger.MANUAL, false),
 		COMBAT_MASTERY_ACTIVE_SUPPRESS(NaturalSprinterFastRunStep.Trigger.MANUAL, false),
@@ -838,8 +1572,50 @@ public final class NaturalSprinterFastRunHandler {
 			boolean startupStepEffects,
 			boolean manualStepEffects,
 			NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
-			boolean proceduralStepPulse) {
+			boolean proceduralStepPulse,
+			int animationSetPriority,
+			boolean weaponRunFallback) {
+		private static SprintProfile noOverride() {
+			return new SprintProfile(
+					null,
+					null,
+					null,
+					null,
+					false,
+					false,
+					false,
+					false,
+					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					false,
+					0,
+					false);
+		}
+
+		private static SprintProfile defaultFastRun(AssetAccessor<? extends StaticAnimation> animation) {
+			if (animation == null) {
+				return noOverride();
+			}
+
+			return new SprintProfile(
+					null,
+					animation,
+					null,
+					null,
+					false,
+					false,
+					false,
+					false,
+					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					false,
+					0,
+					false);
+		}
+
 		private static SprintProfile defaultProfile(DefaultSprintFamily family) {
+			if (family == null || family.animation() == null) {
+				return noOverride();
+			}
+
 			return new SprintProfile(
 					family,
 					family.animation(),
@@ -850,21 +1626,100 @@ public final class NaturalSprinterFastRunHandler {
 					true,
 					false,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					false,
+					0,
 					false);
 		}
 
-		private static SprintProfile custom(NaturalSprinterFastRunAnimationOverrides.RuleData rule, DefaultSprintFamily fallback) {
-			AssetAccessor<? extends StaticAnimation> animation = NaturalSprinterFastRunAnimationOverrides.resolveAnimation(rule.runAnimation());
+		private static SprintProfile weaponRunFallback(
+				PlayerPatch<?> playerPatch,
+				DefaultSprintFamily fallback,
+				boolean startupStepEffects,
+				boolean manualStepEffects,
+				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				int animationSetPriority) {
+			AssetAccessor<? extends StaticAnimation> animation = ordinaryRunAnimation(playerPatch);
+			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, animationSetPriority);
+		}
+
+		private static SprintProfile weaponRunFallback(
+				FastRunIdentity identity,
+				DefaultSprintFamily fallback,
+				boolean startupStepEffects,
+				boolean manualStepEffects,
+				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				int animationSetPriority) {
+			AssetAccessor<? extends StaticAnimation> animation = ordinaryRunAnimation(identity);
+			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, animationSetPriority);
+		}
+
+		private static SprintProfile weaponRunFallback(
+				AssetAccessor<? extends StaticAnimation> animation,
+				DefaultSprintFamily fallback,
+				boolean startupStepEffects,
+				boolean manualStepEffects,
+				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				int animationSetPriority) {
+			if (animation == null) {
+				return noOverride();
+			}
+
+			NaturalSprinterProceduralStepPulse.installSustainedFastRunPose(animation);
+			NaturalSprinterProceduralStepPulse.install(animation);
+			return new SprintProfile(
+					fallback,
+					animation,
+					null,
+					null,
+					false,
+					true,
+					startupStepEffects,
+					manualStepEffects,
+					runPose,
+					true,
+					animationSetPriority,
+					true);
+		}
+
+		private static SprintProfile custom(
+				NaturalSprinterFastRunAnimationOverrides.RuleData rule,
+				DefaultSprintFamily fallback,
+				PlayerPatch<?> playerPatch) {
+			for (NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet : rule.animationSets()) {
+				SprintProfile profile = custom(rule, animationSet, fallback);
+				if (profile != null) {
+					return profile;
+				}
+			}
+			if (fallback == null) {
+				return noOverride();
+			}
+			return weaponRunFallback(playerPatch, fallback, rule.startupStepEffects(), rule.manualStepEffects(), rule.runPose(), 0);
+		}
+
+		private static SprintProfile custom(
+				NaturalSprinterFastRunAnimationOverrides.RuleData rule,
+				NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet,
+				DefaultSprintFamily fallback) {
+			DefaultSprintFamily defaultSprintFamily = defaultSprintFamilyForRun(animationSet.runAnimation());
+			if (defaultSprintFamily != null) {
+				return defaultProfile(defaultSprintFamily);
+			}
+
+			AssetAccessor<? extends StaticAnimation> animation = NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.runAnimation());
 			boolean customRunAnimation = animation != null;
-			boolean hasLeftStep = rule.leftStepAnimation() != null;
-			boolean hasRightStep = rule.rightStepAnimation() != null;
-			AssetAccessor<? extends StaticAnimation> leftStepAnimation = hasLeftStep
-					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(rule.leftStepAnimation())
+			boolean hasStepAnimations = animationSet.leftStepAnimation() != null && animationSet.rightStepAnimation() != null;
+			AssetAccessor<? extends StaticAnimation> leftStepAnimation = hasStepAnimations
+					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.leftStepAnimation())
 					: null;
-			AssetAccessor<? extends StaticAnimation> rightStepAnimation = hasRightStep
-					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(rule.rightStepAnimation())
+			AssetAccessor<? extends StaticAnimation> rightStepAnimation = hasStepAnimations
+					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.rightStepAnimation())
 					: null;
-			boolean proceduralStepPulse = animation != null && !hasLeftStep && !hasRightStep;
+			if (animation == null || hasStepAnimations && (leftStepAnimation == null || rightStepAnimation == null)) {
+				return null;
+			}
+
+			boolean proceduralStepPulse = !hasStepAnimations;
 			if (animation != null) {
 				NaturalSprinterProceduralStepPulse.installSustainedFastRunPose(animation);
 			}
@@ -881,25 +1736,40 @@ public final class NaturalSprinterFastRunHandler {
 					rule.startupStepEffects(),
 					rule.manualStepEffects(),
 					rule.runPose(),
-					proceduralStepPulse);
+					proceduralStepPulse,
+					animationSet.priority(),
+					false);
+		}
+
+		private static DefaultSprintFamily defaultSprintFamilyForRun(ResourceLocation runAnimation) {
+			if (!ModCompat.isWomLoaded()) {
+				return null;
+			}
+			if (NaturalSprinterFastRunAnimationOverrides.isWomDefaultWeaponRun(runAnimation)) {
+				return DefaultSprintFamily.WEAPON;
+			}
+			if (NaturalSprinterFastRunAnimationOverrides.isWomDefaultBarehandRun(runAnimation)) {
+				return DefaultSprintFamily.BAREHAND;
+			}
+			return null;
 		}
 
 		private boolean acceptsCurrentAnimation(AssetAccessor<?> currentAnimation) {
-			return WomAnimationRefs.isAny(currentAnimation,
-					animation,
-					leftStepAnimation,
-					rightStepAnimation,
-					WomAnimationRefs.bipedSprintLeftStep(),
-					WomAnimationRefs.bipedSprintRightStep(),
-					WomAnimationRefs.bipedSprintLeftStepBarehand(),
-					WomAnimationRefs.bipedSprintRightStepBarehand(),
-					WomAnimationRefs.bipedSprintSlide(),
-					WomAnimationRefs.bipedSprintJump(),
-					WomAnimationRefs.bipedSprintStop());
+			return isSameAnimation(currentAnimation, animation)
+					|| isSameAnimation(currentAnimation, leftStepAnimation)
+					|| isSameAnimation(currentAnimation, rightStepAnimation)
+					|| WomAnimationRefs.isAny(currentAnimation,
+							WomAnimationRefs.bipedSprintLeftStep(),
+							WomAnimationRefs.bipedSprintRightStep(),
+							WomAnimationRefs.bipedSprintLeftStepBarehand(),
+							WomAnimationRefs.bipedSprintRightStepBarehand(),
+							WomAnimationRefs.bipedSprintSlide(),
+							WomAnimationRefs.bipedSprintJump(),
+							WomAnimationRefs.bipedSprintStop());
 		}
 
 		private boolean isPrimaryAnimation(AssetAccessor<?> currentAnimation) {
-			return WomAnimationRefs.isAny(currentAnimation, animation);
+			return isSameAnimation(currentAnimation, animation);
 		}
 	}
 

@@ -42,11 +42,21 @@ public final class NaturalSprinterFastRunStep {
 			AssetAccessor<? extends StaticAnimation> animation,
 			boolean startupEffects,
 			boolean manualEffects) {
-		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, false, false, startupEffects, manualEffects);
+		return configuredAnimation(animation, startupEffects, manualEffects, false);
+	}
+	public static NaturalSprinterFastRunStep configuredAnimation(
+			AssetAccessor<? extends StaticAnimation> animation,
+			boolean startupEffects,
+			boolean manualEffects,
+			boolean rightStep) {
+		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, rightStep, false, startupEffects, manualEffects);
 	}
 
 	public static NaturalSprinterFastRunStep defaultAnimation(AssetAccessor<? extends StaticAnimation> animation) {
-		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, false, true, true, false);
+		return defaultAnimation(animation, false);
+	}
+	public static NaturalSprinterFastRunStep defaultAnimation(AssetAccessor<? extends StaticAnimation> animation, boolean rightStep) {
+		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, rightStep, true, true, false);
 	}
 	public static NaturalSprinterFastRunStep procedural(AssetAccessor<? extends StaticAnimation> runAnimation, boolean rightStep) {
 		return runAnimation == null ? NONE : new NaturalSprinterFastRunStep(null, runAnimation, true, rightStep, false, true, false);

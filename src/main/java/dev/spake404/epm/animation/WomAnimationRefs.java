@@ -16,8 +16,7 @@ public final class WomAnimationRefs {
 	}
 
 	public static AssetAccessor<? extends StaticAnimation> bipedSprintBarehand() {
-		AssetAccessor<? extends StaticAnimation> animation = WomCompatBridge.instance().bipedSprintBarehand();
-		return animation != null ? animation : epicParCoolFastRun();
+		return WomCompatBridge.instance().bipedSprintBarehand();
 	}
 
 	public static AssetAccessor<? extends StaticAnimation> bipedSprintStop() {

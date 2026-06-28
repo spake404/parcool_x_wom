@@ -1,0 +1,46 @@
+{
+  "enabled": false,
+  "main_priority": 100,
+  "match": {
+    "type": "epicfight:greatsword"
+  },
+  "animations": [
+    {
+      "priority": 200,
+      "run": "examplemod:biped/fastrun/greatsword_run",
+      "left_step": "examplemod:biped/fastrun/greatsword_left_step",
+      "right_step": "examplemod:biped/fastrun/greatsword_right_step"
+    },
+    {
+      "priority": 100,
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 0,
+      "run": "epicfight:biped/living/run_greatsword"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon",
+  "_comment": [
+    "This disabled file documents the FastRun datapack format.",
+    "Set enabled to true and change match.type or match.item to use it.",
+    "main_priority chooses which rule wins when multiple files match the same item or type.",
+    "animations[].priority chooses which animation set is tried first inside this rule.",
+    "If a set defines left_step and right_step, both step animations and run must resolve; otherwise the whole set is skipped.",
+    "If a set only defines run, the mod uses that run animation with procedural step pulses.",
+    "run wom:biped/skill/biped_sprint means use this mod's default WOM weapon sprint family.",
+    "run wom:biped/skill/biped_sprint_barehand means use this mod's default WOM barehand sprint family.",
+    "If WOM is not installed, WOM default sprint entries are skipped and the next animations[] entry is tried.",
+    "If no rule matches, no-WOM FastRun uses the configured noWomProceduralWeaponFastRun fallback or EpicParCool's default FastRun animation.",
+    "FastRun step no longer requires WOM Natural Sprinter. With Natural Sprinter available it consumes that step resource; otherwise it uses the genericFastRunStepCooldownTicks config."
+  ]
+}

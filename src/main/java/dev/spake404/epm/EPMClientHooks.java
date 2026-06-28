@@ -880,8 +880,7 @@ public final class EPMClientHooks {
 		}
 
 		if (!canKeepNaturalSprinterStepFastRun(player, IStamina.get(player))
-				|| !NaturalSprinterState.hasNaturalSprinter(playerPatch)
-				|| !NaturalSprinterState.consumeStep(playerPatch)) {
+				|| !NaturalSprinterFastRunHandler.consumeFastRunStepBudget(playerPatch, "pending_step_fast_run")) {
 			clearNaturalSprinterStepFastRun(player);
 			return true;
 		}
@@ -937,7 +936,6 @@ public final class EPMClientHooks {
 		if (player == null
 				|| !player.isLocalPlayer()
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
-				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()
 				|| stamina == null
@@ -946,7 +944,6 @@ public final class EPMClientHooks {
 				|| !player.onGround()
 				|| hasHardVaultFastRunBlocker(player)
 				|| shouldStopFastRunForGlider(player)
-				|| !hasNaturalSprinter(player)
 				|| !hasNaturalSprinterStepFastRunMovementInput()) {
 			return false;
 		}
@@ -989,7 +986,6 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !ModCompat.isWomLoaded()
 				|| !EPMConfig.naturalSprinterAnimations()) {
 			return;
 		}
@@ -3062,6 +3058,7 @@ public final class EPMClientHooks {
 		}
 		tickParCoolWallJumpGliderInput(event.player);
 		NaturalSprinterFastRunHandler.tickManualFastRunStepKey(event.player);
+		NaturalSprinterFastRunHandler.tickNoWomStaleCombatAnimationRecovery(event.player);
 		restoreClingMoveClimbUpVelocity(event.player, true);
 		tickEpicParCoolClimbUpAirControl(event.player);
 		WomSpiderWallHooks.tickYawLock(event.player);
@@ -3251,7 +3248,7 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (playerPatch == null || !NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
+		if (playerPatch == null) {
 			return;
 		}
 
@@ -3304,7 +3301,7 @@ public final class EPMClientHooks {
 		}
 
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (playerPatch != null && NaturalSprinterState.hasNaturalSprinter(playerPatch) && !isPhantomAscentAirborneLocked(player)) {
+		if (playerPatch != null && !isPhantomAscentAirborneLocked(player)) {
 			queuePendingFastRunDash(playerPatch, delayedDash, NaturalSprinterFastRunDashSource.BREAKFALL_DELAYED_AUTO);
 		}
 	}
@@ -3428,14 +3425,14 @@ public final class EPMClientHooks {
 			return;
 		}
 
-		if (playerPatch == null || !NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
+		if (playerPatch == null) {
 			return;
 		}
 		if (!isParCoolFastRunDoing(player)) {
 			requestNaturalSprinterStepFastRun(player, deferred);
 			return;
 		}
-		if (!NaturalSprinterState.consumeStep(playerPatch)) {
+		if (!NaturalSprinterFastRunHandler.consumeFastRunStepBudget(playerPatch, "deferred_dodge_step")) {
 			return;
 		}
 
@@ -4195,7 +4192,7 @@ public final class EPMClientHooks {
 
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase={} reason={} trigger={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} startupEffects={} manualEffects={} stepAnimation={} currentAnimation={} elapsed={} naturalSprinterAnimations={} fastRunStartStepAnimation={} autoFastRunDash={}",
+				"[EPM/NaturalSprinterStepPulse] phase={} reason={} trigger={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} startupEffects={} manualEffects={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} elapsed={} naturalSprinterAnimations={} fastRunStartStepAnimation={} autoFastRunDash={}",
 				phase,
 				reason,
 				trigger == null ? "unspecified" : trigger,
@@ -4207,6 +4204,7 @@ public final class EPMClientHooks {
 				Boolean.valueOf(step != null && step.startupEffects()),
 				Boolean.valueOf(step != null && step.manualEffects()),
 				step == null ? "null" : assetName(step.animation()),
+				step == null ? "null" : assetName(step.proceduralRunAnimation()),
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
 				Boolean.valueOf(EPMConfig.naturalSprinterAnimations()),

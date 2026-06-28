@@ -28,6 +28,7 @@
     "CatLeapMixin",
     "ChargeJumpMixin",
     "ClimbUpDebugMixin",
+    "ClientAnimatorAccessor",
     "ClingToCliffDebugMixin",
     "CombatMasteryIIMixin",
     "ControlEngineAccessor",

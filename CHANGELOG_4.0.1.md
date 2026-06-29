@@ -1,5 +1,10 @@
 # Epic ParCool: Momentum 4.0.1 Changelog
 
+## 4.0.1 Hotfix
+
+- Vault 后自动恢复 FastRun 时，不再触发免费的 Natural Sprinter 起步 Step；FastRun 恢复和连段窗口仍然保留。
+- 这个抑制只作用于 Vault hold/grace 恢复窗口，不影响正常按 FastRun 触发的起步 Step，也不影响 R 键手动 FastRun Step。
+
 ## 中文
 
 ### Vault / FastRun 稳定性

@@ -8,9 +8,9 @@ import net.minecraftforge.common.ForgeConfigSpec;
 
 public final class EPMConfig {
 	public static final ForgeConfigSpec SPEC;
-	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_ANIMATIONS;
+	private static final ForgeConfigSpec.BooleanValue CUSTOM_FAST_RUN_ANIMATIONS;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_MANUAL_STEP;
-	private static final ForgeConfigSpec.BooleanValue NO_WOM_PROCEDURAL_WEAPON_FAST_RUN;
+	private static final ForgeConfigSpec.BooleanValue AUTO_GENERATE_FAST_RUN_FROM_CURRENT_WEAPON;
 	private static final ForgeConfigSpec.IntValue GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS;
 	private static final ForgeConfigSpec.EnumValue<StepDodgeConflictMode> NATURAL_SPRINTER_STEP_DODGE_CONFLICT_MODE;
 	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_LONG_PRESS_TICKS;
@@ -49,6 +49,7 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.BooleanValue DEBUG_GLIDER_STATE;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_NATURAL_SPRINTER_FAST_RUN_STEP_STATE;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_EXHAUSTION_POSE_STATE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_EPIC_FIGHT_ANIMATION_HUD;
 	private static final ForgeConfigSpec.BooleanValue AQUA_MANEUVRE_FAST_SWIM_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_AQUA_MANEUVRE_FAST_SWIM_STATE;
 	private static final ForgeConfigSpec.BooleanValue EPICFIGHTX_COMBAT_MASTERY_FAST_RUN_CONTROL_COMPATIBILITY;
@@ -63,26 +64,26 @@ public final class EPMConfig {
 	static {
 		ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 		builder.push("FastRun");
-		NATURAL_SPRINTER_ANIMATIONS = builder
-				.translation("epic_parcool_momentum.configuration.naturalSprinterAnimations")
+		CUSTOM_FAST_RUN_ANIMATIONS = builder
+				.translation("epic_parcool_momentum.configuration.customFastRunAnimations")
 				.comment(
-						"true: enables this mod's FastRun animation replacement and related step/jump visuals.",
+						"true: enables this mod's custom FastRun animation replacement and related step/jump visuals.",
 						"false: keeps EpicParCool's default FastRun animation behavior and disables the R-key FastRun step.")
-				.define("naturalSprinterAnimations", true);
+				.define("customFastRunAnimations", true);
 		NATURAL_SPRINTER_MANUAL_STEP = builder
 				.translation("epic_parcool_momentum.configuration.naturalSprinterManualStep")
 				.comment(
 						"true: pressing the configured FastRun Step key can trigger a step during EpicParCool FastRun.",
 						"When WOM Natural Sprinter is available, its step resource is consumed. Otherwise this mod uses a generic cooldown.",
-						"This only works when naturalSprinterAnimations is also true.")
+						"This only works when customFastRunAnimations is also true.")
 				.define("naturalSprinterManualStep", true);
-		NO_WOM_PROCEDURAL_WEAPON_FAST_RUN = builder
-				.translation("epic_parcool_momentum.configuration.noWomProceduralWeaponFastRun")
+		AUTO_GENERATE_FAST_RUN_FROM_CURRENT_WEAPON = builder
+				.translation("epic_parcool_momentum.configuration.autoGenerateFastRunFromCurrentWeapon")
 				.comment(
-						"true: when WOM is not installed and no datapack FastRun rule matches the held weapon, uses the weapon's Epic Fight RUN animation as a procedural FastRun base.",
+						"true: when WOM is not installed and no datapack FastRun rule matches the current weapon, automatically generates FastRun from the weapon's Epic Fight RUN animation.",
 						"false: unmatched no-WOM weapons use EpicParCool's default FastRun animation.",
 						"If the weapon RUN animation cannot be resolved, this option falls back to EpicParCool's default FastRun animation.")
-				.define("noWomProceduralWeaponFastRun", true);
+				.define("autoGenerateFastRunFromCurrentWeapon", true);
 		GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS = builder
 				.translation("epic_parcool_momentum.configuration.genericFastRunStepCooldownTicks")
 				.comment(
@@ -180,7 +181,7 @@ public final class EPMConfig {
 				.define("demolitionLeapAirDoubleJump", true);
 		DEMOLITION_LEAP_CHARGE_JUMP_ANIMATION = builder
 				.translation("epic_parcool_momentum.configuration.demolitionLeapChargeJumpAnimation")
-				.comment("true: before learning Demolition Leap, ParCool Charge Jump charging uses Demolition Leap's charging animation in Epic Fight mode. After learning Demolition Leap, Shift alone shows no charging animation — only Shift+Space triggers the skill.")
+				.comment("true: before learning Demolition Leap, ParCool Charge Jump charging uses Demolition Leap's charging animation in Epic Fight mode. After learning Demolition Leap, Shift alone shows no charging animation - only Shift+Space triggers the skill.")
 				.define("demolitionLeapChargeJumpAnimation", true);
 		builder.pop();
 
@@ -346,6 +347,10 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.debugExhaustionPoseState")
 				.comment("Temporary debug option. true: logs low-stamina exhaustion pose diagnostics.")
 				.define("debugExhaustionPoseState", false);
+		DEBUG_EPIC_FIGHT_ANIMATION_HUD = builder
+				.translation("epic_parcool_momentum.configuration.debugEpicFightAnimationHud")
+				.comment("Temporary debug option. true: renders the current Epic Fight base animation above the hotbar.")
+				.define("debugEpicFightAnimationHud", false);
 		DEBUG_CAMERA_EVENT_STATE = builder
 				.translation("epic_parcool_momentum.configuration.debugCameraEventState")
 				.comment("Temporary debug option. true: logs camera angle event diagnostics for intermittent camera shake investigation.")
@@ -367,16 +372,16 @@ public final class EPMConfig {
 		return AUTO_FAST_RUN_DASH.get();
 	}
 
-	public static boolean naturalSprinterAnimations() {
-		return NATURAL_SPRINTER_ANIMATIONS.get();
+	public static boolean customFastRunAnimations() {
+		return CUSTOM_FAST_RUN_ANIMATIONS.get();
 	}
 
 	public static boolean naturalSprinterManualStep() {
 		return NATURAL_SPRINTER_MANUAL_STEP.get();
 	}
 
-	public static boolean noWomProceduralWeaponFastRun() {
-		return NO_WOM_PROCEDURAL_WEAPON_FAST_RUN.get();
+	public static boolean autoGenerateFastRunFromCurrentWeapon() {
+		return AUTO_GENERATE_FAST_RUN_FROM_CURRENT_WEAPON.get();
 	}
 
 	public static int genericFastRunStepCooldownTicks() {
@@ -567,6 +572,14 @@ public final class EPMConfig {
 
 	public static boolean debugExhaustionPoseState() {
 		return DEBUG_EXHAUSTION_POSE_STATE.get();
+	}
+
+	public static boolean debugEpicFightAnimationHud() {
+		try {
+			return DEBUG_EPIC_FIGHT_ANIMATION_HUD.get();
+		} catch (IllegalStateException ignored) {
+			return false;
+		}
 	}
 
 	public static boolean debugCameraEventState() {

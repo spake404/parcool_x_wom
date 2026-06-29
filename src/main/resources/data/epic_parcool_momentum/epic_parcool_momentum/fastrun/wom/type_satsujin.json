@@ -1,0 +1,34 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "wom:satsujin"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 100,
+      "style": "SHEATH",
+      "run": "wom:biped/living/katana_sheathed_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "step_pose": {
+    "scale": 0.7,
+    "duration_ticks": 10.0,
+    "forward_impulse": 0.8
+  },
+  "fallback": "weapon"
+}

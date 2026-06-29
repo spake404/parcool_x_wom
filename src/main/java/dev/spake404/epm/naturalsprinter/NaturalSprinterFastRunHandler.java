@@ -40,6 +40,7 @@ import yesman.epicfight.api.forgeevent.InitAnimatorEvent;
 import yesman.epicfight.world.capabilities.EpicFightCapabilities;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 import yesman.epicfight.world.capabilities.item.CapabilityItem;
+import yesman.epicfight.world.capabilities.item.Style;
 
 public final class NaturalSprinterFastRunHandler {
 	private static final int FAST_RUN_ANIMATION_REPLAY_COOLDOWN_TICKS = 2;
@@ -55,7 +56,7 @@ public final class NaturalSprinterFastRunHandler {
 	private static final WeakHashMap<PlayerPatch<?>, ResourceLocation> LAST_FAST_RUN_WEAPON_TYPE = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Integer> STALE_COMBAT_ANIMATION_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Integer> LAST_STALE_COMBAT_RECOVERY_TICK = new WeakHashMap<>();
-	private static final WeakHashMap<PlayerPatch<?>, CachedSprintProfile> SPRINT_PROFILE_CACHE = new WeakHashMap<>();
+	private static final WeakHashMap<PlayerPatch<?>, Integer> NO_WOM_RUN_READ_DELAY_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> MANUAL_FAST_RUN_STEP_KEY_HELD = new WeakHashMap<>();
 	private static TaczGunTypeResolver taczGunTypeResolver;
 	private static TaczReloadStateResolver taczReloadStateResolver;
@@ -66,7 +67,7 @@ public final class NaturalSprinterFastRunHandler {
 	public static void registerFastRunAnimation(InitAnimatorEvent event) {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| !ModCompat.isWomLoaded()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			return;
 		}
 
@@ -96,7 +97,7 @@ public final class NaturalSprinterFastRunHandler {
 			return;
 		}
 
-		if (!EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMConfig.customFastRunAnimations()) {
 			clearFastRunState(playerPatch);
 			event.setMotion(LivingMotions.RUN);
 			return;
@@ -153,7 +154,7 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		if (fromStepDodgeConflict && !fastRunDoing) {
-			return EPMClientHooks.requestNaturalSprinterStepFastRun(player, step);
+			return EPMClientHooks.requestNaturalSprinterStepFastRun(player, step, "step_dodge_conflict_not_fastrun");
 		}
 
 		if (!consumeFastRunStepBudget(playerPatch, fromStepDodgeConflict ? "manual_deferred_release" : "manual")) {
@@ -180,7 +181,7 @@ public final class NaturalSprinterFastRunHandler {
 		return player != null
 				&& player.isLocalPlayer()
 				&& EPMParCoolGate.allowCrossModSkillCompat()
-				&& EPMConfig.naturalSprinterAnimations()
+				&& EPMConfig.customFastRunAnimations()
 				&& EPMConfig.naturalSprinterManualStep()
 				&& canManualFastRunStep(player)
 				&& !isTaczReloading(player);
@@ -192,7 +193,7 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()) {
 			MANUAL_FAST_RUN_STEP_KEY_HELD.remove(player);
 			return;
@@ -231,7 +232,7 @@ public final class NaturalSprinterFastRunHandler {
 				|| ModCompat.isWomLoaded()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			return;
 		}
 
@@ -280,7 +281,7 @@ public final class NaturalSprinterFastRunHandler {
 		LAST_FAST_RUN_ITEM.remove(playerPatch);
 		LAST_FAST_RUN_WEAPON_TYPE.remove(playerPatch);
 		STALE_COMBAT_ANIMATION_TICKS.remove(playerPatch);
-		SPRINT_PROFILE_CACHE.remove(playerPatch);
+		NO_WOM_RUN_READ_DELAY_TICKS.remove(playerPatch);
 	}
 
 	private static void applyFastRunAnimation(PlayerPatch<?> playerPatch) {
@@ -374,7 +375,7 @@ public final class NaturalSprinterFastRunHandler {
 	}
 
 	private static void triggerNaturalSprinterDashOnFastRunStart(PlayerPatch<?> playerPatch, boolean startupStepHandled) {
-		if (!EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMConfig.customFastRunAnimations()) {
 			clearFastRunState(playerPatch);
 			return;
 		}
@@ -397,7 +398,7 @@ public final class NaturalSprinterFastRunHandler {
 	}
 
 	private static StartupStepSource fastRunStartStepSource(PlayerPatch<?> playerPatch, boolean wasFastRunActive) {
-		if (!EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMConfig.customFastRunAnimations()) {
 			return StartupStepSource.NONE;
 		}
 
@@ -405,6 +406,9 @@ public final class NaturalSprinterFastRunHandler {
 			return StartupStepSource.NONE;
 		}
 
+		if (EPMClientHooks.shouldSuppressFastRunStartStepAfterVault(playerPatch)) {
+			return StartupStepSource.VAULT_FAST_RUN_RESTORE_SUPPRESS;
+		}
 		if (shouldTriggerCombatMasteryHandoffDash(playerPatch)) {
 			return StartupStepSource.COMBAT_MASTERY_HANDOFF;
 		}
@@ -507,10 +511,15 @@ public final class NaturalSprinterFastRunHandler {
 
 		AssetAccessor<? extends StaticAnimation> animation = rightStep ? profile.rightStepAnimation() : profile.leftStepAnimation();
 		if (animation != null) {
-			return NaturalSprinterFastRunStep.configuredAnimation(animation, profile.startupStepEffects(), profile.manualStepEffects(), rightStep);
+			return NaturalSprinterFastRunStep.configuredAnimation(
+					animation,
+					profile.startupStepEffects(),
+					profile.manualStepEffects(),
+					rightStep,
+					profile.stepPose());
 		}
 		if (profile.proceduralStepPulse()) {
-			return NaturalSprinterFastRunStep.procedural(profile.animation(), rightStep);
+			return NaturalSprinterFastRunStep.procedural(profile.animation(), rightStep, profile.stepPose());
 		}
 		return NaturalSprinterFastRunStep.none();
 	}
@@ -531,7 +540,7 @@ public final class NaturalSprinterFastRunHandler {
 
 		AssetAccessor<? extends StaticAnimation> animation = rightStep ? family.rightStepAnimation() : family.leftStepAnimation();
 		NaturalSprinterFastRunStep step = NaturalSprinterFastRunStep.defaultAnimation(animation, rightStep);
-		logDefaultStepFallback(playerPatch, "natural_sprinter_default_family", currentFamily, profileFamily, family, profile == null ? null : profile.animation(), step);
+		logDefaultStepFallback(playerPatch, "no_override_default_step_fallback", "natural_sprinter_default_family", currentFamily, profileFamily, family, profile == null ? null : profile.animation(), step);
 		return step;
 	}
 
@@ -937,7 +946,7 @@ public final class NaturalSprinterFastRunHandler {
 				identity.weaponType());
 		if (override == null) {
 			if (!ModCompat.isWomLoaded()) {
-				SprintProfile profile = chooseCachedNoWomSprintProfile(playerPatch, identity, null);
+				SprintProfile profile = chooseNoWomSprintProfile(playerPatch, identity, null);
 				logSprintProfile(playerPatch, identity, null, null, profile);
 				return profile;
 			}
@@ -949,7 +958,7 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		if (!ModCompat.isWomLoaded()) {
-			SprintProfile profile = chooseCachedNoWomSprintProfile(playerPatch, identity, override);
+			SprintProfile profile = chooseNoWomSprintProfile(playerPatch, identity, override);
 			logSprintProfile(playerPatch, identity, override, null, profile);
 			return profile;
 		}
@@ -966,41 +975,100 @@ public final class NaturalSprinterFastRunHandler {
 		return profile;
 	}
 
-	private static SprintProfile chooseCachedNoWomSprintProfile(
+	private static SprintProfile chooseNoWomSprintProfile(
 			PlayerPatch<?> playerPatch,
 			FastRunIdentity identity,
 			NaturalSprinterFastRunAnimationOverrides.RuleData override) {
-		if (override == null && isStaleNoWomWeaponRunFallback(playerPatch, identity)) {
-			SPRINT_PROFILE_CACHE.remove(playerPatch);
-			SprintProfile profile = SprintProfile.defaultFastRun(defaultFastRunAnimation());
-			logStaleNoWomWeaponRunFallback(playerPatch, identity, profile);
-			return profile;
+		if (override == null) {
+			if (EPMConfig.autoGenerateFastRunFromCurrentWeapon() && shouldDelayNoWomRunRead(playerPatch, identity)) {
+				return delayedNoWomSprintProfile(playerPatch, identity);
+			}
+
+			SprintProfile profile = noWomUnmatchedSprintProfile(identity);
+			return profile.animation() == null ? SprintProfile.defaultFastRun(defaultFastRunAnimation()) : profile;
 		}
 
-		SprintProfileCacheKey key = new SprintProfileCacheKey(
-				identity.item(),
-				identity.weaponType(),
-				identity.ordinaryRunAnimationId(),
-				EPMConfig.noWomProceduralWeaponFastRun(),
-				override);
-		CachedSprintProfile cached = SPRINT_PROFILE_CACHE.get(playerPatch);
-		if (cached != null && cached.key().equals(key)) {
-			return cached.profile();
+		DefaultSprintFamily fallback = noWomFallbackFamily(override);
+		if (noWomRuleWillUseWeaponRunFallback(override, fallback, playerPatch) && shouldDelayNoWomRunRead(playerPatch, identity)) {
+			return delayedNoWomSprintProfile(playerPatch, identity);
 		}
 
-		SprintProfile profile = override == null
-				? noWomUnmatchedSprintProfile(identity)
-				: SprintProfile.custom(override, null, playerPatch);
+		SprintProfile profile = SprintProfile.custom(override, fallback, playerPatch);
 		if (profile.animation() == null) {
 			profile = SprintProfile.defaultFastRun(defaultFastRunAnimation());
 		}
-
-		SPRINT_PROFILE_CACHE.put(playerPatch, new CachedSprintProfile(key, profile));
 		return profile;
 	}
 
-	private static boolean isStaleNoWomWeaponRunFallback(PlayerPatch<?> playerPatch, FastRunIdentity identity) {
-		if (identity == null || identity.ordinaryRunAnimation() == null) {
+	private static SprintProfile delayedNoWomSprintProfile(PlayerPatch<?> playerPatch, FastRunIdentity identity) {
+		SprintProfile delayedProfile = SprintProfile.defaultFastRun(defaultFastRunAnimation());
+		logNoWomRunReadDelay(playerPatch, identity, delayedProfile);
+		return delayedProfile;
+	}
+
+	private static DefaultSprintFamily noWomFallbackFamily(NaturalSprinterFastRunAnimationOverrides.RuleData override) {
+		if (override == null || override.fallback() == null) {
+			return null;
+		}
+		return override.fallback() == NaturalSprinterFastRunAnimationOverrides.FallbackFamily.BAREHAND
+				? DefaultSprintFamily.BAREHAND
+				: DefaultSprintFamily.WEAPON;
+	}
+
+	private static boolean noWomRuleWillUseWeaponRunFallback(
+			NaturalSprinterFastRunAnimationOverrides.RuleData override,
+			DefaultSprintFamily fallback,
+			PlayerPatch<?> playerPatch) {
+		return fallback == DefaultSprintFamily.WEAPON && !noWomRuleHasUsableExplicitAnimation(override, playerPatch);
+	}
+
+	private static boolean noWomRuleHasUsableExplicitAnimation(
+			NaturalSprinterFastRunAnimationOverrides.RuleData override,
+			PlayerPatch<?> playerPatch) {
+		String currentStyle = currentWeaponStyleName(playerPatch);
+		for (NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet : override.animationSets()) {
+			if (!animationSet.matchesStyle(currentStyle)) {
+				continue;
+			}
+			if (noWomAnimationSetIsUsable(animationSet)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean noWomAnimationSetIsUsable(NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet) {
+		if (SprintProfile.defaultSprintFamilyForRun(animationSet.runAnimation()) != null) {
+			return true;
+		}
+
+		AssetAccessor<? extends StaticAnimation> runAnimation = NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.runAnimation());
+		if (runAnimation == null) {
+			return false;
+		}
+
+		boolean hasStepAnimations = animationSet.leftStepAnimation() != null && animationSet.rightStepAnimation() != null;
+		if (!hasStepAnimations) {
+			return true;
+		}
+
+		return NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.leftStepAnimation()) != null
+				&& NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.rightStepAnimation()) != null;
+	}
+
+	private static boolean shouldDelayNoWomRunRead(PlayerPatch<?> playerPatch, FastRunIdentity identity) {
+		if (playerPatch == null || identity == null) {
+			return false;
+		}
+
+		int tick = playerTick(playerPatch);
+		Integer delayTick = NO_WOM_RUN_READ_DELAY_TICKS.get(playerPatch);
+		if (delayTick != null && delayTick.intValue() == tick) {
+			return true;
+		}
+
+		AssetAccessor<? extends StaticAnimation> previousTarget = LAST_FAST_RUN_TARGET.get(playerPatch);
+		if (previousTarget == null) {
 			return false;
 		}
 
@@ -1010,22 +1078,19 @@ public final class NaturalSprinterFastRunHandler {
 			return false;
 		}
 
-		AssetAccessor<? extends StaticAnimation> previousTarget = LAST_FAST_RUN_TARGET.get(playerPatch);
-		AssetAccessor<? extends StaticAnimation> previousFastRunAnimation = livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN);
-		return isSameAnimation(identity.ordinaryRunAnimation(), previousTarget)
-				|| isSameAnimationVariant(identity.ordinaryRunAnimation(), previousTarget)
-				|| isSameAnimation(identity.ordinaryRunAnimation(), previousFastRunAnimation)
-				|| isSameAnimationVariant(identity.ordinaryRunAnimation(), previousFastRunAnimation);
+		NO_WOM_RUN_READ_DELAY_TICKS.put(playerPatch, Integer.valueOf(tick));
+		return true;
 	}
 
 	private static SprintProfile noWomUnmatchedSprintProfile(FastRunIdentity identity) {
-		if (EPMConfig.noWomProceduralWeaponFastRun()) {
+		if (EPMConfig.autoGenerateFastRunFromCurrentWeapon()) {
 			SprintProfile profile = SprintProfile.weaponRunFallback(
 					identity,
 					null,
 					true,
 					false,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DEFAULT,
+					NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT,
 					0);
 			if (profile.animation() != null) {
 				return profile;
@@ -1119,6 +1184,22 @@ public final class NaturalSprinterFastRunHandler {
 		return NaturalSprinterFastRunAnimationOverrides.weaponTypeForItem(mainHandItemId(playerPatch));
 	}
 
+	private static String currentWeaponStyleName(PlayerPatch<?> playerPatch) {
+		try {
+			CapabilityItem mainHand = playerPatch == null ? null : playerPatch.getHoldingItemCapability(InteractionHand.MAIN_HAND);
+			Style style = mainHand == null ? null : mainHand.getStyle(playerPatch);
+			if (style == null) {
+				return null;
+			}
+
+			String name = style instanceof Enum<?> enumStyle ? enumStyle.name() : String.valueOf(style);
+			name = name.trim();
+			return name.isEmpty() ? null : name.toUpperCase(java.util.Locale.ROOT);
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
 	private static String taczGunType(ItemStack stack) {
 		if (stack == null || stack.isEmpty()) {
 			return null;
@@ -1204,6 +1285,7 @@ public final class NaturalSprinterFastRunHandler {
 
 	private static void logDefaultStepFallback(
 			PlayerPatch<?> playerPatch,
+			String phase,
 			String reason,
 			DefaultSprintFamily currentFamily,
 			DefaultSprintFamily profileFamily,
@@ -1215,16 +1297,19 @@ public final class NaturalSprinterFastRunHandler {
 		}
 
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase=no_override_default_step_fallback tick={} reason={} currentFamily={} profileFamily={} selectedFamily={} stepPresent={} rightStep={} profileRun={} stepAnimation={} currentAnimation={} elapsed={} item={} weaponType={} hasNaturalSprinter={}",
+				"[EPM/NaturalSprinterStepPulse] phase={} tick={} reason={} currentFamily={} profileFamily={} selectedFamily={} stepPresent={} procedural={} rightStep={} profileRun={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} elapsed={} item={} weaponType={} hasNaturalSprinter={}",
+				phase,
 				Integer.valueOf(playerTick(playerPatch)),
 				reason,
 				currentFamily,
 				profileFamily,
 				family,
 				Boolean.valueOf(step != null && step.isPresent()),
+				Boolean.valueOf(step != null && step.procedural()),
 				Boolean.valueOf(step != null && step.rightStep()),
 				assetName(profileRunAnimation),
 				step == null ? "null" : assetName(step.animation()),
+				step == null ? "null" : assetName(step.proceduralRunAnimation()),
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
 				mainHandItemId(playerPatch),
@@ -1255,8 +1340,12 @@ public final class NaturalSprinterFastRunHandler {
 				+ "|" + profile.runPose().enabled()
 				+ "|" + profile.runPose().scale()
 				+ "|" + profile.runPose().blendTicks()
+				+ "|" + profile.stepPose().scale()
+				+ "|" + profile.stepPose().durationTicks()
+				+ "|" + profile.stepPose().forwardImpulse()
 				+ "|" + profile.proceduralStepPulse()
-				+ "|" + profile.weaponRunFallback();
+				+ "|" + profile.weaponRunFallback()
+				+ "|" + currentWeaponStyleName(playerPatch);
 		if (signature.equals(LAST_SPRINT_PROFILE_LOG.get(playerPatch))) {
 			return;
 		}
@@ -1268,7 +1357,7 @@ public final class NaturalSprinterFastRunHandler {
 						? "weapon_run_fallback"
 						: (!profile.customRunAnimation() && !profile.defaultNaturalSprinter() ? "default_fast_run" : "datapack"));
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase=profile tick={} source={} rule={} mainPriority={} animationPriority={} item={} weaponType={} hasNaturalSprinter={} womLoaded={} overrideApplied={} fallback={} currentFamily={} profileRunFamily={} run={} leftStep={} rightStep={} startupEffects={} manualEffects={} runPose=(enabled={}, scale={}, blendTicks={}) procedural={} weaponRunFallback={}",
+				"[EPM/NaturalSprinterStepPulse] phase=profile tick={} source={} rule={} mainPriority={} animationPriority={} item={} weaponType={} style={} hasNaturalSprinter={} womLoaded={} overrideApplied={} fallback={} currentFamily={} profileRunFamily={} run={} leftStep={} rightStep={} startupEffects={} manualEffects={} runPose=(enabled={}, scale={}, blendTicks={}) stepPose=(scale={}, durationTicks={}, forwardImpulse={}) procedural={} weaponRunFallback={}",
 				Integer.valueOf(playerTick(playerPatch)),
 				source,
 				rule == null ? "null" : rule.id(),
@@ -1276,6 +1365,7 @@ public final class NaturalSprinterFastRunHandler {
 				Integer.valueOf(profile.animationSetPriority()),
 				identity == null ? null : identity.item(),
 				identity == null ? null : identity.weaponType(),
+				currentWeaponStyleName(playerPatch),
 				Boolean.valueOf(hasNaturalSprinter(playerPatch)),
 				Boolean.valueOf(ModCompat.isWomLoaded()),
 				Boolean.valueOf(profile.animation() != null),
@@ -1290,6 +1380,9 @@ public final class NaturalSprinterFastRunHandler {
 				Boolean.valueOf(profile.runPose().enabled()),
 				Float.valueOf(profile.runPose().scale()),
 				Float.valueOf(profile.runPose().blendTicks()),
+				Float.valueOf(profile.stepPose().scale()),
+				Float.valueOf(profile.stepPose().durationTicks()),
+				Float.valueOf(profile.stepPose().forwardImpulse()),
 				Boolean.valueOf(profile.proceduralStepPulse()),
 				Boolean.valueOf(profile.weaponRunFallback()));
 	}
@@ -1336,19 +1429,20 @@ public final class NaturalSprinterFastRunHandler {
 				weaponTypeId(playerPatch));
 	}
 
-	private static void logStaleNoWomWeaponRunFallback(PlayerPatch<?> playerPatch, FastRunIdentity identity, SprintProfile profile) {
+	private static void logNoWomRunReadDelay(PlayerPatch<?> playerPatch, FastRunIdentity identity, SprintProfile profile) {
 		if (!debugStepPulse()) {
 			return;
 		}
 
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase=stale_no_wom_weapon_run_fallback tick={} item={} weaponType={} ordinaryRun={} previousTarget={} previousFastRun={} fallbackRun={} currentAnimation={} elapsed={}",
+				"[EPM/NaturalSprinterStepPulse] phase=no_wom_run_read_delay tick={} item={} weaponType={} ordinaryRun={} previousItem={} previousWeaponType={} previousTarget={} fallbackRun={} currentAnimation={} elapsed={}",
 				Integer.valueOf(playerTick(playerPatch)),
 				identity == null ? null : identity.item(),
 				identity == null ? null : identity.weaponType(),
 				assetName(identity == null ? null : identity.ordinaryRunAnimation()),
+				LAST_FAST_RUN_ITEM.get(playerPatch),
+				LAST_FAST_RUN_WEAPON_TYPE.get(playerPatch),
 				assetName(LAST_FAST_RUN_TARGET.get(playerPatch)),
-				assetName(livingAnimation(playerPatch, ParcoolLivingMotions.FAST_RUN)),
 				assetName(profile == null ? null : profile.animation()),
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
@@ -1527,19 +1621,9 @@ public final class NaturalSprinterFastRunHandler {
 			ResourceLocation ordinaryRunAnimationId) {
 	}
 
-	private record SprintProfileCacheKey(
-			ResourceLocation item,
-			ResourceLocation weaponType,
-			ResourceLocation ordinaryRunAnimationId,
-			boolean noWomProceduralWeaponFastRun,
-			NaturalSprinterFastRunAnimationOverrides.RuleData override) {
-	}
-
-	private record CachedSprintProfile(SprintProfileCacheKey key, SprintProfile profile) {
-	}
-
 	private enum StartupStepSource {
 		NONE(NaturalSprinterFastRunStep.Trigger.MANUAL, false),
+		VAULT_FAST_RUN_RESTORE_SUPPRESS(NaturalSprinterFastRunStep.Trigger.MANUAL, false),
 		COMBAT_MASTERY_ACTIVE_SUPPRESS(NaturalSprinterFastRunStep.Trigger.MANUAL, false),
 		AUTO(NaturalSprinterFastRunStep.Trigger.AUTO_STARTUP, true),
 		MANUAL_FAST_RUN_KEY(NaturalSprinterFastRunStep.Trigger.STARTUP, true),
@@ -1572,6 +1656,7 @@ public final class NaturalSprinterFastRunHandler {
 			boolean startupStepEffects,
 			boolean manualStepEffects,
 			NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose,
 			boolean proceduralStepPulse,
 			int animationSetPriority,
 			boolean weaponRunFallback) {
@@ -1586,6 +1671,7 @@ public final class NaturalSprinterFastRunHandler {
 					false,
 					false,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT,
 					false,
 					0,
 					false);
@@ -1606,6 +1692,7 @@ public final class NaturalSprinterFastRunHandler {
 					false,
 					false,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT,
 					false,
 					0,
 					false);
@@ -1626,6 +1713,7 @@ public final class NaturalSprinterFastRunHandler {
 					true,
 					false,
 					NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+					NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT,
 					false,
 					0,
 					false);
@@ -1637,9 +1725,10 @@ public final class NaturalSprinterFastRunHandler {
 				boolean startupStepEffects,
 				boolean manualStepEffects,
 				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose,
 				int animationSetPriority) {
 			AssetAccessor<? extends StaticAnimation> animation = ordinaryRunAnimation(playerPatch);
-			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, animationSetPriority);
+			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, stepPose, animationSetPriority);
 		}
 
 		private static SprintProfile weaponRunFallback(
@@ -1648,9 +1737,10 @@ public final class NaturalSprinterFastRunHandler {
 				boolean startupStepEffects,
 				boolean manualStepEffects,
 				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose,
 				int animationSetPriority) {
 			AssetAccessor<? extends StaticAnimation> animation = ordinaryRunAnimation(identity);
-			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, animationSetPriority);
+			return weaponRunFallback(animation, fallback, startupStepEffects, manualStepEffects, runPose, stepPose, animationSetPriority);
 		}
 
 		private static SprintProfile weaponRunFallback(
@@ -1659,6 +1749,7 @@ public final class NaturalSprinterFastRunHandler {
 				boolean startupStepEffects,
 				boolean manualStepEffects,
 				NaturalSprinterFastRunAnimationOverrides.RunPoseSettings runPose,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose,
 				int animationSetPriority) {
 			if (animation == null) {
 				return noOverride();
@@ -1676,6 +1767,7 @@ public final class NaturalSprinterFastRunHandler {
 					startupStepEffects,
 					manualStepEffects,
 					runPose,
+					stepPose,
 					true,
 					animationSetPriority,
 					true);
@@ -1685,7 +1777,11 @@ public final class NaturalSprinterFastRunHandler {
 				NaturalSprinterFastRunAnimationOverrides.RuleData rule,
 				DefaultSprintFamily fallback,
 				PlayerPatch<?> playerPatch) {
+			String currentStyle = currentWeaponStyleName(playerPatch);
 			for (NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet : rule.animationSets()) {
+				if (!animationSet.matchesStyle(currentStyle)) {
+					continue;
+				}
 				SprintProfile profile = custom(rule, animationSet, fallback);
 				if (profile != null) {
 					return profile;
@@ -1694,20 +1790,20 @@ public final class NaturalSprinterFastRunHandler {
 			if (fallback == null) {
 				return noOverride();
 			}
-			return weaponRunFallback(playerPatch, fallback, rule.startupStepEffects(), rule.manualStepEffects(), rule.runPose(), 0);
+			return weaponRunFallback(
+					playerPatch,
+					fallback,
+					rule.startupStepEffects(),
+					rule.manualStepEffects(),
+					rule.runPose(),
+					rule.stepPose(),
+					0);
 		}
 
 		private static SprintProfile custom(
 				NaturalSprinterFastRunAnimationOverrides.RuleData rule,
 				NaturalSprinterFastRunAnimationOverrides.AnimationSet animationSet,
 				DefaultSprintFamily fallback) {
-			DefaultSprintFamily defaultSprintFamily = defaultSprintFamilyForRun(animationSet.runAnimation());
-			if (defaultSprintFamily != null) {
-				return defaultProfile(defaultSprintFamily);
-			}
-
-			AssetAccessor<? extends StaticAnimation> animation = NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.runAnimation());
-			boolean customRunAnimation = animation != null;
 			boolean hasStepAnimations = animationSet.leftStepAnimation() != null && animationSet.rightStepAnimation() != null;
 			AssetAccessor<? extends StaticAnimation> leftStepAnimation = hasStepAnimations
 					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.leftStepAnimation())
@@ -1715,6 +1811,33 @@ public final class NaturalSprinterFastRunHandler {
 			AssetAccessor<? extends StaticAnimation> rightStepAnimation = hasStepAnimations
 					? NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.rightStepAnimation())
 					: null;
+
+			DefaultSprintFamily defaultSprintFamily = defaultSprintFamilyForRun(animationSet.runAnimation());
+			if (defaultSprintFamily != null) {
+				if (!hasStepAnimations) {
+					return defaultProfile(defaultSprintFamily);
+				}
+				if (leftStepAnimation == null || rightStepAnimation == null) {
+					return null;
+				}
+				return new SprintProfile(
+						defaultSprintFamily,
+						defaultSprintFamily.animation(),
+						leftStepAnimation,
+						rightStepAnimation,
+						false,
+						false,
+						rule.startupStepEffects(),
+						rule.manualStepEffects(),
+						NaturalSprinterFastRunAnimationOverrides.RunPoseSettings.DISABLED,
+						rule.stepPose(),
+						false,
+						animationSet.priority(),
+						false);
+			}
+
+			AssetAccessor<? extends StaticAnimation> animation = NaturalSprinterFastRunAnimationOverrides.resolveAnimation(animationSet.runAnimation());
+			boolean customRunAnimation = animation != null;
 			if (animation == null || hasStepAnimations && (leftStepAnimation == null || rightStepAnimation == null)) {
 				return null;
 			}
@@ -1736,6 +1859,7 @@ public final class NaturalSprinterFastRunHandler {
 					rule.startupStepEffects(),
 					rule.manualStepEffects(),
 					rule.runPose(),
+					rule.stepPose(),
 					proceduralStepPulse,
 					animationSet.priority(),
 					false);

@@ -57,6 +57,7 @@
     "SpiderTechniquesSkillMixin",
     "SPAnimatorControlAccessor",
     "SPAnimatorControlMixin",
+    "SsrWallClimbBodyLockHandlerMixin",
     "SynchedEntityDataDebugMixin",
     "VaultChainMixin",
     "VaultDebugMixin"

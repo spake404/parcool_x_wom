@@ -1,23 +1,33 @@
 {
-    "enabled":  true,
-    "main_priority":  0,
-    "match":  {
-                  "type": "epicfight:dagger"
-              },
-    "animations":  [
-                       {
-                           "priority":  0,
-                           "run":  "wom:biped/skill/biped_sprint_barehand"
-                       }
-                   ],
-    "effects":  {
-                    "startup_step":  true,
-                    "manual_step":  false
-                },
-    "run_pose":  {
-                     "enabled":  true,
-                     "scale":  0.4,
-                     "blend_ticks":  3.0
-                 },
-    "fallback":  "barehand"
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "epicfight:dagger"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "run": "wom:biped/skill/biped_sprint_barehand"
+    },
+    {
+      "priority": 50,
+      "style": "ONE_HAND",
+      "run": "epicfightx:biped/living/run_onehand_light"
+    },
+    {
+      "priority": 50,
+      "style": "TWO_HAND",
+      "run": "epicfightx:biped/living/run_dual_light"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "barehand"
 }

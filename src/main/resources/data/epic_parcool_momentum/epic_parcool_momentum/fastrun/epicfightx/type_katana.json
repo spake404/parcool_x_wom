@@ -1,0 +1,33 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "epicfightx:katana"
+  },
+  "animations": [
+    {
+      "priority": 200,
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 100,
+      "style": "KATANA_SHEATH",
+      "run": "epicfightx:biped/living/run_uchigatana_sheath"
+    },
+    {
+      "priority": 100,
+      "style": "KATANA",
+      "run": "epicfightx:biped/living/run_uchigatana"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

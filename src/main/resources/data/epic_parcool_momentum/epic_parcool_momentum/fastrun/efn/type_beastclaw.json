@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "efn:beastclaw"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "efn:biped/nf_claw/nf_claw_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": true
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

@@ -1,8 +1,8 @@
 {
   "modmenu.descriptionTranslation.epic_parcool_momentum": "面向 Epic Fight、ParCool、EpicParCool 和可选附属模组的动量衔接兼容。",
-  "epic_parcool_momentum.configuration.naturalSprinterAnimations": "FastRun 动画",
+  "epic_parcool_momentum.configuration.customFastRunAnimations": "自定义 FastRun 动画",
   "epic_parcool_momentum.configuration.naturalSprinterManualStep": "FastRun R 键主动跨步",
-  "epic_parcool_momentum.configuration.noWomProceduralWeaponFastRun": "无 WOM 时使用武器 RUN 生成 FastRun",
+  "epic_parcool_momentum.configuration.autoGenerateFastRunFromCurrentWeapon": "是否根据当前武器自动生成 FastRun 动画",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode": "Step/Dodge 共键模式",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode.disabled": "禁用",
   "epic_parcool_momentum.configuration.naturalSprinterStepDodgeConflictMode.short_dodge_long_step": "模式1：短按Dodge",
@@ -55,6 +55,7 @@
   "epic_parcool_momentum.configuration.debugGliderState": "调试 Glider/FastRun 状态",
   "epic_parcool_momentum.configuration.debugNaturalSprinterFastRunStepState": "调试 FastRun 起步 Step",
   "epic_parcool_momentum.configuration.debugExhaustionPoseState": "调试低体力姿态状态",
+  "epic_parcool_momentum.configuration.debugEpicFightAnimationHud": "调试 Epic Fight 动画 HUD",
   "epic_parcool_momentum.configuration.debugCameraEventState": "调试相机事件状态",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpVerticalVelocity": "EpicParCool ClimbUp 垂直速度",
   "epic_parcool_momentum.configuration.epicParCoolClimbUpLateralAirControlVelocity": "EpicParCool ClimbUp 横向空中移动速度",

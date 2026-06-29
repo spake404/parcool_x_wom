@@ -1,27 +1,27 @@
 {
-    "enabled":  true,
-    "main_priority":  0,
-    "match":  {
-                  "type": "epicfight:spear"
-              },
-    "animations":  [
-      {
-        "priority": 100,
-        "run": "wom:biped/skill/biped_sprint"
-      },
-      {
-        "priority":  0,
-        "run":  "epicfight:biped/living/run_spear"
-      }
-    ],
-    "effects":  {
-                    "startup_step":  true,
-                    "manual_step":  false
-                },
-    "run_pose":  {
-                     "enabled":  true,
-                     "scale":  0.4,
-                     "blend_ticks":  3.0
-                 },
-    "fallback":  "weapon"
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "epicfight:spear"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 50,
+      "run": "epicfightx:biped/living/run_onehand_polearm"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
 }

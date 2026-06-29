@@ -17,6 +17,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	private static final String TACZ = "tacz";
 	private static final String PARCOOL = "parcool";
 	private static final String EPICFIGHTX = "epicfightx";
+	private static final String SSRCAMERA_FIXES = "ssrcamerafixes";
 	private static final String VC_GLIDERS = "vc_gliders";
 
 	@Override
@@ -37,6 +38,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
 			case "LocalPlayerReloadMixin", "LocalPlayerShootMixin" -> isLoaded(TACZ);
 			case "AbstractClientPlayerPatchMixin", "CombatMasteryIIMixin" -> isLoaded(EPICFIGHTX);
+			case "SsrWallClimbBodyLockHandlerMixin" -> isLoaded(SSRCAMERA_FIXES) && isLoaded(WOM);
 			case "GliderAnimationHandlerMixin", "GliderDataMixin", "GliderToggleMessageMixin", "PlayerGliderLayerMixin" -> isLoaded(VC_GLIDERS);
 			default -> true;
 		};

@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "efn:ruinsgreatsword"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "efn:biped/ng_greatsword/ng_great_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.6,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

@@ -1,0 +1,34 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "wom:torment"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 100,
+      "style": "OCHS",
+      "run": "epicfightx:biped/living/run_twohand_heavy"
+    },
+    {
+      "priority": 50,
+      "style": "OCHS",
+      "run": "wom:biped/skill/biped_sprint"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "efn:bloodlust"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "wom:biped/skill/biped_sprint"
+    },
+    {
+      "priority": 50,
+      "style": "TWO_HAND",
+      "run": "efn:biped/nf_tachi/nf_tachi_idle"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

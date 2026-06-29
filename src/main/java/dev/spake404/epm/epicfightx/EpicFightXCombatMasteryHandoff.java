@@ -59,7 +59,7 @@ public final class EpicFightXCombatMasteryHandoff {
 		if (playerPatch == null
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
 				|| !EPMConfig.epicFightXCombatMasteryFastRunControlCompatibility()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !EPMConfig.fastRunStartStepAnimation()) {
 			return false;
 		}
@@ -95,7 +95,7 @@ public final class EpicFightXCombatMasteryHandoff {
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
 				|| !player.isLocalPlayer()
 				|| !ModCompat.isWomLoaded()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !EPMConfig.fastRunStartStepAnimation()
 				|| !NaturalSprinterState.hasNaturalSprinter(playerPatch)) {
 			return;

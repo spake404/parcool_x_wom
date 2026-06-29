@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "efn:scythe"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "SHEATH",
+      "run": "efn:biped/scythe/living/scythe_run_normal"
+    },
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "efn:biped/scythe/living/scythe_run_combat"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

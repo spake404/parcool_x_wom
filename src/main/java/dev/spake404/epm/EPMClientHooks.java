@@ -100,6 +100,7 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, PhantomAscentCycle> PHANTOM_ASCENT_CYCLES = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> VAULT_HOLD_FAST_RUN = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_GRACE_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> VAULT_FAST_RUN_START_STEP_SUPPRESS_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_GRACE_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> VAULT_EARLY_FINISH_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> WALL_JUMP_AUTO_SPRINT_TICKS = new WeakHashMap<>();
@@ -170,6 +171,7 @@ public final class EPMClientHooks {
 	private static final int TACZ_SHOOT_STOP_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS = 30;
 	private static final int TACZ_RELOAD_FAST_RUN_DASH_SUPPRESS_DURATION_TICKS = 20;
 	private static final int VAULT_FAST_RUN_CAN_ACT_GRACE_TICKS = 10;
+	private static final int VAULT_FAST_RUN_START_STEP_SUPPRESS_GRACE_TICKS = VAULT_FAST_RUN_CAN_ACT_GRACE_TICKS + 4;
 	private static final int NATURAL_SPRINTER_BREAKFALL_DASH_STARTUP_GRACE_TICKS = 3;
 	private static final int NATURAL_SPRINTER_BREAKFALL_DASH_MAX_DELAY_TICKS = 40;
 	private static final int NATURAL_SPRINTER_DODGE_STEP_CLEAR_GRACE_TICKS = 6;
@@ -274,7 +276,7 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !hasNaturalSprinter(player)) {
 			return;
 		}
@@ -725,7 +727,7 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| playerPatch == null
 				|| animation == null
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			return;
 		}
 
@@ -762,8 +764,12 @@ public final class EPMClientHooks {
 
 		if (!step.procedural()) {
 			if (step.fullEffectsFor(safeTrigger)) {
-				NaturalSprinterProceduralStepPulse.playStepVisualAndAudioEffects(playerPatch,
-						naturalSprinterStepEffectSource("configured", safeTrigger));
+				String source = naturalSprinterStepEffectSource("configured", safeTrigger);
+				if (step.defaultNaturalSprinter()) {
+					NaturalSprinterProceduralStepPulse.playStepAfterimageOnly(playerPatch, source);
+				} else {
+					NaturalSprinterProceduralStepPulse.playStepVisualAndAudioEffects(playerPatch, source);
+				}
 			}
 			logNaturalSprinterStepPulse("play_step_animation", "queued_animation_step", playerPatch, step, safeTrigger);
 			queueNaturalSprinterFastRunDash(playerPatch, step.animation());
@@ -772,7 +778,7 @@ public final class EPMClientHooks {
 
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| playerPatch == null
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			logNaturalSprinterStepPulse("play_procedural_skip", "compat_or_config", playerPatch, step, safeTrigger);
 			return;
 		}
@@ -790,11 +796,17 @@ public final class EPMClientHooks {
 
 		logNaturalSprinterStepPulse("play_procedural_request", "request", playerPatch, step, safeTrigger);
 		if (step.fullEffectsFor(safeTrigger)) {
-			NaturalSprinterProceduralStepPulse.playStepEffects(playerPatch, naturalSprinterStepEffectSource("procedural", safeTrigger));
+			NaturalSprinterProceduralStepPulse.playStepEffects(
+					playerPatch,
+					naturalSprinterStepEffectSource("procedural", safeTrigger),
+					step.stepPose());
 		} else {
-			NaturalSprinterProceduralStepPulse.playCleanStepEffects(playerPatch, naturalSprinterStepEffectSource("procedural_clean", safeTrigger));
+			NaturalSprinterProceduralStepPulse.playCleanStepEffects(
+					playerPatch,
+					naturalSprinterStepEffectSource("procedural_clean", safeTrigger),
+					step.stepPose());
 		}
-		NaturalSprinterProceduralStepPulse.request(playerPatch, step.proceduralRunAnimation(), step.rightStep());
+		NaturalSprinterProceduralStepPulse.request(playerPatch, step.proceduralRunAnimation(), step.rightStep(), step.stepPose());
 	}
 
 	private static boolean shouldSuppressDuplicateBreakfallNaturalSprinterStep(
@@ -848,16 +860,21 @@ public final class EPMClientHooks {
 	}
 
 	public static boolean requestNaturalSprinterStepFastRun(Player player, AssetAccessor<? extends StaticAnimation> stepAnimation) {
-		return requestNaturalSprinterStepFastRun(player, NaturalSprinterFastRunStep.animation(stepAnimation));
+		return requestNaturalSprinterStepFastRun(player, NaturalSprinterFastRunStep.animation(stepAnimation), "asset_accessor");
 	}
 	public static boolean requestNaturalSprinterStepFastRun(Player player, NaturalSprinterFastRunStep step) {
+		return requestNaturalSprinterStepFastRun(player, step, "unspecified");
+	}
+	public static boolean requestNaturalSprinterStepFastRun(Player player, NaturalSprinterFastRunStep step, String source) {
 		IStamina stamina = player == null ? null : IStamina.get(player);
 		if (step == null || !step.isPresent() || !canKeepNaturalSprinterStepFastRun(player, stamina)) {
+			logPendingNaturalSprinterStepFastRun("pending_step_fast_run_reject", source, player, step, null);
 			clearNaturalSprinterStepFastRun(player);
 			return false;
 		}
 
 		NATURAL_SPRINTER_STEP_FAST_RUN_STATES.put(player, new NaturalSprinterStepFastRunState(player.tickCount, step));
+		logPendingNaturalSprinterStepFastRun("pending_step_fast_run_queue", source, player, step, null);
 		setSprintingWithDiagnostic(player, true, "natural_sprinter_step_fast_run_request");
 		return true;
 	}
@@ -873,19 +890,23 @@ public final class EPMClientHooks {
 		if (step == null || !step.isPresent()) {
 			return false;
 		}
+		logPendingNaturalSprinterStepFastRun("pending_step_fast_run_consume_attempt", "play_pending", player, step, state);
 
 		if (player.tickCount - state.startTick > NATURAL_SPRINTER_STEP_FAST_RUN_STARTUP_MAX_TICKS) {
+			logPendingNaturalSprinterStepFastRun("pending_step_fast_run_clear", "expired", player, step, state);
 			clearNaturalSprinterStepFastRun(player);
 			return true;
 		}
 
 		if (!canKeepNaturalSprinterStepFastRun(player, IStamina.get(player))
 				|| !NaturalSprinterFastRunHandler.consumeFastRunStepBudget(playerPatch, "pending_step_fast_run")) {
+			logPendingNaturalSprinterStepFastRun("pending_step_fast_run_clear", "invalid_or_no_budget", player, step, state);
 			clearNaturalSprinterStepFastRun(player);
 			return true;
 		}
 
 		state.startupStep = NaturalSprinterFastRunStep.none();
+		logPendingNaturalSprinterStepFastRun("pending_step_fast_run_consume", "play_pending", player, step, state);
 		NaturalSprinterFastRunHandler.advanceSprintStepPublic(playerPatch);
 		playNaturalSprinterFastRunStep(playerPatch, step, NaturalSprinterFastRunStep.Trigger.MANUAL);
 		return true;
@@ -936,7 +957,7 @@ public final class EPMClientHooks {
 		if (player == null
 				|| !player.isLocalPlayer()
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()
 				|| stamina == null
 				|| player.isSpectator()
@@ -986,7 +1007,7 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			return;
 		}
 
@@ -1039,6 +1060,7 @@ public final class EPMClientHooks {
 		FastRun fastRun = parkourability.get(FastRun.class);
 		if (fastRun != null && (fastRun.isDoing() || fastRunGrace || VaultStartFastRunGrace.hasRecent(player))) {
 			VAULT_HOLD_FAST_RUN.put(player, Boolean.TRUE);
+			markVaultFastRunStartStepSuppressed(player);
 			setSprintingWithDiagnostic(player, true, "vault_start_from_fast_run");
 		}
 	}
@@ -1055,6 +1077,7 @@ public final class EPMClientHooks {
 
 		if (Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.remove(player))) {
 			VAULT_FAST_RUN_GRACE_TICKS.put(player, Integer.valueOf(VAULT_FAST_RUN_CAN_ACT_GRACE_TICKS));
+			markVaultFastRunStartStepSuppressed(player);
 		}
 	}
 
@@ -1094,7 +1117,33 @@ public final class EPMClientHooks {
 					Double.valueOf(delta.y()),
 					Double.valueOf(delta.z()));
 		}
+		markVaultFastRunStartStepSuppressed(player);
 		return true;
+	}
+
+	public static boolean shouldSuppressFastRunStartStepAfterVault(PlayerPatch<?> playerPatch) {
+		Player player = playerPatch == null ? null : playerPatch.getOriginal();
+		if (player == null || !player.isLocalPlayer() || !EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.fastRunVaultChainFix()) {
+			clearVaultFastRunStartStepSuppression(player);
+			return false;
+		}
+
+		if (Boolean.TRUE.equals(VAULT_HOLD_FAST_RUN.get(player)) || VAULT_FAST_RUN_GRACE_TICKS.containsKey(player)) {
+			markVaultFastRunStartStepSuppressed(player);
+			return true;
+		}
+
+		Integer expireTick = VAULT_FAST_RUN_START_STEP_SUPPRESS_TICKS.get(player);
+		if (expireTick == null) {
+			return false;
+		}
+
+		if (player.tickCount <= expireTick.intValue()) {
+			return true;
+		}
+
+		VAULT_FAST_RUN_START_STEP_SUPPRESS_TICKS.remove(player);
+		return false;
 	}
 
 	public static boolean shouldFinishVaultEarlyForCloseChain(Vault vault, Player player) {
@@ -1182,6 +1231,7 @@ public final class EPMClientHooks {
 		}
 
 		setSprintingWithDiagnostic(player, true, "vault_keep_fast_run");
+		markVaultFastRunStartStepSuppressed(player);
 		return true;
 	}
 
@@ -3224,7 +3274,7 @@ public final class EPMClientHooks {
 	}
 
 	private static void playPendingFastRunDash(Player player) {
-		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.naturalSprinterAnimations()) {
+		if (!EPMParCoolGate.allowCrossModSkillCompat() || !EPMConfig.customFastRunAnimations()) {
 			PENDING_FAST_RUN_DASHES.clear();
 			PENDING_FAST_RUN_DASH_SOURCES.clear();
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
@@ -3266,7 +3316,7 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			NATURAL_SPRINTER_BREAKFALL_START_TICKS.remove(player);
 			NATURAL_SPRINTER_BREAKFALL_DELAYED_DASHES.remove(player);
 			return;
@@ -3368,7 +3418,7 @@ public final class EPMClientHooks {
 		if (!EPMParCoolGate.allowCrossModSkillCompat()
 				|| player == null
 				|| !player.isLocalPlayer()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			clearDeferredDodgeStep(player);
 			return;
 		}
@@ -3429,7 +3479,7 @@ public final class EPMClientHooks {
 			return;
 		}
 		if (!isParCoolFastRunDoing(player)) {
-			requestNaturalSprinterStepFastRun(player, deferred);
+			requestNaturalSprinterStepFastRun(player, deferred, "deferred_dodge_step_not_fastrun");
 			return;
 		}
 		if (!NaturalSprinterFastRunHandler.consumeFastRunStepBudget(playerPatch, "deferred_dodge_step")) {
@@ -4172,6 +4222,41 @@ public final class EPMClientHooks {
 		return registryName == null ? String.valueOf(animation) : registryName.toString();
 	}
 
+	private static void logPendingNaturalSprinterStepFastRun(
+			String phase,
+			String source,
+			Player player,
+			NaturalSprinterFastRunStep step,
+			NaturalSprinterStepFastRunState state) {
+		if (!debugNaturalSprinterStepPulse()) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = player == null ? null : EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		int tick = player == null ? -1 : player.tickCount;
+		int startTick = state == null ? -1 : state.startTick;
+		int age = startTick < 0 || tick < 0 ? -1 : tick - startTick;
+		EPM.LOGGER.info(
+				"[EPM/NaturalSprinterStepPulse] phase={} source={} tick={} startTick={} age={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} parCoolFastRunDoing={} customFastRunAnimations={} fastRunStartStepAnimation={} autoFastRunDash={} manualStep={}",
+				phase,
+				source == null ? "unspecified" : source,
+				Integer.valueOf(tick),
+				Integer.valueOf(startTick),
+				Integer.valueOf(age),
+				Boolean.valueOf(step != null && step.isPresent()),
+				Boolean.valueOf(step != null && step.procedural()),
+				Boolean.valueOf(step != null && step.rightStep()),
+				Boolean.valueOf(step != null && step.defaultNaturalSprinter()),
+				step == null ? "null" : assetName(step.animation()),
+				step == null ? "null" : assetName(step.proceduralRunAnimation()),
+				assetName(currentBaseAnimation(playerPatch)),
+				Boolean.valueOf(isParCoolFastRunDoing(player)),
+				Boolean.valueOf(EPMConfig.customFastRunAnimations()),
+				Boolean.valueOf(EPMConfig.fastRunStartStepAnimation()),
+				Boolean.valueOf(EPMConfig.autoFastRunDash()),
+				Boolean.valueOf(EPMConfig.naturalSprinterManualStep()));
+	}
+
 	private static void logNaturalSprinterStepPulse(
 			String phase,
 			String reason,
@@ -4192,7 +4277,7 @@ public final class EPMClientHooks {
 
 		Player player = playerPatch == null ? null : playerPatch.getOriginal();
 		EPM.LOGGER.info(
-				"[EPM/NaturalSprinterStepPulse] phase={} reason={} trigger={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} startupEffects={} manualEffects={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} elapsed={} naturalSprinterAnimations={} fastRunStartStepAnimation={} autoFastRunDash={}",
+				"[EPM/NaturalSprinterStepPulse] phase={} reason={} trigger={} tick={} stepPresent={} procedural={} rightStep={} defaultNaturalSprinter={} startupEffects={} manualEffects={} stepAnimation={} proceduralRunAnimation={} currentAnimation={} elapsed={} customFastRunAnimations={} fastRunStartStepAnimation={} autoFastRunDash={}",
 				phase,
 				reason,
 				trigger == null ? "unspecified" : trigger,
@@ -4207,7 +4292,7 @@ public final class EPMClientHooks {
 				step == null ? "null" : assetName(step.proceduralRunAnimation()),
 				assetName(currentBaseAnimation(playerPatch)),
 				Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
-				Boolean.valueOf(EPMConfig.naturalSprinterAnimations()),
+				Boolean.valueOf(EPMConfig.customFastRunAnimations()),
 				Boolean.valueOf(EPMConfig.fastRunStartStepAnimation()),
 				Boolean.valueOf(EPMConfig.autoFastRunDash()));
 	}
@@ -4715,7 +4800,7 @@ public final class EPMClientHooks {
 		}
 	}
 
-	private static boolean isParCoolFastRunDoing(Player player) {
+	public static boolean isParCoolFastRunDoing(Player player) {
 		try {
 			Parkourability parkourability = Parkourability.get(player);
 			FastRun fastRun = parkourability == null ? null : parkourability.get(FastRun.class);
@@ -4765,8 +4850,23 @@ public final class EPMClientHooks {
 
 		VAULT_HOLD_FAST_RUN.remove(player);
 		VAULT_FAST_RUN_GRACE_TICKS.remove(player);
+		clearVaultFastRunStartStepSuppression(player);
 		VaultStartFastRunGrace.clear(player);
 		clearVaultLogTicks(player);
+	}
+
+	private static void markVaultFastRunStartStepSuppressed(Player player) {
+		if (player != null) {
+			VAULT_FAST_RUN_START_STEP_SUPPRESS_TICKS.put(
+					player,
+					Integer.valueOf(player.tickCount + VAULT_FAST_RUN_START_STEP_SUPPRESS_GRACE_TICKS));
+		}
+	}
+
+	private static void clearVaultFastRunStartStepSuppression(Player player) {
+		if (player != null) {
+			VAULT_FAST_RUN_START_STEP_SUPPRESS_TICKS.remove(player);
+		}
 	}
 
 	private static boolean hasVaultGraceMovementInput() {

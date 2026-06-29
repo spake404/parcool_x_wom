@@ -21,6 +21,8 @@
 ### Vault / FastRun Stability
 
 - Fixed a case where FastRun could stop after hitting a wall, then Vault geometry was valid on the next frame but ParCool rejected Vault because `FastRun.canActWithRunning=false`.
+- Vault FastRun recovery no longer triggers a free Natural Sprinter startup Step after Vault finishes; it still restores FastRun state for chaining, but the post-Vault recovery path is now step-suppressed.
+- The suppression is scoped to the Vault hold/grace recovery window and does not disable normal manual FastRun startup Steps or R-key FastRun Step input.
 - Added `vaultStartFastRunGrace`, enabled by default. Disabling it restores the stricter behavior where Vault start requires ParCool FastRun to still be actively doing.
 - The Vault start grace still requires ParCool's native Vault geometry, movement input, FastRun key mode, and hard blockers such as sneaking, water, fall-flying, and vehicles to pass.
 - Vault debug logging now records `phase=vault_start_fast_run_recent_grace` when the grace path actually allows a start.

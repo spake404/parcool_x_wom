@@ -5,7 +5,15 @@ import yesman.epicfight.api.animation.types.StaticAnimation;
 import yesman.epicfight.api.asset.AssetAccessor;
 
 public final class NaturalSprinterFastRunStep {
-	private static final NaturalSprinterFastRunStep NONE = new NaturalSprinterFastRunStep(null, null, false, false, false, false, false);
+	private static final NaturalSprinterFastRunStep NONE = new NaturalSprinterFastRunStep(
+			null,
+			null,
+			false,
+			false,
+			false,
+			false,
+			false,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
 
 	private final AssetAccessor<? extends StaticAnimation> animation;
 	private final AssetAccessor<? extends StaticAnimation> proceduralRunAnimation;
@@ -14,6 +22,7 @@ public final class NaturalSprinterFastRunStep {
 	private final boolean defaultNaturalSprinter;
 	private final boolean startupEffects;
 	private final boolean manualEffects;
+	private final NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose;
 
 	private NaturalSprinterFastRunStep(
 			AssetAccessor<? extends StaticAnimation> animation,
@@ -22,7 +31,8 @@ public final class NaturalSprinterFastRunStep {
 			boolean rightStep,
 			boolean defaultNaturalSprinter,
 			boolean startupEffects,
-			boolean manualEffects) {
+			boolean manualEffects,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose) {
 		this.animation = animation;
 		this.proceduralRunAnimation = proceduralRunAnimation;
 		this.procedural = procedural;
@@ -30,6 +40,7 @@ public final class NaturalSprinterFastRunStep {
 		this.defaultNaturalSprinter = defaultNaturalSprinter;
 		this.startupEffects = startupEffects;
 		this.manualEffects = manualEffects;
+		this.stepPose = stepPose == null ? NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT : stepPose;
 	}
 
 	public static NaturalSprinterFastRunStep none() {
@@ -49,17 +60,56 @@ public final class NaturalSprinterFastRunStep {
 			boolean startupEffects,
 			boolean manualEffects,
 			boolean rightStep) {
-		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, rightStep, false, startupEffects, manualEffects);
+		return configuredAnimation(animation, startupEffects, manualEffects, rightStep,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
+	}
+	public static NaturalSprinterFastRunStep configuredAnimation(
+			AssetAccessor<? extends StaticAnimation> animation,
+			boolean startupEffects,
+			boolean manualEffects,
+			boolean rightStep,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose) {
+		return animation == null ? NONE : new NaturalSprinterFastRunStep(
+				animation,
+				null,
+				false,
+				rightStep,
+				false,
+				startupEffects,
+				manualEffects,
+				stepPose);
 	}
 
 	public static NaturalSprinterFastRunStep defaultAnimation(AssetAccessor<? extends StaticAnimation> animation) {
 		return defaultAnimation(animation, false);
 	}
 	public static NaturalSprinterFastRunStep defaultAnimation(AssetAccessor<? extends StaticAnimation> animation, boolean rightStep) {
-		return animation == null ? NONE : new NaturalSprinterFastRunStep(animation, null, false, rightStep, true, true, false);
+		return animation == null ? NONE : new NaturalSprinterFastRunStep(
+				animation,
+				null,
+				false,
+				rightStep,
+				true,
+				true,
+				false,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
 	}
 	public static NaturalSprinterFastRunStep procedural(AssetAccessor<? extends StaticAnimation> runAnimation, boolean rightStep) {
-		return runAnimation == null ? NONE : new NaturalSprinterFastRunStep(null, runAnimation, true, rightStep, false, true, false);
+		return procedural(runAnimation, rightStep, NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
+	}
+	public static NaturalSprinterFastRunStep procedural(
+			AssetAccessor<? extends StaticAnimation> runAnimation,
+			boolean rightStep,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose) {
+		return runAnimation == null ? NONE : new NaturalSprinterFastRunStep(
+				null,
+				runAnimation,
+				true,
+				rightStep,
+				false,
+				true,
+				false,
+				stepPose);
 	}
 	public boolean isPresent() {
 		return animation != null || proceduralRunAnimation != null;
@@ -85,10 +135,13 @@ public final class NaturalSprinterFastRunStep {
 	public boolean manualEffects() {
 		return manualEffects;
 	}
+	public NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepPose() {
+		return stepPose;
+	}
 	public boolean fullEffectsFor(Trigger trigger) {
 		return switch (trigger) {
 			case STARTUP -> startupEffects;
-			case AUTO_STARTUP -> false;
+			case AUTO_STARTUP -> manualEffects;
 			case MANUAL -> manualEffects;
 		};
 	}

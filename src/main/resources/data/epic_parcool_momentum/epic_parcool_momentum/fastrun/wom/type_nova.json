@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "wom:nova"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "wom:biped/living/nova_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "step_pose": {
+    "scale": 0.5,
+    "duration_ticks": 10.0,
+    "forward_impulse": 0.8
+  },
+  "fallback": "weapon"
+}

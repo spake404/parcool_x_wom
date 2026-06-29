@@ -1,46 +1,85 @@
 {
   "enabled": false,
+  "_comment_enabled": "Set to true to make this rule active. Keep false while using this file only as documentation.",
   "main_priority": 100,
+  "_comment_main_priority": "Chooses which matching rule wins. Higher values are selected before lower values.",
   "match": {
-    "type": "epicfight:greatsword"
+    "type": "epicfight:uchigatana",
+    "_comment_type": "Matches every item whose Epic Fight weapon capability type is this value.",
+    "_comment_item": "Use item instead of type to match one exact item id, for example \"epicfight:uchigatana\". Do not define both item and type."
   },
+  "_comment_match": "match must contain exactly one of type or item.",
   "animations": [
     {
+      "priority": 300,
+      "_comment_priority": "Chooses which animation entry is tried first inside this rule. Higher values are tried first.",
+      "style": "SHEATH",
+      "_comment_style": "Optional. This entry only applies when the current Epic Fight style name is SHEATH.",
+      "run": "examplemod:biped/fastrun/uchigatana_sheath_fast_run",
+      "_comment_run": "FastRun animation id to play for this entry. If it cannot be resolved, the next matching entry is tried.",
+      "left_step": "examplemod:biped/fastrun/uchigatana_sheath_left_step",
+      "_comment_left_step": "Optional. Left-foot step animation id. If one step is defined, both left_step and right_step must be defined.",
+      "right_step": "examplemod:biped/fastrun/uchigatana_sheath_right_step",
+      "_comment_right_step": "Optional. Right-foot step animation id. If both step animations resolve, manual/startup steps can use them."
+    },
+    {
+      "priority": 250,
+      "_comment_priority": "This entry demonstrates matching more than one style with styles.",
+      "styles": [
+        "TWO_HAND",
+        "KATANA"
+      ],
+      "_comment_styles": "Optional alternative to style. Use this when the same animation should apply to several Epic Fight style names.",
+      "run": "examplemod:biped/fastrun/uchigatana_unsheathed_fast_run",
+      "_comment_run": "A run-only entry uses this animation and lets the mod create procedural step pulses."
+    },
+    {
       "priority": 200,
-      "run": "examplemod:biped/fastrun/greatsword_run",
-      "left_step": "examplemod:biped/fastrun/greatsword_left_step",
-      "right_step": "examplemod:biped/fastrun/greatsword_right_step"
+      "_comment_priority": "This entry demonstrates the built-in WOM weapon sprint family.",
+      "run": "wom:biped/skill/biped_sprint",
+      "_comment_run": "When WOM is installed, this resolves to the WOM weapon sprint animation family. Without WOM, it is skipped."
     },
     {
       "priority": 100,
-      "run": "wom:biped/skill/biped_sprint"
+      "_comment_priority": "This entry demonstrates a style-specific Epic Fight run animation as a fallback candidate.",
+      "style": "SHEATH",
+      "_comment_style": "Only used while the weapon is in SHEATH style.",
+      "run": "epicfight:biped/living/run_uchigatana_sheath",
+      "_comment_run": "Uses Epic Fight's normal sheath run as the source. No-WOM FastRun can procedurally pulse a run-only entry."
     },
     {
       "priority": 0,
-      "run": "epicfight:biped/living/run_greatsword"
+      "_comment_priority": "Lowest priority catch-all entry for styles not handled above.",
+      "run": "epicfight:biped/living/run_uchigatana",
+      "_comment_run": "No style restriction means this entry can match any current style if higher priority entries do not apply."
     }
   ],
+  "_comment_animations": "Entries are sorted by priority. style/styles only filter an entry; they do not change the rule match target.",
   "effects": {
     "startup_step": true,
-    "manual_step": false
+    "_comment_startup_step": "When true, FastRun may trigger a step pulse when the sprint animation starts.",
+    "manual_step": false,
+    "_comment_manual_step": "When true, manual FastRun step input is allowed if the selected profile has step animations or a custom run animation for procedural pulse."
   },
+  "_comment_effects": "Step effects no longer require WOM Natural Sprinter. With WOM Natural Sprinter available, WOM step resource is consumed; otherwise the generic FastRun step cooldown config is used.",
   "run_pose": {
     "enabled": true,
+    "_comment_enabled": "When true, applies the FastRun run-pose adjustment while this profile is active.",
     "scale": 0.4,
-    "blend_ticks": 3.0
+    "_comment_scale": "Strength of the run-pose adjustment. 0 disables movement; larger values make the pose stronger.",
+    "blend_ticks": 3.0,
+    "_comment_blend_ticks": "How many ticks the run-pose adjustment takes to blend in or out."
   },
+  "_comment_run_pose": "Controls only the extra FastRun pose layer, not which animation id is selected.",
+  "step_pose": {
+    "scale": 1.0,
+    "_comment_scale": "Strength of the procedural step pose pulse. 1.0 matches the built-in default, 0.5 is half strength, and 0 disables only the pose offsets.",
+    "duration_ticks": 10.0,
+    "_comment_duration_ticks": "How many ticks the procedural step pose pulse lasts. 10.0 matches the built-in default.",
+    "forward_impulse": 0.8,
+    "_comment_forward_impulse": "Horizontal forward velocity added when a procedural step fires. 0.8 matches the built-in default, and 0 disables the extra push."
+  },
+  "_comment_step_pose": "Controls only procedural FastRun step pulses. Real left_step/right_step animations keep using their authored animation, though their visual/audio effects still follow the selected profile.",
   "fallback": "weapon",
-  "_comment": [
-    "This disabled file documents the FastRun datapack format.",
-    "Set enabled to true and change match.type or match.item to use it.",
-    "main_priority chooses which rule wins when multiple files match the same item or type.",
-    "animations[].priority chooses which animation set is tried first inside this rule.",
-    "If a set defines left_step and right_step, both step animations and run must resolve; otherwise the whole set is skipped.",
-    "If a set only defines run, the mod uses that run animation with procedural step pulses.",
-    "run wom:biped/skill/biped_sprint means use this mod's default WOM weapon sprint family.",
-    "run wom:biped/skill/biped_sprint_barehand means use this mod's default WOM barehand sprint family.",
-    "If WOM is not installed, WOM default sprint entries are skipped and the next animations[] entry is tried.",
-    "If no rule matches, no-WOM FastRun uses the configured noWomProceduralWeaponFastRun fallback or EpicParCool's default FastRun animation.",
-    "FastRun step no longer requires WOM Natural Sprinter. With Natural Sprinter available it consumes that step resource; otherwise it uses the genericFastRunStepCooldownTicks config."
-  ]
+  "_comment_fallback": "Used when no animation entry can be used. weapon means use the current weapon run as the procedural FastRun source; barehand means use the barehand fallback family."
 }

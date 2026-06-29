@@ -23,7 +23,7 @@ public final class WomSpiderWallYawLock {
 	}
 
 	public static void tick(Player player) {
-		if (!ModCompat.isWomLoaded() || ModCompat.isSsrCameraFixesLoaded()) {
+		if (!ModCompat.isWomLoaded()) {
 			clear(player);
 			return;
 		}
@@ -67,7 +67,7 @@ public final class WomSpiderWallYawLock {
 	}
 
 	static float lockToWall(Player player, PlayerPatch<?> playerPatch, Direction wallDirection, String reason) {
-		if (!ModCompat.isWomLoaded() || ModCompat.isSsrCameraFixesLoaded() || player == null) {
+		if (!ModCompat.isWomLoaded() || player == null) {
 			return player == null ? 0.0F : player.yBodyRot;
 		}
 

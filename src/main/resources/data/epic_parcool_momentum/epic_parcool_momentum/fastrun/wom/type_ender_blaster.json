@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "wom:ender_blaster"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "style": "TWO_HAND",
+      "run": "wom:biped/skill/biped_sprint_barehand"
+    },
+    {
+      "priority": 100,
+      "style": "ONE_HAND",
+      "run": "wom:biped/living/enderblaster_onehand_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

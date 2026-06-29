@@ -1,0 +1,23 @@
+{
+  "enabled": false,
+  "main_priority": 0,
+  "match": {
+    "type": "epicfightx:modao"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "run": "wom:biped/skill/biped_sprint"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.4,
+    "blend_ticks": 3.0
+  },
+  "fallback": "weapon"
+}

@@ -201,6 +201,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 		List<AnimationSet> animationSets = parseAnimationSets(id, object);
 		StepEffects stepEffects = parseStepEffects(object);
 		RunPoseSettings runPose = parseRunPose(object);
+		StepPoseSettings stepPose = parseStepPose(object);
 
 		FallbackFamily fallback = null;
 		if (object.has("fallback")) {
@@ -220,6 +221,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 				stepEffects.startupStep(),
 				stepEffects.manualStep(),
 				runPose,
+				stepPose,
 				fallback,
 				GsonHelper.getAsInt(object, "main_priority", 0));
 	}
@@ -248,10 +250,12 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 				throw new JsonParseException("animations[" + index + "] must define both left_step and right_step, or neither, in " + id);
 			}
 
+			Set<String> styles = parseAnimationStyles(id, animationObject, index);
 			animationSets.add(new AnimationSet(
 					runAnimation,
 					leftStepAnimation,
 					rightStepAnimation,
+					styles,
 					GsonHelper.getAsInt(animationObject, "priority", 0)));
 		}
 
@@ -259,6 +263,39 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 				.comparingInt(AnimationSet::priority).reversed()
 				.thenComparing(animationSet -> animationSet.runAnimation().toString()));
 		return List.copyOf(animationSets);
+	}
+
+	private static Set<String> parseAnimationStyles(ResourceLocation id, JsonObject animationObject, int index) {
+		boolean hasStyle = animationObject.has("style");
+		boolean hasStyles = animationObject.has("styles");
+		if (hasStyle && hasStyles) {
+			throw new JsonParseException("animations[" + index + "] cannot define both style and styles in " + id);
+		}
+		if (!hasStyle && !hasStyles) {
+			return Set.of();
+		}
+
+		Set<String> styles = new HashSet<>();
+		if (hasStyle) {
+			addAnimationStyle(styles, GsonHelper.getAsString(animationObject, "style"), id, index);
+		} else {
+			JsonArray styleArray = GsonHelper.getAsJsonArray(animationObject, "styles");
+			if (styleArray.isEmpty()) {
+				throw new JsonParseException("animations[" + index + "].styles cannot be empty in " + id);
+			}
+			for (JsonElement styleElement : styleArray) {
+				addAnimationStyle(styles, GsonHelper.convertToString(styleElement, "style entry in animations[" + index + "]"), id, index);
+			}
+		}
+		return Set.copyOf(styles);
+	}
+
+	private static void addAnimationStyle(Set<String> styles, String value, ResourceLocation id, int index) {
+		String style = value == null ? "" : value.trim();
+		if (style.isEmpty()) {
+			throw new JsonParseException("animations[" + index + "] style cannot be empty in " + id);
+		}
+		styles.add(style.toUpperCase(java.util.Locale.ROOT));
 	}
 
 	private static StepEffects parseStepEffects(JsonObject object) {
@@ -286,6 +323,24 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 				? finitePositiveFloat(GsonHelper.getAsFloat(runPose, "blend_ticks"), "run_pose.blend_ticks")
 				: RunPoseSettings.DEFAULT.blendTicks();
 		return new RunPoseSettings(enabled, scale, blendTicks);
+	}
+
+	private static StepPoseSettings parseStepPose(JsonObject object) {
+		if (!object.has("step_pose")) {
+			return StepPoseSettings.DEFAULT;
+		}
+
+		JsonObject stepPose = GsonHelper.getAsJsonObject(object, "step_pose");
+		float scale = stepPose.has("scale")
+				? finiteNonNegativeFloat(GsonHelper.getAsFloat(stepPose, "scale"), "step_pose.scale")
+				: StepPoseSettings.DEFAULT.scale();
+		float durationTicks = stepPose.has("duration_ticks")
+				? finitePositiveFloat(GsonHelper.getAsFloat(stepPose, "duration_ticks"), "step_pose.duration_ticks")
+				: StepPoseSettings.DEFAULT.durationTicks();
+		float forwardImpulse = stepPose.has("forward_impulse")
+				? finiteNonNegativeFloat(GsonHelper.getAsFloat(stepPose, "forward_impulse"), "step_pose.forward_impulse")
+				: StepPoseSettings.DEFAULT.forwardImpulse();
+		return new StepPoseSettings(scale, durationTicks, forwardImpulse);
 	}
 
 	private static float finiteNonNegativeFloat(float value, String name) {
@@ -321,6 +376,20 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 		}
 	}
 
+	public static record StepPoseSettings(float scale, float durationTicks, float forwardImpulse) {
+		public static final StepPoseSettings DEFAULT = new StepPoseSettings(1.0F, 10.0F, 0.8F);
+
+		public void encode(FriendlyByteBuf buffer) {
+			buffer.writeFloat(scale);
+			buffer.writeFloat(durationTicks);
+			buffer.writeFloat(forwardImpulse);
+		}
+
+		static StepPoseSettings decode(FriendlyByteBuf buffer) {
+			return new StepPoseSettings(buffer.readFloat(), buffer.readFloat(), buffer.readFloat());
+		}
+	}
+
 	public enum FallbackFamily {
 		BAREHAND,
 		WEAPON
@@ -330,16 +399,19 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 		private final ResourceLocation runAnimation;
 		private final ResourceLocation leftStepAnimation;
 		private final ResourceLocation rightStepAnimation;
+		private final Set<String> styles;
 		private final int priority;
 
 		private AnimationSet(
 				ResourceLocation runAnimation,
 				ResourceLocation leftStepAnimation,
 				ResourceLocation rightStepAnimation,
+				Set<String> styles,
 				int priority) {
 			this.runAnimation = runAnimation;
 			this.leftStepAnimation = leftStepAnimation;
 			this.rightStepAnimation = rightStepAnimation;
+			this.styles = styles == null ? Set.of() : Set.copyOf(styles);
 			this.priority = priority;
 		}
 
@@ -355,6 +427,14 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			return rightStepAnimation;
 		}
 
+		boolean matchesStyle(String currentStyle) {
+			return styles.isEmpty() || currentStyle != null && styles.contains(currentStyle);
+		}
+
+		Set<String> styles() {
+			return styles;
+		}
+
 		int priority() {
 			return priority;
 		}
@@ -363,6 +443,10 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			buffer.writeResourceLocation(runAnimation);
 			writeNullableResourceLocation(buffer, leftStepAnimation);
 			writeNullableResourceLocation(buffer, rightStepAnimation);
+			buffer.writeVarInt(styles.size());
+			for (String style : styles) {
+				buffer.writeUtf(style);
+			}
 			buffer.writeVarInt(priority);
 		}
 
@@ -370,8 +454,13 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			ResourceLocation runAnimation = buffer.readResourceLocation();
 			ResourceLocation leftStepAnimation = readNullableResourceLocation(buffer);
 			ResourceLocation rightStepAnimation = readNullableResourceLocation(buffer);
+			int styleCount = buffer.readVarInt();
+			Set<String> styles = new HashSet<>();
+			for (int index = 0; index < styleCount; index++) {
+				styles.add(buffer.readUtf().trim().toUpperCase(java.util.Locale.ROOT));
+			}
 			int priority = buffer.readVarInt();
-			return new AnimationSet(runAnimation, leftStepAnimation, rightStepAnimation, priority);
+			return new AnimationSet(runAnimation, leftStepAnimation, rightStepAnimation, styles, priority);
 		}
 	}
 
@@ -383,6 +472,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 		private final boolean startupStepEffects;
 		private final boolean manualStepEffects;
 		private final RunPoseSettings runPose;
+		private final StepPoseSettings stepPose;
 		private final FallbackFamily fallback;
 		private final int mainPriority;
 
@@ -394,6 +484,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 				boolean startupStepEffects,
 				boolean manualStepEffects,
 				RunPoseSettings runPose,
+				StepPoseSettings stepPose,
 				FallbackFamily fallback,
 				int mainPriority) {
 			this.id = id;
@@ -403,6 +494,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			this.startupStepEffects = startupStepEffects;
 			this.manualStepEffects = manualStepEffects;
 			this.runPose = runPose == null ? RunPoseSettings.DEFAULT : runPose;
+			this.stepPose = stepPose == null ? StepPoseSettings.DEFAULT : stepPose;
 			this.fallback = fallback;
 			this.mainPriority = mainPriority;
 		}
@@ -435,6 +527,10 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			return runPose;
 		}
 
+		StepPoseSettings stepPose() {
+			return stepPose;
+		}
+
 		FallbackFamily fallback() {
 			return fallback;
 		}
@@ -454,6 +550,7 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			buffer.writeBoolean(startupStepEffects);
 			buffer.writeBoolean(manualStepEffects);
 			runPose.encode(buffer);
+			stepPose.encode(buffer);
 			writeNullableString(buffer, fallback == null ? null : fallback.name());
 			buffer.writeVarInt(mainPriority);
 		}
@@ -470,11 +567,12 @@ public final class NaturalSprinterFastRunAnimationOverrides {
 			boolean startupStepEffects = buffer.readBoolean();
 			boolean manualStepEffects = buffer.readBoolean();
 			RunPoseSettings runPose = RunPoseSettings.decode(buffer);
+			StepPoseSettings stepPose = StepPoseSettings.decode(buffer);
 			String fallbackName = readNullableString(buffer);
 			FallbackFamily fallback = fallbackName == null ? null : FallbackFamily.valueOf(fallbackName);
 			int mainPriority = buffer.readVarInt();
 			return new RuleData(id, item, type, animationSets,
-					startupStepEffects, manualStepEffects, runPose, fallback, mainPriority);
+					startupStepEffects, manualStepEffects, runPose, stepPose, fallback, mainPriority);
 		}
 	}
 

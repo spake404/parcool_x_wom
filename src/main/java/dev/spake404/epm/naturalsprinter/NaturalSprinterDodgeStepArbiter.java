@@ -223,7 +223,7 @@ public final class NaturalSprinterDodgeStepArbiter {
 		if (player == null
 				|| !player.isLocalPlayer()
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
-				|| !EPMConfig.naturalSprinterAnimations()
+				|| !EPMConfig.customFastRunAnimations()
 				|| !EPMConfig.naturalSprinterManualStep()) {
 			return false;
 		}

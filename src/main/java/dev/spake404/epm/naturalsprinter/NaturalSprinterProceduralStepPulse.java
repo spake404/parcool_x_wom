@@ -14,6 +14,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -31,6 +32,7 @@ import yesman.epicfight.api.utils.math.OpenMatrix4f;
 import yesman.epicfight.api.utils.math.Vec3f;
 import yesman.epicfight.gameasset.EpicFightSounds;
 import yesman.epicfight.particle.EpicFightParticles;
+import yesman.epicfight.world.capabilities.EpicFightCapabilities;
 import yesman.epicfight.world.capabilities.entitypatch.LivingEntityPatch;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
 
@@ -167,21 +169,37 @@ public final class NaturalSprinterProceduralStepPulse {
 	}
 
 	public static void request(PlayerPatch<?> playerPatch, AssetAccessor<? extends StaticAnimation> runAnimation, boolean rightStep) {
+		request(playerPatch, runAnimation, rightStep, NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
+	}
+
+	public static void request(
+			PlayerPatch<?> playerPatch,
+			AssetAccessor<? extends StaticAnimation> runAnimation,
+			boolean rightStep,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
 		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
 		if (entity != null) {
-			StepPulse pulse = new StepPulse(entity.tickCount, entity.tickCount + RETAINED_TICKS, rightStep);
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings safeSettings = safeStepPoseSettings(settings);
+			StepPulse pulse = new StepPulse(
+					entity.tickCount,
+					entity.tickCount + retainedTicks(safeSettings),
+					rightStep,
+					safeSettings);
 			PULSES.put(entity, pulse);
 			LAST_STEP_RIGHT.put(entity, Boolean.valueOf(rightStep));
 			boolean replayed = replayRunAnimation(playerPatch, runAnimation);
 			if (debug()) {
-				EPM.LOGGER.info("{} phase=request tick={} rightStep={} runAnimation={} replayed={} currentAnimation={} elapsed={}",
+				EPM.LOGGER.info("{} phase=request tick={} rightStep={} runAnimation={} replayed={} currentAnimation={} elapsed={} stepPose=(scale={}, durationTicks={}, forwardImpulse={})",
 						LOG_PREFIX,
 						Integer.valueOf(entity.tickCount),
 						Boolean.valueOf(rightStep),
 						assetName(runAnimation),
 						Boolean.valueOf(replayed),
 						assetName(AnimationQuery.currentAnimation(playerPatch)),
-						Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
+						Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)),
+						Float.valueOf(safeSettings.scale()),
+						Float.valueOf(safeSettings.durationTicks()),
+						Float.valueOf(safeSettings.forwardImpulse()));
 			}
 		} else if (debug()) {
 			EPM.LOGGER.info("{} phase=request_skip reason=null_entity hasPlayerPatch={}",
@@ -241,6 +259,13 @@ public final class NaturalSprinterProceduralStepPulse {
 	}
 
 	public static void playStepEffects(PlayerPatch<?> playerPatch, String source) {
+		playStepEffects(playerPatch, source, NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
+	}
+
+	public static void playStepEffects(
+			PlayerPatch<?> playerPatch,
+			String source,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
 		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
 		if (entity == null) {
 			if (debug()) {
@@ -252,7 +277,7 @@ public final class NaturalSprinterProceduralStepPulse {
 			return;
 		}
 
-		Vec3 impulse = applyForwardImpulse(entity, source);
+		Vec3 impulse = applyForwardImpulse(entity, source, settings);
 		int particles = playVisualAndAudioEffects(entity);
 		if (debug()) {
 			EPM.LOGGER.info("{} phase=effects tick={} source={} impulseX={} impulseZ={} particles={} currentAnimation={} elapsed={}",
@@ -268,6 +293,13 @@ public final class NaturalSprinterProceduralStepPulse {
 	}
 
 	public static void playCleanStepEffects(PlayerPatch<?> playerPatch, String source) {
+		playCleanStepEffects(playerPatch, source, NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT);
+	}
+
+	public static void playCleanStepEffects(
+			PlayerPatch<?> playerPatch,
+			String source,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
 		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
 		if (entity == null) {
 			if (debug()) {
@@ -279,7 +311,8 @@ public final class NaturalSprinterProceduralStepPulse {
 			return;
 		}
 
-		Vec3 impulse = applyForwardImpulse(entity, source);
+		Vec3 impulse = applyForwardImpulse(entity, source, settings);
+		playStepSound(entity);
 		int particles = playTrailingPoofParticles(entity);
 		if (debug()) {
 			EPM.LOGGER.info("{} phase=clean_effects tick={} source={} impulseX={} impulseZ={} particles={} currentAnimation={} elapsed={}",
@@ -289,6 +322,57 @@ public final class NaturalSprinterProceduralStepPulse {
 					Double.valueOf(impulse.x()),
 					Double.valueOf(impulse.z()),
 					Integer.valueOf(particles),
+					assetName(AnimationQuery.currentAnimation(playerPatch)),
+					Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
+		}
+	}
+
+	public static void playStepForwardImpulse(
+			PlayerPatch<?> playerPatch,
+			String source,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
+		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
+		if (entity == null) {
+			if (debug()) {
+				EPM.LOGGER.info("{} phase=forward_impulse_skip reason=null_entity source={} hasPlayerPatch={}",
+						LOG_PREFIX,
+						source,
+						Boolean.valueOf(playerPatch != null));
+			}
+			return;
+		}
+
+		Vec3 impulse = applyForwardImpulse(entity, source, settings);
+		if (debug()) {
+			EPM.LOGGER.info("{} phase=forward_impulse tick={} source={} impulseX={} impulseZ={} currentAnimation={} elapsed={}",
+					LOG_PREFIX,
+					Integer.valueOf(entity.tickCount),
+					source,
+					Double.valueOf(impulse.x()),
+					Double.valueOf(impulse.z()),
+					assetName(AnimationQuery.currentAnimation(playerPatch)),
+					Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
+		}
+	}
+
+	public static void playStepSoundOnly(PlayerPatch<?> playerPatch, String source) {
+		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
+		if (entity == null) {
+			if (debug()) {
+				EPM.LOGGER.info("{} phase=sound_only_skip reason=null_entity source={} hasPlayerPatch={}",
+						LOG_PREFIX,
+						source,
+						Boolean.valueOf(playerPatch != null));
+			}
+			return;
+		}
+
+		playStepSound(entity);
+		if (debug()) {
+			EPM.LOGGER.info("{} phase=sound_only tick={} source={} currentAnimation={} elapsed={}",
+					LOG_PREFIX,
+					Integer.valueOf(entity.tickCount),
+					source,
 					assetName(AnimationQuery.currentAnimation(playerPatch)),
 					Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
 		}
@@ -318,12 +402,40 @@ public final class NaturalSprinterProceduralStepPulse {
 		}
 	}
 
-	private static Vec3 applyForwardImpulse(LivingEntity entity, String source) {
-		if (entity == null || !entity.onGround()) {
+	public static void playStepAfterimageOnly(PlayerPatch<?> playerPatch, String source) {
+		LivingEntity entity = playerPatch == null ? null : playerPatch.getOriginal();
+		if (entity == null) {
+			if (debug()) {
+				EPM.LOGGER.info("{} phase=afterimage_only_skip reason=null_entity source={} hasPlayerPatch={}",
+						LOG_PREFIX,
+						source,
+						Boolean.valueOf(playerPatch != null));
+			}
+			return;
+		}
+
+		int particles = playAfterimage(entity);
+		if (debug()) {
+			EPM.LOGGER.info("{} phase=afterimage_only tick={} source={} particles={} currentAnimation={} elapsed={}",
+					LOG_PREFIX,
+					Integer.valueOf(entity.tickCount),
+					source,
+					Integer.valueOf(particles),
+					assetName(AnimationQuery.currentAnimation(playerPatch)),
+					Float.valueOf(AnimationQuery.currentElapsedTime(playerPatch)));
+		}
+	}
+
+	private static Vec3 applyForwardImpulse(
+			LivingEntity entity,
+			String source,
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
+		if (entity == null) {
 			return Vec3.ZERO;
 		}
 
-		Vec3 impulse = stepForwardImpulse(entity, STEP_FORWARD_STRENGTH);
+		NaturalSprinterFastRunAnimationOverrides.StepPoseSettings safeSettings = safeStepPoseSettings(settings);
+		Vec3 impulse = stepForwardImpulse(entity, safeSettings.forwardImpulse());
 		if (impulse.lengthSqr() < 1.0E-6D) {
 			return Vec3.ZERO;
 		}
@@ -335,7 +447,7 @@ public final class NaturalSprinterProceduralStepPulse {
 					LOG_PREFIX,
 					Integer.valueOf(entity.tickCount),
 					source,
-					Double.valueOf(STEP_FORWARD_STRENGTH),
+					Float.valueOf(safeSettings.forwardImpulse()),
 					Double.valueOf(impulse.x()),
 					Double.valueOf(impulse.z()),
 					Double.valueOf(movement.x()),
@@ -359,22 +471,73 @@ public final class NaturalSprinterProceduralStepPulse {
 			spawned += spawnPoofParticles(level, player);
 		}
 
+		spawned += playAfterimage(entity);
+
+		return spawned;
+	}
+
+	private static void playStepSound(LivingEntity entity) {
+		if (entity instanceof Player player) {
+			playStepSound(player.level(), player);
+		}
+	}
+
+	private static int playAfterimage(LivingEntity entity) {
+		if (entity == null) {
+			return 0;
+		}
+
 		try {
-			level.addParticle(EpicFightParticles.WHITE_AFTERIMAGE.get(),
+			logAfterimageProbe(entity);
+			entity.level().addParticle(EpicFightParticles.WHITE_AFTERIMAGE.get(),
 					entity.getX(),
 					entity.getY(),
 					entity.getZ(),
 					Double.longBitsToDouble(entity.getId()),
 					0.0D,
 					0.0D);
-			spawned++;
+			return 1;
 		} catch (RuntimeException | LinkageError exception) {
 			if (debug()) {
 				EPM.LOGGER.warn("{} phase=afterimage_skip tick={} error={}", LOG_PREFIX, Integer.valueOf(entity.tickCount), exception.toString());
 			}
+			return 0;
+		}
+	}
+
+	private static void logAfterimageProbe(LivingEntity entity) {
+		if (!debug() || entity == null) {
+			return;
 		}
 
-		return spawned;
+		try {
+			Level level = entity.level();
+			int entityId = entity.getId();
+			double encodedEntityId = Double.longBitsToDouble(entityId);
+			Entity lookup = level == null ? null : level.getEntity(entityId);
+			LivingEntityPatch<?> patch = EpicFightCapabilities.getEntityPatch(entity, LivingEntityPatch.class);
+			Object snapshot = patch == null ? null : patch.captureEntitySnapshot();
+			EPM.LOGGER.info(
+					"{} phase=afterimage_probe tick={} entityId={} encodedEntityId={} levelClass={} isClientSide={} lookupPresent={} lookupSame={} patchPresent={} snapshotPresent={} x={} y={} z={}",
+					LOG_PREFIX,
+					Integer.valueOf(entity.tickCount),
+					Integer.valueOf(entityId),
+					Double.valueOf(encodedEntityId),
+					level == null ? "null" : level.getClass().getName(),
+					Boolean.valueOf(level != null && level.isClientSide()),
+					Boolean.valueOf(lookup != null),
+					Boolean.valueOf(lookup == entity),
+					Boolean.valueOf(patch != null),
+					Boolean.valueOf(snapshot != null),
+					Double.valueOf(entity.getX()),
+					Double.valueOf(entity.getY()),
+					Double.valueOf(entity.getZ()));
+		} catch (RuntimeException | LinkageError exception) {
+			EPM.LOGGER.warn("{} phase=afterimage_probe_skip tick={} error={}",
+					LOG_PREFIX,
+					Integer.valueOf(entity.tickCount),
+					exception.toString());
+		}
 	}
 
 	private static int playTrailingPoofParticles(LivingEntity entity) {
@@ -523,7 +686,9 @@ public final class NaturalSprinterProceduralStepPulse {
 			return;
 		}
 
-		float phase = Mth.clamp(ageTicks / DURATION_TICKS, 0.0F, 1.0F);
+		NaturalSprinterFastRunAnimationOverrides.StepPoseSettings stepSettings = safeStepPoseSettings(state.settings);
+		float stepScale = stepSettings.scale();
+		float phase = Mth.clamp(ageTicks / stepSettings.durationTicks(), 0.0F, 1.0F);
 		float pulse = Mth.sin(PI * phase);
 		float drive = 0.5F - 0.5F * Mth.cos(PI * Mth.clamp(phase / 0.55F, 0.0F, 1.0F));
 		float recover = 1.0F - Mth.clamp((phase - 0.55F) / 0.45F, 0.0F, 1.0F);
@@ -539,25 +704,26 @@ public final class NaturalSprinterProceduralStepPulse {
 		float side = state.rightStep ? 1.0F : -1.0F;
 		NaturalSprinterFastRunAnimationOverrides.RunPoseSettings sustainedSettings = sustainedRunPoseSettings(animation, entity);
 		float sustainedScale = sustainedSettings == null ? 0.0F : currentSustainedFastRunPoseScale(entity, partialTicks, sustainedSettings);
-		float bodyDropDelta = Math.max(bodyDrop - sustainedScale, 0.0F);
-		float torsoLeanDelta = Math.max(torsoLean - sustainedScale, 0.0F);
-		float forwardDriveDelta = Math.max(forwardDrive - sustainedScale, 0.0F);
-		float upperStepPowerDelta = Math.max(stepPower - sustainedScale, 0.0F);
+		float bodyDropDelta = Math.max(bodyDrop * stepScale - sustainedScale, 0.0F);
+		float torsoLeanDelta = Math.max(torsoLean * stepScale - sustainedScale, 0.0F);
+		float forwardDriveDelta = Math.max(forwardDrive * stepScale - sustainedScale, 0.0F);
+		float stepPowerScaled = stepPower * stepScale;
+		float plantScaled = plant * stepScale;
 
 		int appliedTransforms = 0;
-		appliedTransforms += translate(pose, "Root", side * 0.045F * stepPower, -0.095F * bodyDropDelta, 0.30F * forwardDriveDelta) ? 1 : 0;
+		appliedTransforms += translate(pose, "Root", side * 0.045F * stepPowerScaled, -0.095F * bodyDropDelta, 0.30F * forwardDriveDelta) ? 1 : 0;
 		appliedTransforms += rotate(pose, "Torso", 0.30F * torsoLeanDelta, 0.0F, 0.0F) ? 1 : 0;
 		appliedTransforms += rotate(pose, "Chest", 0.22F * torsoLeanDelta, 0.0F, 0.0F) ? 1 : 0;
 
-		appliedTransforms += translate(pose, "Leg_R_IK", 0.0F, state.rightStep ? -0.56F * plant : 0.44F * plant, (state.rightStep ? 0.34F : -0.18F) * stepPower) ? 1 : 0;
-		appliedTransforms += translate(pose, "Leg_L_IK", 0.0F, state.rightStep ? 0.44F * plant : -0.56F * plant, (state.rightStep ? -0.18F : 0.34F) * stepPower) ? 1 : 0;
+		appliedTransforms += translate(pose, "Leg_R_IK", 0.0F, state.rightStep ? -0.56F * plantScaled : 0.44F * plantScaled, (state.rightStep ? 0.34F : -0.18F) * stepPowerScaled) ? 1 : 0;
+		appliedTransforms += translate(pose, "Leg_L_IK", 0.0F, state.rightStep ? 0.44F * plantScaled : -0.56F * plantScaled, (state.rightStep ? -0.18F : 0.34F) * stepPowerScaled) ? 1 : 0;
 
-		appliedTransforms += rotate(pose, "Thigh_R", state.rightStep ? -0.55F * stepPower : 0.38F * stepPower, 0.0F, side * 0.04F * stepPower) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Thigh_L", state.rightStep ? 0.38F * stepPower : -0.55F * stepPower, 0.0F, side * 0.04F * stepPower) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Leg_R", state.rightStep ? 0.66F * stepPower : -0.30F * stepPower, 0.0F, 0.0F) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Leg_L", state.rightStep ? -0.30F * stepPower : 0.66F * stepPower, 0.0F, 0.0F) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Knee_R", state.rightStep ? 0.30F * stepPower : -0.16F * stepPower, 0.0F, 0.0F) ? 1 : 0;
-		appliedTransforms += rotate(pose, "Knee_L", state.rightStep ? -0.16F * stepPower : 0.30F * stepPower, 0.0F, 0.0F) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Thigh_R", state.rightStep ? -0.55F * stepPowerScaled : 0.38F * stepPowerScaled, 0.0F, side * 0.04F * stepPowerScaled) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Thigh_L", state.rightStep ? 0.38F * stepPowerScaled : -0.55F * stepPowerScaled, 0.0F, side * 0.04F * stepPowerScaled) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Leg_R", state.rightStep ? 0.66F * stepPowerScaled : -0.30F * stepPowerScaled, 0.0F, 0.0F) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Leg_L", state.rightStep ? -0.30F * stepPowerScaled : 0.66F * stepPowerScaled, 0.0F, 0.0F) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Knee_R", state.rightStep ? 0.30F * stepPowerScaled : -0.16F * stepPowerScaled, 0.0F, 0.0F) ? 1 : 0;
+		appliedTransforms += rotate(pose, "Knee_L", state.rightStep ? -0.16F * stepPowerScaled : 0.30F * stepPowerScaled, 0.0F, 0.0F) ? 1 : 0;
 
 		boolean debug = debug();
 		if (debug && !state.firstApplyLogged) {
@@ -682,7 +848,7 @@ public final class NaturalSprinterProceduralStepPulse {
 	private static boolean shouldApplySustainedFastRunPose(LivingEntity entity) {
 		if (!(entity instanceof Player player)
 				|| !EPMParCoolGate.allowCrossModSkillCompat()
-				|| !EPMConfig.naturalSprinterAnimations()) {
+				|| !EPMConfig.customFastRunAnimations()) {
 			return false;
 		}
 
@@ -728,6 +894,25 @@ public final class NaturalSprinterProceduralStepPulse {
 
 	private static boolean isExpired(LivingEntity entity, StepPulse pulse) {
 		return entity == null || pulse == null || entity.tickCount > pulse.expireTick;
+	}
+
+	private static NaturalSprinterFastRunAnimationOverrides.StepPoseSettings safeStepPoseSettings(
+			NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
+		if (settings == null
+				|| !Float.isFinite(settings.scale())
+				|| !Float.isFinite(settings.durationTicks())
+				|| !Float.isFinite(settings.forwardImpulse())
+				|| settings.scale() < 0.0F
+				|| settings.durationTicks() <= 0.0F
+				|| settings.forwardImpulse() < 0.0F) {
+			return NaturalSprinterFastRunAnimationOverrides.StepPoseSettings.DEFAULT;
+		}
+		return settings;
+	}
+
+	private static int retainedTicks(NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
+		NaturalSprinterFastRunAnimationOverrides.StepPoseSettings safeSettings = safeStepPoseSettings(settings);
+		return Math.max(RETAINED_TICKS, Mth.ceil(safeSettings.durationTicks()) + 2);
 	}
 
 	private static float smoothStep(float value) {
@@ -818,14 +1003,20 @@ public final class NaturalSprinterProceduralStepPulse {
 		private final int startTick;
 		private final int expireTick;
 		private final boolean rightStep;
+		private final NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings;
 		private boolean firstApplyLogged;
 		private boolean peakApplyLogged;
 		private boolean noJointApplyLogged;
 
-		private StepPulse(int startTick, int expireTick, boolean rightStep) {
+		private StepPulse(
+				int startTick,
+				int expireTick,
+				boolean rightStep,
+				NaturalSprinterFastRunAnimationOverrides.StepPoseSettings settings) {
 			this.startTick = startTick;
 			this.expireTick = expireTick;
 			this.rightStep = rightStep;
+			this.settings = safeStepPoseSettings(settings);
 		}
 	}
 }

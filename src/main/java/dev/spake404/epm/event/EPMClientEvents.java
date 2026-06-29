@@ -1,6 +1,7 @@
 package dev.spake404.epm.event;
 
 import dev.spake404.epm.debug.CameraEventDebug;
+import dev.spake404.epm.debug.EpicFightAnimationHudDebug;
 import dev.spake404.epm.debug.RotationTraceDebug;
 import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
 import dev.spake404.epm.EPM;
@@ -8,6 +9,7 @@ import dev.spake404.epm.EPMClientHooks;
 import dev.spake404.epm.vault.VaultCameraAnimationSmoother;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
 import net.minecraftforge.event.TickEvent;
@@ -58,6 +60,9 @@ public final class EPMClientEvents {
 	@SubscribeEvent(priority = EventPriority.MONITOR)
 	public static void logClientTickEnd(TickEvent.ClientTickEvent event) {
 		RotationTraceDebug.logClientTick(event, "monitor");
+		if (event.phase == TickEvent.Phase.END) {
+			EpicFightAnimationHudDebug.tickCopyShortcut();
+		}
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -68,5 +73,10 @@ public final class EPMClientEvents {
 	@SubscribeEvent(priority = EventPriority.MONITOR)
 	public static void logRenderTickEnd(TickEvent.RenderTickEvent event) {
 		RotationTraceDebug.logRenderTick(event, "monitor");
+	}
+
+	@SubscribeEvent(priority = EventPriority.LOWEST)
+	public static void renderEpicFightAnimationDebugHud(RenderGuiOverlayEvent.Post event) {
+		EpicFightAnimationHudDebug.render(event);
 	}
 }

@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "main_priority": 0,
+  "match": {
+    "type": "wom:blackstar"
+  },
+  "animations": [
+    {
+      "priority": 100,
+      "run": "wom:biped/living/solar_run"
+    }
+  ],
+  "effects": {
+    "startup_step": true,
+    "manual_step": false
+  },
+  "run_pose": {
+    "enabled": true,
+    "scale": 0.6,
+    "blend_ticks": 5.0
+  },
+  "fallback": "weapon"
+}

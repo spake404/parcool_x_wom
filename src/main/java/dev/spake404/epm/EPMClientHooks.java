@@ -25,9 +25,11 @@ import dev.spake404.epm.vault.VaultStartFastRunGrace;
 import dev.spake404.epm.walljump.JumpActionArbiter;
 import dev.spake404.epm.walljump.ParCoolWallJumpHandoffState;
 import dev.spake404.epm.wom.spider.WomSpiderWallHooks;
+import dev.spake404.epm.wom.spider.WomSpiderWallContactResolver;
 import dev.spake404.epm.wom.spider.WomSpiderWallJumpPriority;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
 import dev.spake404.epm.wom.spider.WomSpiderWallSlideHandler;
+import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 import com.alrex.parcool.client.animation.impl.FastRunningAnimator;
@@ -53,16 +55,21 @@ import com.alrex.parcool.config.ParCoolConfig;
 import com.alrex.parcool.utilities.WorldUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.ASMEventHandler;
+import net.minecraftforge.eventbus.api.IEventListener;
 import yesman.epicfight.api.animation.AnimationManager;
 import yesman.epicfight.api.animation.LivingMotions;
 import yesman.epicfight.api.client.input.PlayerInputState;
@@ -105,6 +112,9 @@ public final class EPMClientHooks {
 	private static final WeakHashMap<Player, Integer> VAULT_EARLY_FINISH_LOG_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> WALL_JUMP_AUTO_SPRINT_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> JUMP_PRIORITY_LOG_TICKS = new WeakHashMap<>();
+	private static final WeakHashMap<Player, Integer> PARCOOL_WALL_JUMP_CANDIDATE_LOG_TICKS = new WeakHashMap<>();
+	private static int INPUT_ORDER_SEQUENCE;
+	private static boolean MOVEMENT_INPUT_LISTENERS_DUMPED;
 	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_SUPPRESS_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Integer> TACZ_SHOOT_FAST_RUN_RESTORE_TICKS = new WeakHashMap<>();
 	private static final WeakHashMap<Player, Boolean> TACZ_SHOOT_ACTIVE = new WeakHashMap<>();
@@ -508,6 +518,295 @@ public final class EPMClientHooks {
 				player.getDeltaMovement());
 	}
 
+	public static void logMovementInputUpdateOrder(MovementInputUpdateEvent event, String phase) {
+		if (event == null || event.getEntity() == null) {
+			return;
+		}
+		Player player = event.getEntity();
+		if ("highest_head".equals(phase)) {
+			dumpMovementInputListenersOnce(event, player);
+		}
+		String input = event.getInput() == null
+				? "null"
+				: "jumping=" + event.getInput().jumping
+						+ ",shift=" + event.getInput().shiftKeyDown
+						+ ",forward=" + event.getInput().forwardImpulse
+						+ ",left=" + event.getInput().leftImpulse;
+		logInputOrder(player, "movement_input_" + phase, input);
+	}
+
+	public static void logParCoolKeyRecorderOrder(MovementInputUpdateEvent event, String phase) {
+		Player player = event == null || event.getEntity() == null ? localPlayer() : event.getEntity();
+		String input = event == null || event.getInput() == null
+				? "eventInput=null"
+				: "eventJumping=" + event.getInput().jumping
+						+ ",eventShift=" + event.getInput().shiftKeyDown
+						+ ",eventForward=" + event.getInput().forwardImpulse
+						+ ",eventLeft=" + event.getInput().leftImpulse;
+		logInputOrder(player, "parcool_" + phase, input);
+	}
+
+	private static void dumpMovementInputListenersOnce(MovementInputUpdateEvent event, Player player) {
+		if (MOVEMENT_INPUT_LISTENERS_DUMPED
+				|| !EPMConfig.debugActionArbitrationState()
+				|| event == null
+				|| player == null
+				|| !player.isLocalPlayer()) {
+			return;
+		}
+
+		boolean physicalJump = isPhysicalJumpKeyDown();
+		KeyRecorder.KeyState wallJumpKey = safeWallJumpKeyState();
+		boolean wallJumpPressed = wallJumpKey != null && wallJumpKey.isPressed();
+		boolean wallJumpKeyDown = safeKeyDown(() -> KeyBindings.getKeyWallJump());
+		JumpActionArbiter.Snapshot jump = JumpActionArbiter.snapshot(player);
+		if (!physicalJump && !wallJumpPressed && !wallJumpKeyDown && !jump.jumpDown()) {
+			return;
+		}
+
+		MOVEMENT_INPUT_LISTENERS_DUMPED = true;
+		try {
+			Field busIdField = MinecraftForge.EVENT_BUS.getClass().getDeclaredField("busID");
+			busIdField.setAccessible(true);
+			int busId = ((Integer) busIdField.get(MinecraftForge.EVENT_BUS)).intValue();
+			IEventListener[] listeners = event.getListenerList().getListeners(busId);
+			EPM.LOGGER.info(
+					"[EPM/MovementInputListeners] dump_begin tick={} busID={} total={} physicalJump={} wallKeyDown={} wallPressed={} arbiterJump={} eventInput={} eventClass={}",
+					Integer.valueOf(player.tickCount),
+					Integer.valueOf(busId),
+					Integer.valueOf(listeners.length),
+					Boolean.valueOf(physicalJump),
+					Boolean.valueOf(wallJumpKeyDown),
+					Boolean.valueOf(wallJumpPressed),
+					Boolean.valueOf(jump.jumpDown()),
+					event.getInput() == null ? "null" : "jumping=" + event.getInput().jumping
+							+ ",shift=" + event.getInput().shiftKeyDown
+							+ ",forward=" + event.getInput().forwardImpulse
+							+ ",left=" + event.getInput().leftImpulse,
+					event.getClass().getName());
+			for (int index = 0; index < listeners.length; index++) {
+				IEventListener listener = listeners[index];
+				EPM.LOGGER.info(
+						"[EPM/MovementInputListeners] index={} priority={} listenerClass={} listenerName={} description={} fields={}",
+						Integer.valueOf(index),
+						listenerPriority(listener),
+						listener == null ? "null" : listener.getClass().getName(),
+						safeListenerName(listener),
+						safeListenerDescription(listener),
+						listenerFieldSummary(listener));
+			}
+			EPM.LOGGER.info("[EPM/MovementInputListeners] dump_end tick={} total={}", Integer.valueOf(player.tickCount), Integer.valueOf(listeners.length));
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError ex) {
+			EPM.LOGGER.warn("[EPM/MovementInputListeners] dump_failed tick={} error={} fields={}",
+					Integer.valueOf(player.tickCount),
+					ex.toString(),
+					eventBusFieldSummary());
+		}
+	}
+
+	private static String listenerPriority(IEventListener listener) {
+		if (listener instanceof ASMEventHandler handler) {
+			try {
+				return String.valueOf(handler.getPriority());
+			} catch (RuntimeException | LinkageError ignored) {
+				return "asm_error";
+			}
+		}
+		return "unknown";
+	}
+
+	private static String safeListenerName(IEventListener listener) {
+		if (listener == null) {
+			return "null";
+		}
+		try {
+			return sanitizeLogValue(listener.listenerName());
+		} catch (RuntimeException | LinkageError ex) {
+			return "error:" + ex.getClass().getSimpleName();
+		}
+	}
+
+	private static String safeListenerDescription(IEventListener listener) {
+		if (listener == null) {
+			return "null";
+		}
+		try {
+			return sanitizeLogValue(listener.toString());
+		} catch (RuntimeException | LinkageError ex) {
+			return "error:" + ex.getClass().getSimpleName();
+		}
+	}
+
+	private static String listenerFieldSummary(IEventListener listener) {
+		if (listener == null) {
+			return "null";
+		}
+		StringBuilder builder = new StringBuilder();
+		Class<?> type = listener.getClass();
+		int count = 0;
+		while (type != null && type != Object.class && count < 12) {
+			for (Field field : type.getDeclaredFields()) {
+				if (count >= 12) {
+					break;
+				}
+				try {
+					field.setAccessible(true);
+					Object value = field.get(listener);
+					if (builder.length() > 0) {
+						builder.append(",");
+					}
+					builder.append(field.getName()).append("=").append(compactObjectDescription(value));
+					count++;
+				} catch (ReflectiveOperationException | RuntimeException ignored) {
+					// Some generated listener fields are not readable under every launch service.
+				}
+			}
+			type = type.getSuperclass();
+		}
+		return builder.length() == 0 ? "none" : builder.toString();
+	}
+
+	private static String eventBusFieldSummary() {
+		StringBuilder builder = new StringBuilder();
+		Class<?> type = MinecraftForge.EVENT_BUS.getClass();
+		while (type != null && type != Object.class) {
+			for (Field field : type.getDeclaredFields()) {
+				if (builder.length() > 0) {
+					builder.append(",");
+				}
+				builder.append(type.getSimpleName()).append(".").append(field.getName());
+			}
+			type = type.getSuperclass();
+		}
+		return builder.length() == 0 ? "none" : builder.toString();
+	}
+
+	private static String compactObjectDescription(Object value) {
+		if (value == null) {
+			return "null";
+		}
+		Class<?> type = value.getClass();
+		String text;
+		if (type.isArray()) {
+			text = type.getComponentType().getName() + "[]";
+		} else if (value instanceof CharSequence || value instanceof Number || value instanceof Boolean || value instanceof Enum<?>) {
+			text = value.toString();
+		} else {
+			text = type.getName() + ":" + value;
+		}
+		return sanitizeLogValue(text);
+	}
+
+	private static String sanitizeLogValue(String value) {
+		if (value == null) {
+			return "null";
+		}
+		String sanitized = value.replace('\n', ' ').replace('\r', ' ');
+		return sanitized.length() <= 320 ? sanitized : sanitized.substring(0, 320) + "...";
+	}
+
+	public static void logPhantomAscentInputOrder(Player player, String phase) {
+		logInputOrder(player, phase, "epicFightJump=" + isEpicFightJumpActionPressed());
+	}
+
+	private static void logInputOrder(Player player, String phase, String detail) {
+		if (!EPMConfig.debugActionArbitrationState() || player == null || !player.isLocalPlayer()) {
+			return;
+		}
+
+		boolean physicalJump = isPhysicalJumpKeyDown();
+		KeyRecorder.KeyState wallJumpKey = safeWallJumpKeyState();
+		boolean wallJumpPressed = wallJumpKey != null && wallJumpKey.isPressed();
+		boolean wallJumpReleased = wallJumpKey != null && wallJumpKey.isReleased();
+		int wallJumpTickDown = wallJumpKey == null ? -1 : wallJumpKey.getTickKeyDown();
+		int wallJumpTickUp = wallJumpKey == null ? -1 : wallJumpKey.getTickNotKeyDown();
+		boolean wallJumpKeyDown = safeKeyDown(() -> KeyBindings.getKeyWallJump());
+		JumpActionArbiter.Snapshot jump = JumpActionArbiter.snapshot(player);
+
+		if (!physicalJump && !wallJumpPressed && !jump.jumpDown() && wallJumpTickDown <= 0) {
+			return;
+		}
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		EPM.LOGGER.info(
+				"[EPM/InputOrder] order={} phase={} tick={} nano={} thread={} physicalJump={} wallKeyDown={} wallPressed={} wallReleased={} wallTickDown={} wallTickUp={} arbiterJump={} pressSeq={} pressElapsed={} winner={} winnerReason={} onGround={} animation={} detail={} stack={}",
+				Integer.valueOf(++INPUT_ORDER_SEQUENCE),
+				phase,
+				Integer.valueOf(player.tickCount),
+				Long.valueOf(System.nanoTime()),
+				Thread.currentThread().getName(),
+				Boolean.valueOf(physicalJump),
+				Boolean.valueOf(wallJumpKeyDown),
+				Boolean.valueOf(wallJumpPressed),
+				Boolean.valueOf(wallJumpReleased),
+				Integer.valueOf(wallJumpTickDown),
+				Integer.valueOf(wallJumpTickUp),
+				Boolean.valueOf(jump.jumpDown()),
+				Integer.valueOf(jump.pressSequence()),
+				Integer.valueOf(jump.pressElapsed()),
+				jump.winner(),
+				jump.reason(),
+				Boolean.valueOf(player.onGround()),
+				assetName(currentBaseAnimation(playerPatch)),
+				detail,
+				compactInputOrderStack());
+	}
+
+	private static KeyRecorder.KeyState safeWallJumpKeyState() {
+		try {
+			return KeyRecorder.keyWallJump;
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
+	private static LocalPlayer localPlayer() {
+		Minecraft minecraft = Minecraft.getInstance();
+		return minecraft == null ? null : minecraft.player;
+	}
+
+	private interface KeyMappingSupplier {
+		net.minecraft.client.KeyMapping get();
+	}
+
+	private static boolean safeKeyDown(KeyMappingSupplier supplier) {
+		try {
+			net.minecraft.client.KeyMapping keyMapping = supplier.get();
+			return keyMapping != null && keyMapping.isDown();
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	private static String compactInputOrderStack() {
+		StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+		StringBuilder builder = new StringBuilder();
+		int count = 0;
+		for (StackTraceElement element : stack) {
+			String className = element.getClassName();
+			if (className.startsWith("java.lang.Thread")
+					|| className.startsWith("dev.spake404.epm.EPMClientHooks")) {
+				continue;
+			}
+			if (!className.startsWith("dev.spake404")
+					&& !className.startsWith("com.alrex.parcool")
+					&& !className.startsWith("yesman.epicfight")
+					&& !className.startsWith("net.minecraftforge")
+					&& !className.startsWith("net.minecraft.client")) {
+				continue;
+			}
+			if (builder.length() > 0) {
+				builder.append(" <- ");
+			}
+			builder.append(className).append("#").append(element.getMethodName()).append(":").append(element.getLineNumber());
+			count++;
+			if (count >= 10) {
+				break;
+			}
+		}
+		return builder.length() == 0 ? "none" : builder.toString();
+	}
+
 	public static void markWomWallJumpForPhantomAscent(Player player) {
 		if (EPMParCoolGate.allowCrossModSkillCompat()
 				&& player != null
@@ -548,6 +847,10 @@ public final class EPMClientHooks {
 			return false;
 		}
 
+		if (shouldPreemptPhantomAscentForParCoolWallJump(skillContainer, player)) {
+			return true;
+		}
+
 		if (ParCoolWallJumpHandoffState.shouldBlockInitialPress(player)) {
 			setPhantomJumpPressedLastTick(skillContainer, true);
 			logJumpArbiter(player, "phantom_block_wall_jump_initial_press");
@@ -567,6 +870,26 @@ public final class EPMClientHooks {
 		}
 
 		return false;
+	}
+
+	private static boolean shouldPreemptPhantomAscentForParCoolWallJump(SkillContainer skillContainer, Player player) {
+		if (JumpActionArbiter.isClaimedByOther(player, JumpActionArbiter.Winner.PARCOOL_WALL_JUMP)) {
+			return false;
+		}
+		WomSpiderWallJumpPriority.Decision decision = WomSpiderWallJumpPriority.resolve(player);
+		if (decision.preferWom()) {
+			logJumpArbiter(player, "phantom_keep_wom_wall_jump_priority_" + decision.reason());
+			return false;
+		}
+		if (!hasParCoolWallJumpPriorityCandidate(player, true)) {
+			return false;
+		}
+		if (!claimParCoolWallJump(player, "phantom_preempt_parcool_wall_jump")) {
+			return false;
+		}
+		setPhantomJumpPressedLastTick(skillContainer, true);
+		logJumpArbiter(player, "phantom_preempt_parcool_wall_jump");
+		return true;
 	}
 
 	private static boolean tryPrepareParCoolWallJumpForNativePhantom(SkillContainer skillContainer, Player player) {
@@ -597,40 +920,158 @@ public final class EPMClientHooks {
 	}
 
 	private static boolean hasParCoolWallJumpPriorityCandidate(Player player) {
-		if (player == null || player.onGround() || player.isInWaterOrBubble() || player.isFallFlying() || player.getAbilities().flying) {
+		return hasParCoolWallJumpPriorityCandidate(player, false);
+	}
+
+	private static boolean hasParCoolWallJumpPriorityCandidate(Player player, boolean allowPreRecorderInput) {
+		if (player == null) {
 			return false;
+		}
+		if (player.onGround()) {
+			return logParCoolWallJumpCandidate(player, false, "on_ground", null, null, null, null);
+		}
+		if (player.isInWaterOrBubble()) {
+			return logParCoolWallJumpCandidate(player, false, "in_water", null, null, null, null);
+		}
+		if (player.isFallFlying()) {
+			return logParCoolWallJumpCandidate(player, false, "fall_flying", null, null, null, null);
+		}
+		if (player.getAbilities().flying) {
+			return logParCoolWallJumpCandidate(player, false, "creative_flying", null, null, null, null);
 		}
 
 		try {
 			Parkourability parkourability = Parkourability.get(player);
 			IStamina stamina = IStamina.get(player);
-			if (parkourability == null || stamina == null || stamina.isExhausted()) {
-				return false;
+			if (parkourability == null) {
+				return logParCoolWallJumpCandidate(player, false, "missing_parkourability", null, stamina, null, null);
+			}
+			if (stamina == null) {
+				return logParCoolWallJumpCandidate(player, false, "missing_stamina", parkourability, null, null, null);
+			}
+			if (stamina.isExhausted()) {
+				return logParCoolWallJumpCandidate(player, false, "stamina_exhausted", parkourability, stamina, null, null);
 			}
 
 			WallJump wallJump = parkourability.get(WallJump.class);
-			if (wallJump == null || !wallJump.isInputDone()) {
-				return false;
+			if (wallJump == null) {
+				return logParCoolWallJumpCandidate(player, false, "missing_wall_jump_action", parkourability, stamina, null, null);
+			}
+			boolean inputDone = wallJump.isInputDone() || allowPreRecorderInput && isParCoolWallJumpPhysicalInputDown();
+			if (!inputDone) {
+				return logParCoolWallJumpCandidate(player, false, "input_not_done", parkourability, stamina, wallJump, null);
 			}
 
 			Vec3 wall = WorldUtil.getWall(player, player.getBbWidth() * 0.65D);
-			if (wall == null) {
-				return false;
+			boolean womWallRunWall = false;
+			if (wall == null && allowPreRecorderInput) {
+				womWallRunWall = hasWomWallRunWallContact(player);
+			}
+			if (wall == null && !womWallRunWall) {
+				return logParCoolWallJumpCandidate(player, false, "no_parcool_wall", parkourability, stamina, wallJump, null);
 			}
 
 			ClingToCliff cling = parkourability.get(ClingToCliff.class);
 			boolean clingAllowsWallJump = (!cling.isDoing() && cling.getNotDoingTick() > 3)
 					|| (cling.isDoing() && cling.getFacingDirection() != ClingToCliff.FacingDirection.ToWall);
-			return parkourability.getAdditionalProperties().getNotCreativeFlyingTick() > 10
-					&& clingAllowsWallJump
-					&& !parkourability.get(Crawl.class).isDoing()
-					&& !parkourability.get(VerticalWallRun.class).isDoing()
-					&& !parkourability.get(RideZipline.class).isDoing()
-					&& parkourability.getAdditionalProperties().getNotLandingTick() > 4
-					&& !isParCoolWallJumpInCooldown(wallJump, parkourability);
+			if (parkourability.getAdditionalProperties().getNotCreativeFlyingTick() <= 10) {
+				return logParCoolWallJumpCandidate(player, false, "creative_flying_grace", parkourability, stamina, wallJump, wall);
+			}
+			if (!clingAllowsWallJump) {
+				return logParCoolWallJumpCandidate(player, false, "cling_to_wall", parkourability, stamina, wallJump, wall);
+			}
+			if (parkourability.get(Crawl.class).isDoing()) {
+				return logParCoolWallJumpCandidate(player, false, "crawl_doing", parkourability, stamina, wallJump, wall);
+			}
+			if (parkourability.get(VerticalWallRun.class).isDoing()) {
+				return logParCoolWallJumpCandidate(player, false, "vertical_wall_run_doing", parkourability, stamina, wallJump, wall);
+			}
+			if (parkourability.get(RideZipline.class).isDoing()) {
+				return logParCoolWallJumpCandidate(player, false, "ride_zipline_doing", parkourability, stamina, wallJump, wall);
+			}
+			if (parkourability.getAdditionalProperties().getNotLandingTick() <= 4) {
+				return logParCoolWallJumpCandidate(player, false, "landing_grace", parkourability, stamina, wallJump, wall);
+			}
+			if (isParCoolWallJumpInCooldown(wallJump, parkourability)) {
+				return logParCoolWallJumpCandidate(player, false, "cooldown", parkourability, stamina, wallJump, wall);
+			}
+			return logParCoolWallJumpCandidate(player, true, allowPreRecorderInput && !wallJump.isInputDone()
+					? womWallRunWall ? "ok_preinput_wom_wall" : "ok_preinput"
+					: "ok", parkourability, stamina, wallJump, wall);
+		} catch (RuntimeException | LinkageError ignored) {
+			return logParCoolWallJumpCandidate(player, false, "exception:" + ignored.getClass().getSimpleName(), null, null, null, null);
+		}
+	}
+
+	private static boolean isParCoolWallJumpPhysicalInputDown() {
+		try {
+			WallJump.ControlType control = (WallJump.ControlType) ParCoolConfig.Client.WallJumpControl.get();
+			if (control == WallJump.ControlType.ReleaseKey) {
+				return false;
+			}
+			return isPhysicalJumpKeyDown() || safeKeyDown(() -> KeyBindings.getKeyWallJump());
 		} catch (RuntimeException | LinkageError ignored) {
 			return false;
 		}
+	}
+
+	private static boolean hasWomWallRunWallContact(Player player) {
+		if (player == null || !WomSpiderWallRunHandler.isWallRunActive(player)) {
+			return false;
+		}
+		Direction activeWall = WomSpiderWallRunHandler.activeWallDirection(player);
+		if (activeWall != null) {
+			return WomSpiderWallContactResolver.hasAdjacentWallDirection(player, activeWall);
+		}
+		return WomSpiderWallContactResolver.detectAdjacentWallDirection(player) != null;
+	}
+
+	private static boolean logParCoolWallJumpCandidate(Player player, boolean result, String reason, Parkourability parkourability,
+			IStamina stamina, WallJump wallJump, Vec3 wall) {
+		if (!EPMConfig.debugActionArbitrationState() || player == null || !player.isLocalPlayer()) {
+			return result;
+		}
+		JumpActionArbiter.Snapshot jump = JumpActionArbiter.snapshot(player);
+		if (!jump.jumpDown()) {
+			return result;
+		}
+
+		Integer previousTick = PARCOOL_WALL_JUMP_CANDIDATE_LOG_TICKS.get(player);
+		if (previousTick != null && previousTick.intValue() == player.tickCount) {
+			return result;
+		}
+		PARCOOL_WALL_JUMP_CANDIDATE_LOG_TICKS.put(player, Integer.valueOf(player.tickCount));
+
+		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+		ClingToCliff cling = parkourability == null ? null : parkourability.get(ClingToCliff.class);
+		EPM.LOGGER.info(
+				"[EPM/ParCoolWallJumpCandidate] tick={} result={} reason={} jumpDown={} pressSeq={} pressElapsed={} onGround={} inWater={} fallFlying={} flying={} staminaExhausted={} inputDone={} wall={} notCreativeFlyingTick={} notLandingTick={} clingDoing={} clingNotDoingTick={} clingFacing={} crawlDoing={} verticalWallRunDoing={} rideZiplineDoing={} cooldown={} currentAnimation={} delta={} womState={}",
+				Integer.valueOf(player.tickCount),
+				Boolean.valueOf(result),
+				reason,
+				Boolean.valueOf(jump.jumpDown()),
+				Integer.valueOf(jump.pressSequence()),
+				Integer.valueOf(jump.pressElapsed()),
+				Boolean.valueOf(player.onGround()),
+				Boolean.valueOf(player.isInWaterOrBubble()),
+				Boolean.valueOf(player.isFallFlying()),
+				Boolean.valueOf(player.getAbilities().flying),
+				stamina == null ? "null" : Boolean.valueOf(stamina.isExhausted()),
+				wallJump == null ? "null" : Boolean.valueOf(wallJump.isInputDone()),
+				wall,
+				parkourability == null ? "null" : Integer.valueOf(parkourability.getAdditionalProperties().getNotCreativeFlyingTick()),
+				parkourability == null ? "null" : Integer.valueOf(parkourability.getAdditionalProperties().getNotLandingTick()),
+				cling == null ? "null" : Boolean.valueOf(cling.isDoing()),
+				cling == null ? "null" : Integer.valueOf(cling.getNotDoingTick()),
+				cling == null ? "null" : cling.getFacingDirection(),
+				parkourability == null ? "null" : Boolean.valueOf(parkourability.get(Crawl.class).isDoing()),
+				parkourability == null ? "null" : Boolean.valueOf(parkourability.get(VerticalWallRun.class).isDoing()),
+				parkourability == null ? "null" : Boolean.valueOf(parkourability.get(RideZipline.class).isDoing()),
+				wallJump == null || parkourability == null ? "null" : Boolean.valueOf(isParCoolWallJumpInCooldown(wallJump, parkourability)),
+				assetName(currentBaseAnimation(playerPatch)),
+				player.getDeltaMovement(),
+				WomCompatBridge.instance().describeSpiderTechniquesState(playerPatch));
+		return result;
 	}
 
 	private static boolean isParCoolWallJumpInCooldown(WallJump wallJump, Parkourability parkourability) {
@@ -4450,19 +4891,13 @@ public final class EPMClientHooks {
 		NATURAL_SPRINTER_CAT_LEAP_PATCHES.remove(playerPatch);
 		NaturalSprinterState.suppress(playerPatch);
 		setSprintingWithDiagnostic(player, false, "reset_base_animation");
-		clearParCoolAnimator(player);
 
 		if (playerPatch instanceof LocalPlayerPatch localPlayerPatch) {
 			stopPlaying(localPlayerPatch, WomAnimationRefs.bipedSprintJump());
 		}
 
 		try {
-			AssetAccessor<? extends StaticAnimation> idle = WomAnimationRefs.bipedIdle();
-			if (idle != null) {
-				playerPatch.playAnimationInClientSide(idle, 0.0F);
-			} else {
-				playerPatch.getClientAnimator().resetMotion(true);
-			}
+			playerPatch.getClientAnimator().resetMotion(true);
 			playerPatch.getClientAnimator().resetCompositeMotion();
 		} catch (RuntimeException | LinkageError ignored) {
 		}

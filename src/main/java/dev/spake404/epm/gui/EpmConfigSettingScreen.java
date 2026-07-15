@@ -31,6 +31,8 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addInt("naturalSprinterStepDodgeFirstTapMaxTicks", "NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS", 1, 40, 1);
 		addBool("fastRunStartStepAnimation", "FAST_RUN_START_STEP_ANIMATION");
 		addBool("autoFastRunDash", "AUTO_FAST_RUN_DASH");
+		addDouble("movementAnimationSpeedCapMultiplier", "MOVEMENT_ANIMATION_SPEED_CAP_MULTIPLIER", 1.0, 3.0, 0.1);
+		addDouble("movementAnimationMaxPlaySpeed", "MOVEMENT_ANIMATION_MAX_PLAY_SPEED", 1.16, 4.0, 0.05);
 
 		// Phantom Ascent
 		addHeader("Phantom Ascent");
@@ -85,6 +87,39 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addDouble("epicParCoolClimbUpLateralAirControlVelocity", "EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY", 0.0, 0.05, 0.01);
 		addInt("epicParCoolClimbUpLateralAirControlTicks", "EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS", 0, 20, 1);
 
+		// Sandevistan
+		addHeader("Sandevistan");
+		addBool("sandevistanEnabled", "SANDEVISTAN_ENABLED");
+		addDouble("sandevistanTimeScale", "SANDEVISTAN_TIME_SCALE", 0.1, 1.0, 0.05);
+		addDouble("sandevistanRadius", "SANDEVISTAN_RADIUS", 4.0, 128.0, 1.0);
+		addDouble("sandevistanPlayerSpeedMultiplier", "SANDEVISTAN_PLAYER_SPEED_MULTIPLIER", 1.0, 3.0, 0.1);
+		addInt("sandevistanAfterimageIntervalTicks", "SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS", 1, 20, 1);
+		addInt("sandevistanAfterimageMaxCount", "SANDEVISTAN_AFTERIMAGE_MAX_COUNT", 1, 64, 1);
+		addInt("sandevistanRemoteAfterimageMaxCount", "SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT", 1, 64, 1);
+		addInt("sandevistanAfterimageLifetimeTicks", "SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS", 1, 100, 1);
+		addDouble("sandevistanAfterimageMinDistance", "SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE", 0.0, 2.0, 0.05);
+		addDouble("sandevistanAfterimageAlpha", "SANDEVISTAN_AFTERIMAGE_ALPHA", 0.05, 1.0, 0.05);
+		addBool("sandevistanFilterEnabled", "SANDEVISTAN_FILTER_ENABLED");
+		addDouble("sandevistanFilterIntensity", "SANDEVISTAN_FILTER_INTENSITY", 0.0, 1.0, 0.05);
+		addInt("sandevistanFilterFadeInTicks", "SANDEVISTAN_FILTER_FADE_IN_TICKS", 1, 40, 1);
+		addInt("sandevistanFilterFadeOutTicks", "SANDEVISTAN_FILTER_FADE_OUT_TICKS", 1, 40, 1);
+		addBool("sandevistanEdgeBlurEnabled", "SANDEVISTAN_EDGE_BLUR_ENABLED");
+		addDouble("sandevistanEdgeBlurIntensity", "SANDEVISTAN_EDGE_BLUR_INTENSITY", 0.0, 1.0, 0.05);
+		addDouble("sandevistanEdgeBlurStrength", "SANDEVISTAN_EDGE_BLUR_STRENGTH", 0.0, 0.6, 0.01, 3);
+		addInt("sandevistanEdgeBlurSamples", "SANDEVISTAN_EDGE_BLUR_SAMPLES", 1, 12, 1);
+		addDouble("sandevistanEdgeBlurStart", "SANDEVISTAN_EDGE_BLUR_START", 0.0, 0.99, 0.01);
+		addDouble("sandevistanEdgeBlurFull", "SANDEVISTAN_EDGE_BLUR_FULL", 0.01, 1.0, 0.01);
+		addBool("sandevistanEdgeWarpEnabled", "SANDEVISTAN_EDGE_WARP_ENABLED");
+		addDouble("sandevistanEdgeWarpStrength", "SANDEVISTAN_EDGE_WARP_STRENGTH", 0.0, 0.35, 0.01, 3);
+		addInt("sandevistanEdgeWarpDurationTicks", "SANDEVISTAN_EDGE_WARP_DURATION_TICKS", 1, 40, 1);
+		addInt("sandevistanEdgeWarpRiseTicks", "SANDEVISTAN_EDGE_WARP_RISE_TICKS", 0, 10, 1);
+		addDouble("sandevistanEdgeWarpStart", "SANDEVISTAN_EDGE_WARP_START", 0.0, 0.99, 0.01);
+		addDouble("sandevistanEdgeWarpFull", "SANDEVISTAN_EDGE_WARP_FULL", 0.01, 1.0, 0.01);
+		addBool("sandevistanChromaticAberrationEnabled", "SANDEVISTAN_CHROMATIC_ABERRATION_ENABLED");
+		addDouble("sandevistanChromaticAberrationStrength", "SANDEVISTAN_CHROMATIC_ABERRATION_STRENGTH", 0.0, 0.04, 0.001, 3);
+		addBool("sandevistanActivationFlashEnabled", "SANDEVISTAN_ACTIVATION_FLASH_ENABLED");
+		addDouble("sandevistanActivationFlashStrength", "SANDEVISTAN_ACTIVATION_FLASH_STRENGTH", 0.0, 1.0, 0.05);
+
 		// Debug
 		addHeader("Debug");
 		addBool("debugSpiderTechniquesAttackState", "DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE");
@@ -100,6 +135,8 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addBool("debugExhaustionPoseState", "DEBUG_EXHAUSTION_POSE_STATE");
 		addBool("debugEpicFightAnimationHud", "DEBUG_EPIC_FIGHT_ANIMATION_HUD");
 		addBool("debugCameraEventState", "DEBUG_CAMERA_EVENT_STATE");
+		addBool("debugSandevistanPerformance", "DEBUG_SANDEVISTAN_PERFORMANCE");
+		addInt("debugSandevistanPerformanceThresholdMs", "DEBUG_SANDEVISTAN_PERFORMANCE_THRESHOLD_MS", 16, 250, 1);
 	}
 
 	private static void addHeader(String title) {
@@ -111,7 +148,11 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 	}
 
 	private static void addDouble(String key, String fieldName, double min, double max, double step) {
-		ROWS.add(new Row(key, fieldName, min, max, step));
+		addDouble(key, fieldName, min, max, step, 2);
+	}
+
+	private static void addDouble(String key, String fieldName, double min, double max, double step, int precision) {
+		ROWS.add(new Row(key, fieldName, min, max, step, precision));
 	}
 
 	private static void addInt(String key, String fieldName, int min, int max, int step) {
@@ -321,6 +362,20 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 
 		graphics.fill(width - 40, topOffset, width - 40 + 1, topOffset + contentHeight, color.getSeparator());
 		graphics.fill(40, topOffset, 41, topOffset + contentHeight, color.getSeparator());
+
+		if (mouseX >= 41 && mouseX < width - 40 && mouseY >= topOffset && mouseY < topOffset + contentHeight) {
+			int hoveredIndex = topIndex + (mouseY - topOffset) / 21;
+			if (hoveredIndex >= topIndex && hoveredIndex < visibleEnd) {
+				Row hoveredRow = ROWS.get(hoveredIndex);
+				if (hoveredRow.kind != Kind.HEADER) {
+					String tooltipKey = "epic_parcool_momentum.configuration." + hoveredRow.key + ".tooltip";
+					Component tooltip = Component.translatable(tooltipKey);
+					if (!tooltipKey.equals(tooltip.getString())) {
+						graphics.renderTooltip(font, font.split(tooltip, Math.min(360, width - 100)), mouseX, mouseY);
+					}
+				}
+			}
+		}
 	}
 
 	// ---- Input ----
@@ -386,6 +441,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		final String key;            // FIELD
 		final String fieldName;      // FIELD
 		final double dMin, dMax, dStep; // DOUBLE
+		final int dPrecision;             // DOUBLE
 		final int iMin, iMax, iStep;    // INT
 		final String[] enumValues;       // ENUM
 		int widgetIndex = -1;            // index into boolCheckboxes or -1
@@ -397,6 +453,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 			this.title = title;
 			this.key = null; this.fieldName = null;
 			this.dMin = 0; this.dMax = 0; this.dStep = 0;
+			this.dPrecision = 0;
 			this.iMin = 0; this.iMax = 0; this.iStep = 0;
 			this.enumValues = null;
 		}
@@ -407,16 +464,18 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 			this.title = null;
 			this.key = key; this.fieldName = fieldName;
 			this.dMin = 0; this.dMax = 0; this.dStep = 0;
+			this.dPrecision = 0;
 			this.iMin = 0; this.iMax = 0; this.iStep = 0;
 			this.enumValues = null;
 		}
 
 		// Double
-		Row(String key, String fieldName, double min, double max, double step) {
+		Row(String key, String fieldName, double min, double max, double step, int precision) {
 			this.kind = Kind.DOUBLE;
 			this.title = null;
 			this.key = key; this.fieldName = fieldName;
 			this.dMin = min; this.dMax = max; this.dStep = step;
+			this.dPrecision = precision;
 			this.iMin = 0; this.iMax = 0; this.iStep = 0;
 			this.enumValues = null;
 		}
@@ -427,6 +486,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 			this.title = null;
 			this.key = key; this.fieldName = fieldName;
 			this.dMin = 0; this.dMax = 0; this.dStep = 0;
+			this.dPrecision = 0;
 			this.iMin = min; this.iMax = max; this.iStep = step;
 			this.enumValues = null;
 		}
@@ -437,13 +497,14 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 			this.title = null;
 			this.key = key; this.fieldName = fieldName;
 			this.dMin = 0; this.dMax = 0; this.dStep = 0;
+			this.dPrecision = 0;
 			this.iMin = 0; this.iMax = 0; this.iStep = 0;
 			this.enumValues = values;
 		}
 
 		String getValueString(EpmConfigSettingScreen s) {
 			return switch (kind) {
-				case DOUBLE -> String.format("%.2f", s.readDoubleField(fieldName));
+				case DOUBLE -> String.format(Locale.ROOT, "%." + dPrecision + "f", s.readDoubleField(fieldName));
 				case INT -> String.valueOf(s.readIntField(fieldName));
 				case ENUM -> translatedEnumValue(s.readEnumField(fieldName));
 				default -> "";

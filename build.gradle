@@ -2,6 +2,7 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
 }
 
 group = mod_group_id
@@ -28,6 +29,7 @@ minecraft {
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             arg '-mixin.config=epic_parcool_momentum.mixins.json'
+            arg '-mixin.config=sandevistan.mixins.json'
 
             mods {
                 "${mod_id}" {
@@ -58,6 +60,12 @@ minecraft {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+mixin {
+    config 'sandevistan.mixins.json'
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+
 repositories {
     maven {
         name = 'ThreeTAG'
@@ -74,6 +82,8 @@ repositories {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
     implementation fg.deobf("curse.maven:epic-fight-mod-405076:8049910")
     implementation fg.deobf("curse.maven:official-epic-fight-x-parcool-1259252:6870242")
     implementation fg.deobf("curse.maven:parcool-482378:7760589")
@@ -87,6 +97,8 @@ dependencies {
     implementation fg.deobf("curse.maven:timeless-and-classics-zero-1028108:8055552")
     implementation fg.deobf("curse.maven:epicfight-extra-1434276:7961244")
     implementation fg.deobf("curse.maven:whatimpressing-1194084:6238530")
+    implementation fg.deobf("curse.maven:epicfight-awaken-1423319:8262835")
+    implementation fg.deobf("curse.maven:combat-evolution-1377795:8368239")
 
     implementation fg.deobf("curse.maven:gliders-828331:7349611")
     implementation fg.deobf("net.threetag:PalladiumCore-forge:1.20-2.0.0.0:forge")
@@ -142,7 +154,7 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                'MixinConfigs'            : 'epic_parcool_momentum.mixins.json'
+                'MixinConfigs'            : 'epic_parcool_momentum.mixins.json,sandevistan.mixins.json'
         ])
     }
 

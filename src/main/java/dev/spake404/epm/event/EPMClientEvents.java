@@ -29,12 +29,19 @@ public final class EPMClientEvents {
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
 	public static void suppressVanillaJumpForDemolitionLeapCatJump(MovementInputUpdateEvent event) {
+		EPMClientHooks.logMovementInputUpdateOrder(event, "highest_head");
 		if (DemolitionLeapCatJumpHandler.shouldSuppressVanillaJump(event.getEntity())) {
 			event.getInput().jumping = false;
 		}
 		if (DemolitionLeapCatJumpHandler.shouldSuppressSneak(event.getEntity())) {
 			event.getInput().shiftKeyDown = false;
 		}
+		EPMClientHooks.logMovementInputUpdateOrder(event, "highest_return");
+	}
+
+	@SubscribeEvent(priority = EventPriority.LOWEST)
+	public static void logMovementInputUpdateMonitor(MovementInputUpdateEvent event) {
+		EPMClientHooks.logMovementInputUpdateOrder(event, "lowest");
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -47,7 +54,7 @@ public final class EPMClientEvents {
 		VaultCameraAnimationSmoother.smooth(event);
 	}
 
-	@SubscribeEvent(priority = EventPriority.MONITOR)
+	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void logCameraEventEnd(ViewportEvent.ComputeCameraAngles event) {
 		CameraEventDebug.logEnd(event);
 	}
@@ -57,9 +64,9 @@ public final class EPMClientEvents {
 		RotationTraceDebug.logClientTick(event, "highest");
 	}
 
-	@SubscribeEvent(priority = EventPriority.MONITOR)
+	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void logClientTickEnd(TickEvent.ClientTickEvent event) {
-		RotationTraceDebug.logClientTick(event, "monitor");
+		RotationTraceDebug.logClientTick(event, "lowest");
 		if (event.phase == TickEvent.Phase.END) {
 			EpicFightAnimationHudDebug.tickCopyShortcut();
 		}
@@ -70,9 +77,9 @@ public final class EPMClientEvents {
 		RotationTraceDebug.logRenderTick(event, "highest");
 	}
 
-	@SubscribeEvent(priority = EventPriority.MONITOR)
+	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void logRenderTickEnd(TickEvent.RenderTickEvent event) {
-		RotationTraceDebug.logRenderTick(event, "monitor");
+		RotationTraceDebug.logRenderTick(event, "lowest");
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)

@@ -13,6 +13,7 @@ public final class WomSpiderWallHooks {
 		WomSpiderWallSlideHandler.tick(player);
 		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
 		WomSpiderWallMovementState.clearUnownedAfterTick(player, playerPatch, "post_tick_unowned");
+		WomSpiderWallRunStateTransitionDiagnostics.tick(player, "post_movement_tick");
 	}
 
 	public static void tickYawLock(Player player) {

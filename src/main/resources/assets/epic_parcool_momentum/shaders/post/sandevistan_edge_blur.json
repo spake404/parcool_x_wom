@@ -1,0 +1,15 @@
+{
+  "targets": ["swap"],
+  "passes": [
+    {
+      "name": "epic_parcool_momentum:sandevistan_edge_blur",
+      "intarget": "minecraft:main",
+      "outtarget": "swap"
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

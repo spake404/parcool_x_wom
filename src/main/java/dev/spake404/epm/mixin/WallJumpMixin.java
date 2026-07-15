@@ -1,7 +1,5 @@
 package dev.spake404.epm.mixin;
 
-import dev.spake404.epm.EPM;
-import dev.spake404.epm.EPMClientHooks;
 import dev.spake404.epm.EPMParCoolGate;
 import dev.spake404.epm.walljump.WomParCoolWallJumpBridge;
 import java.nio.ByteBuffer;
@@ -40,7 +38,7 @@ public abstract class WallJumpMixin {
 		}
 
 		if (cir.getReturnValueZ()
-				&& !dev.spake404.epm.EPMClientHooks.claimParCoolWallJump(player, "parcool_wall_jump_can_start")) {
+				&& !WomParCoolWallJumpBridge.claimParCoolWallJump(player, "parcool_wall_jump_can_start")) {
 			cir.setReturnValue(Boolean.FALSE);
 		}
 	}

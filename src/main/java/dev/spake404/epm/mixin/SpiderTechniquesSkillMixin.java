@@ -4,6 +4,7 @@ import dev.spake404.epm.compat.ModCompat;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDiagnostics;
 import dev.spake404.epm.wom.spider.WomOriginalSpiderWallRunDirectionFix;
+import dev.spake404.epm.wom.spider.WomSpiderWallRunDropDiagnostics;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunControlAdapter;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunHandler;
 import dev.spake404.epm.wom.spider.WomSpiderWallRunModeGate;
@@ -31,9 +32,11 @@ import yesman.epicfight.world.entity.eventlistener.MovementInputEvent;
 public abstract class SpiderTechniquesSkillMixin {
 	@Inject(method = "lambda$onInitiate$1", at = @At("HEAD"), cancellable = true, require = 0)
 	private void parcoolxwom$replaceWallRunInput(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
+		WomSpiderWallRunDropDiagnostics.beforeOriginalInput(container, event);
 		WomSpiderWallRunControlAdapter.beforeOriginalWomInput(event);
 		if (WomSpiderWallRunHandler.handleMovementInput(event)
 				|| WomOriginalSpiderWallRunDirectionFix.beforeOriginalInput(container, event)) {
+			WomSpiderWallRunDropDiagnostics.afterOriginalInput(container, event, "cancelled_before_original");
 			WomSpiderWallRunControlAdapter.afterOriginalWomInput(event);
 			ci.cancel();
 		}
@@ -42,6 +45,7 @@ public abstract class SpiderTechniquesSkillMixin {
 	@Inject(method = "lambda$onInitiate$1", at = @At("TAIL"), require = 0)
 	private void parcoolxwom$stabilizeOriginalWomSideWallRun(SkillContainer container, MovementInputEvent event, CallbackInfo ci) {
 		try {
+			WomSpiderWallRunDropDiagnostics.afterOriginalInput(container, event, "after_original");
 			WomOriginalSpiderWallRunDiagnostics.logAfterOriginalInput(container, event);
 		} finally {
 			WomSpiderWallRunControlAdapter.afterOriginalWomInput(event);
@@ -70,12 +74,12 @@ public abstract class SpiderTechniquesSkillMixin {
 		return InputManager.isActionActive(action);
 	}
 
-	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "FIELD", target = "Lnet/minecraft/world/entity/player/Player;yHeadRot:F", opcode = Opcodes.GETFIELD), require = 0)
+	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "FIELD", target = "Lnet/minecraft/world/entity/player/Player;yHeadRot:F", opcode = Opcodes.GETFIELD, remap = true), require = 0)
 	private float parcoolxwom$useWallFacingYawForOriginalWallProbe(Player player) {
 		return WomOriginalSpiderWallRunDirectionFix.wallProbeYaw(player);
 	}
 
-	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;getViewYRot(F)F"), require = 0)
+	@Redirect(method = "lambda$onInitiate$1", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;getViewYRot(F)F", remap = true), require = 0)
 	private float parcoolxwom$useModelYawForEpicArsenalGunWallRun(Player player, float partialTick) {
 		float vanillaViewYaw = player.getViewYRot(partialTick);
 		float wallRunYaw = WomOriginalSpiderWallRunDirectionFix.wallRunMovementYaw(player, partialTick, vanillaViewYaw);

@@ -5,12 +5,18 @@ import dev.spake404.epm.animation.EpmLivingMotions;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.event.EPMEvents;
 import dev.spake404.epm.network.EPMNetwork;
+import dev.spake404.epm.skill.EpmSkillCategories;
+import dev.spake404.epm.skill.EpmSkillSlots;
+import dev.spake404.epm.skill.sandevistan.network.SandevistanNetwork;
+import dev.spake404.epm.sound.EpmSounds;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import yesman.epicfight.api.animation.LivingMotion;
+import yesman.epicfight.skill.SkillCategory;
+import yesman.epicfight.skill.SkillSlot;
 
 @Mod(EPM.MODID)
 public class EPM {
@@ -19,9 +25,13 @@ public class EPM {
 
 	public EPM(FMLJavaModLoadingContext context) {
 		LivingMotion.ENUM_MANAGER.registerEnumCls(MODID, EpmLivingMotions.class);
+		SkillCategory.ENUM_MANAGER.registerEnumCls(MODID, EpmSkillCategories.class);
+		SkillSlot.ENUM_MANAGER.registerEnumCls(MODID, EpmSkillSlots.class);
 		context.getModEventBus().addListener(EpmAnimations::register);
+		EpmSounds.register(context.getModEventBus());
 		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, EPMConfig.SPEC);
 		EPMNetwork.register();
+		SandevistanNetwork.register();
 		MinecraftForge.EVENT_BUS.register(EPMEvents.class);
 	}
 }

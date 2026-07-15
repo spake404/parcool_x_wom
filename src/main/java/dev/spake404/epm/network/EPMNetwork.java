@@ -2,7 +2,7 @@ package dev.spake404.epm.network;
 
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.naturalsprinter.NaturalSprinterFastRunAnimationOverrides;
-import dev.spake404.epm.naturalsprinter.NaturalSprinterFastRunHandler;
+import dev.spake404.epm.naturalsprinter.NaturalSprinterFastRunStamina;
 import dev.spake404.epm.phantom.PhantomAscentAirAttackState;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -151,7 +151,7 @@ public final class EPMNetwork {
 			ServerPlayer sender = context.getSender();
 			if (sender != null) {
 				PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(sender, PlayerPatch.class);
-				NaturalSprinterFastRunHandler.consumeGenericFastRunStepStaminaOnServer(playerPatch);
+				NaturalSprinterFastRunStamina.consumeGenericFastRunStepStamina(playerPatch);
 			}
 			context.setPacketHandled(true);
 		}

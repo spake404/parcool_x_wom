@@ -1,40 +1,61 @@
 # Epic ParCool: Momentum 4.0.1 Changelog
 
-## 4.0.1 Hotfix
-
-- Vault 后自动恢复 FastRun 时，不再触发免费的 Natural Sprinter 起步 Step；FastRun 恢复和连段窗口仍然保留。
-- 这个抑制只作用于 Vault hold/grace 恢复窗口，不影响正常按 FastRun 触发的起步 Step，也不影响 R 键手动 FastRun Step。
-
 ## 中文
 
 ### Vault / FastRun 稳定性
 
-- 修复 FastRun 撞墙或被 ParCool 条件提前结束后，下一帧 Vault 已经满足几何条件却因为 `FastRun.canActWithRunning=false` 被拒绝的问题。
-- 新增 `vaultStartFastRunGrace` 配置项，默认开启；关闭后恢复为只有 ParCool FastRun 正在 doing 时才能作为 Vault 起点。
-- Vault 起跳宽限仍然要求 ParCool 原生 Vault 几何、移动输入、FastRun 按键模式、非潜行、非水中、非飞行、非载具等条件通过，不会绕过基础安全条件。
-- Vault 调试日志会在宽限实际放行时记录 `phase=vault_start_fast_run_recent_grace`，方便继续定位偶发失败。
+- 修复 FastRun 撞墙或被 ParCool 条件提前结束后，下一帧 Vault 几何条件已经满足却因为 `FastRun.canActWithRunning=false` 被拒绝的问题。
+- 新增并启用 `vaultStartFastRunGrace`，允许 Vault 在 FastRun 刚刚停止后的短窗口内继续按 ParCool 原生 Vault 条件启动。
+- Vault FastRun 恢复不再触发一次免费的 Natural Sprinter 起步 Step；Vault 后的 FastRun 恢复和连段窗口仍然保留。
+- 这个 Step 抑制只作用于 Vault hold/grace 恢复窗口，不影响正常手动 FastRun 起步 Step，也不影响 R 键手动 FastRun Step。
+- Vault 起跳宽限仍然要求 ParCool 原生 Vault 几何、移动输入、FastRun 按键模式，以及潜行、水中、飞行、载具等硬性条件通过，不会绕过基础安全检查。
 
-### 性能与实现
+### ParCool WallJump / WOM Spider Techniques / Phantom Ascent 仲裁
 
-- FastRun 最近状态不再通过 `FastRun.onClientTick` 每 tick 记录。
-- 改为在 ParCool `FastRun.onStopInLocalClient` 停止回调和 `canActWithRunning=true` 查询结果处记录一次最近 FastRun tick。
-- 宽限窗口只在 Vault/FastRun 查询路径中检查；兼容层不会在服务器 tick 中扫描方块，也不会每 tick 调用 `getVaultableStep` / `getWallHeight`。
-- 将 Vault 起跳 FastRun 宽限拆成独立 `VaultStartFastRunGrace` 模块，避免继续扩大 `EPMClientHooks`。
+- 修复正式整合包中 `MovementInputUpdateEvent` 顺序导致 Epic Fight `PhantomAscentSkill` 先于 ParCool `KeyRecorder` 执行的问题。
+- 修复在同一帧按下墙跳键时，ParCool WallJump 因 `KeyRecorder.keyWallJump.isPressed()` 尚未更新而误判 `input_not_done`，随后被 Phantom Ascent / WOM wall backflip 抢走的问题。
+- Phantom Ascent 启动前现在会进行一次 ParCool WallJump 预仲裁：当 ParCool 墙跳候选成立时，会先让 `PARCOOL_WALL_JUMP` 赢得 `JumpActionArbiter`，并取消 Phantom native start。
+- 预仲裁只在 Phantom 先于 ParCool KeyRecorder 的场景下使用物理按键快照；普通 ParCool WallJump 路径仍然使用 ParCool 原生 `isInputDone()` 判断。
+- WOM 侧向跑墙时，如果 ParCool 自己的墙面扫描当帧未命中，但 WOM 当前墙跑墙面仍然有效，预仲裁可以把该墙面作为 ParCool WallJump 候选依据，避免侧向跑墙蹬墙跳被错误抢走。
+- 保留既有 WOM 优先级逻辑：当 `spiderWallJumpWomFrontAngle` 判断玩家正面看墙、应由 WOM Spider Techniques 墙跳优先时，不会强行改成 ParCool WallJump。
+- 修复结果是：侧向跑墙输入更稳定地触发 ParCool WallJump，正面墙跳仍可按原优先级走 WOM。
+
+### 调试与诊断
+
+- 新增 `MovementInputUpdateEvent` listener 顺序诊断日志，用于确认正式环境中 Epic Fight、ParCool、ShoulderSurfing、ssrcamerafixes 等 listener 的实际执行顺序。
+- 新增输入顺序诊断日志，记录 Phantom 入口、ParCool KeyRecorder 前后、JumpArbiter winner、按键状态和当前动画，方便定位同帧输入抢占问题。
+- 新增 ParCool WallJump 候选日志，记录失败原因，例如 `input_not_done`、`no_parcool_wall`、`landing_grace`、`cooldown`，以及成功的 `ok_preinput` / `ok_preinput_wom_wall`。
+- 上述诊断仍受 `debugActionArbitrationState` 控制，默认不会刷日志。
 
 ## English
 
 ### Vault / FastRun Stability
 
 - Fixed a case where FastRun could stop after hitting a wall, then Vault geometry was valid on the next frame but ParCool rejected Vault because `FastRun.canActWithRunning=false`.
-- Vault FastRun recovery no longer triggers a free Natural Sprinter startup Step after Vault finishes; it still restores FastRun state for chaining, but the post-Vault recovery path is now step-suppressed.
-- The suppression is scoped to the Vault hold/grace recovery window and does not disable normal manual FastRun startup Steps or R-key FastRun Step input.
-- Added `vaultStartFastRunGrace`, enabled by default. Disabling it restores the stricter behavior where Vault start requires ParCool FastRun to still be actively doing.
+- Added and enabled `vaultStartFastRunGrace`, allowing Vault to start during a short post-FastRun grace window while still relying on ParCool's native Vault conditions.
+- Vault FastRun recovery no longer triggers a free Natural Sprinter startup Step after Vault finishes; FastRun recovery and chaining behavior are preserved.
+- The Step suppression is scoped to the Vault hold/grace recovery window and does not affect normal manual FastRun startup Steps or R-key FastRun Step input.
 - The Vault start grace still requires ParCool's native Vault geometry, movement input, FastRun key mode, and hard blockers such as sneaking, water, fall-flying, and vehicles to pass.
-- Vault debug logging now records `phase=vault_start_fast_run_recent_grace` when the grace path actually allows a start.
 
-### Performance And Implementation
+### ParCool WallJump / WOM Spider Techniques / Phantom Ascent Arbitration
 
-- Recent FastRun state is no longer sampled from `FastRun.onClientTick` every tick.
-- The compatibility layer now records one recent FastRun tick from ParCool's `FastRun.onStopInLocalClient` callback and from successful `canActWithRunning=true` queries.
-- The grace window is checked only from the Vault/FastRun query path; it does not scan blocks on server ticks and does not call `getVaultableStep` / `getWallHeight` every tick.
-- The Vault start grace logic was split into a focused `VaultStartFastRunGrace` module instead of expanding `EPMClientHooks`.
+- Fixed a formal modpack event-order issue where Epic Fight `PhantomAscentSkill` could run before ParCool `KeyRecorder` on `MovementInputUpdateEvent`.
+- Fixed same-frame wall-jump presses being rejected by ParCool as `input_not_done` because `KeyRecorder.keyWallJump.isPressed()` had not been updated yet, allowing Phantom Ascent / WOM wall backflip to steal the input.
+- Phantom Ascent now performs a ParCool WallJump pre-arbitration check before native startup. If the ParCool wall-jump candidate is valid, `PARCOOL_WALL_JUMP` wins `JumpActionArbiter` and Phantom native startup is canceled.
+- The pre-arbitration path uses a physical key snapshot only for the Phantom-before-KeyRecorder case; the normal ParCool WallJump path still uses ParCool's native `isInputDone()` check.
+- During WOM side wall-run, if ParCool's own wall scan misses on that frame but WOM still has valid wall contact, the pre-arbitration path can use that wall contact as the ParCool WallJump candidate source.
+- Existing WOM priority is preserved: when `spiderWallJumpWomFrontAngle` decides the player is facing the wall directly and WOM Spider Techniques should win, ParCool does not override WOM.
+- Result: side wall-run jump input more reliably triggers ParCool WallJump, while front-facing wall jumps can still use WOM according to the configured priority.
+
+### Debug And Diagnostics
+
+- Added a `MovementInputUpdateEvent` listener-order dump to verify the actual runtime ordering of Epic Fight, ParCool, ShoulderSurfing, ssrcamerafixes, and related listeners.
+- Added input-order diagnostics for Phantom entry, ParCool KeyRecorder head/return, JumpArbiter winner, key state, and current animation.
+- Added ParCool WallJump candidate logs that explain failures such as `input_not_done`, `no_parcool_wall`, `landing_grace`, and `cooldown`, plus success reasons such as `ok_preinput` and `ok_preinput_wom_wall`.
+- These diagnostics remain gated behind `debugActionArbitrationState` and are quiet by default.
+
+## Version Info
+
+- Mod version: 4.0.1
+- Minecraft / Forge: 1.20.1 / 47.4.20
+- Main compatibility targets: Epic Fight, ParCool, EpicParCool, Weapons of Miracles, ShoulderSurfing, SSR Camera Fixes

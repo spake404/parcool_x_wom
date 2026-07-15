@@ -44,7 +44,7 @@ import yesman.epicfight.world.capabilities.item.Style;
 
 public final class NaturalSprinterFastRunHandler {
 	private static final int FAST_RUN_ANIMATION_REPLAY_COOLDOWN_TICKS = 2;
-	private static final float GENERIC_FAST_RUN_STEP_STAMINA_COST = 2.0F;
+	private static final float GENERIC_FAST_RUN_STEP_STAMINA_COST = NaturalSprinterFastRunStamina.GENERIC_FAST_RUN_STEP_STAMINA_COST;
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> FAST_RUN_ACTIVE = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Boolean> MANUAL_FAST_RUN_KEY_CONSUMED = new WeakHashMap<>();
 	private static final WeakHashMap<PlayerPatch<?>, Integer> FAST_RUN_ANIMATION_REPLAY_TICKS = new WeakHashMap<>();
@@ -632,31 +632,12 @@ public final class NaturalSprinterFastRunHandler {
 		return consumed;
 	}
 
-	public static boolean consumeGenericFastRunStepStaminaOnServer(PlayerPatch<?> playerPatch) {
-		return consumeGenericFastRunStepStamina(playerPatch, false);
-	}
-
 	private static boolean consumeGenericFastRunStepStamina(PlayerPatch<?> playerPatch, boolean notifyServer) {
-		if (playerPatch == null || playerPatch.getOriginal() == null) {
-			return false;
-		}
-		if (!playerPatch.hasStamina(GENERIC_FAST_RUN_STEP_STAMINA_COST)) {
-			return false;
-		}
-
-		Player player = playerPatch.getOriginal();
-		if (!player.getAbilities().instabuild) {
-			try {
-				playerPatch.resetActionTick();
-				playerPatch.setStamina(Math.max(0.0F, playerPatch.getStamina() - GENERIC_FAST_RUN_STEP_STAMINA_COST));
-			} catch (RuntimeException | LinkageError ignored) {
-				return false;
-			}
-		}
-		if (notifyServer && playerPatch.isLogicalClient()) {
+		boolean consumed = NaturalSprinterFastRunStamina.consumeGenericFastRunStepStamina(playerPatch);
+		if (consumed && notifyServer && playerPatch.isLogicalClient()) {
 			EPMNetwork.sendNaturalSprinterFastRunStepStaminaConsumption();
 		}
-		return true;
+		return consumed;
 	}
 
 	private static void putLivingAnimationSilently(Animator animator, LivingMotion motion, AssetAccessor<? extends StaticAnimation> animation) {

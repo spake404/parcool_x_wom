@@ -18,6 +18,8 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.IntValue NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS;
 	private static final ForgeConfigSpec.BooleanValue FAST_RUN_START_STEP_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue AUTO_FAST_RUN_DASH;
+	private static final ForgeConfigSpec.DoubleValue MOVEMENT_ANIMATION_SPEED_CAP_MULTIPLIER;
+	private static final ForgeConfigSpec.DoubleValue MOVEMENT_ANIMATION_MAX_PLAY_SPEED;
 	private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TACZ_BAREHAND_SPRINT_TYPES;
 	private static final ForgeConfigSpec.BooleanValue CAT_LEAP_PRIMES_PHANTOM_ASCENT;
 	private static final ForgeConfigSpec.BooleanValue WALL_JUMP_PRIMES_PHANTOM_ASCENT;
@@ -58,7 +60,44 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY;
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY;
 	private static final ForgeConfigSpec.IntValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_TIME_SCALE;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_RADIUS;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_PLAYER_SPEED_MULTIPLIER;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_MAX_COUNT;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_AFTERIMAGE_ALPHA;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_AFTERIMAGE_START_COLOR;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_AFTERIMAGE_MIDDLE_COLOR;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_AFTERIMAGE_END_COLOR;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_FILTER_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_FILTER_INTENSITY;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_FILTER_FADE_IN_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_FILTER_FADE_OUT_TICKS;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_FILTER_COLOR;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_FILTER_DEBUG_GREEN_SCREEN;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_EDGE_BLUR_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_BLUR_INTENSITY;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_BLUR_STRENGTH;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_EDGE_BLUR_SAMPLES;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_BLUR_START;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_BLUR_FULL;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_EDGE_WARP_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_WARP_STRENGTH;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_EDGE_WARP_DURATION_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_EDGE_WARP_RISE_TICKS;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_WARP_START;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_EDGE_WARP_FULL;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_CHROMATIC_ABERRATION_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_CHROMATIC_ABERRATION_STRENGTH;
+	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_ACTIVATION_FLASH_ENABLED;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_ACTIVATION_FLASH_STRENGTH;
 	private static final ForgeConfigSpec.BooleanValue DEBUG_CAMERA_EVENT_STATE;
+	private static final ForgeConfigSpec.BooleanValue DEBUG_SANDEVISTAN_PERFORMANCE;
+	private static final ForgeConfigSpec.IntValue DEBUG_SANDEVISTAN_PERFORMANCE_THRESHOLD_MS;
 	private static final ForgeConfigSpec.BooleanValue PARCOOL_DODGE_DEFAULT_MIGRATION_APPLIED;
 
 	static {
@@ -124,6 +163,18 @@ public final class EPMConfig {
 						"true: when FastRun is entered by a non-manual path, it can still auto-trigger one startup step.",
 						"false: non-manual FastRun entry does not auto-trigger a startup step; only the manual FastRun key path can do it.")
 				.define("autoFastRunDash", true);
+		MOVEMENT_ANIMATION_SPEED_CAP_MULTIPLIER = builder
+				.translation("epic_parcool_momentum.configuration.movementAnimationSpeedCapMultiplier")
+				.comment(
+						"Player speed, relative to vanilla sprint, required for Epic Fight MovementAnimation to reach the extended maximum playback speed.",
+						"1.6 means the animation reaches its maximum at 160% of vanilla sprint speed.")
+				.defineInRange("movementAnimationSpeedCapMultiplier", 1.6D, 1.0D, 3.0D);
+		MOVEMENT_ANIMATION_MAX_PLAY_SPEED = builder
+				.translation("epic_parcool_momentum.configuration.movementAnimationMaxPlaySpeed")
+				.comment(
+						"Maximum playback multiplier for player Epic Fight MovementAnimation above vanilla sprint speed.",
+						"The default 1.856 is 1.16 multiplied by 1.6.")
+				.defineInRange("movementAnimationMaxPlaySpeed", 1.856D, 1.16D, 4.0D);
 		TACZ_BAREHAND_SPRINT_TYPES = builder
 				.translation("epic_parcool_momentum.configuration.taczBarehandSprintTypes")
 				.comment(
@@ -302,6 +353,157 @@ public final class EPMConfig {
 				.defineInRange("epicParCoolClimbUpLateralAirControlTicks", 6, 0, 20);
 		builder.pop();
 
+		builder.push("Sandevistan");
+		SANDEVISTAN_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEnabled")
+				.comment("Enables the Sandevistan time-dilation skill.")
+				.define("sandevistanEnabled", true);
+		SANDEVISTAN_TIME_SCALE = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanTimeScale")
+				.comment("Local tick-rate multiplier for entities near the Sandevistan user.")
+				.defineInRange("sandevistanTimeScale", 0.25D, 0.1D, 1.0D);
+		SANDEVISTAN_RADIUS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanRadius")
+				.comment("Radius in blocks affected by time dilation.")
+				.defineInRange("sandevistanRadius", 40.0D, 4.0D, 128.0D);
+		SANDEVISTAN_PLAYER_SPEED_MULTIPLIER = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanPlayerSpeedMultiplier")
+				.comment("Additional movement-speed multiplier applied to the Sandevistan user.")
+				.defineInRange("sandevistanPlayerSpeedMultiplier", 1.4D, 1.0D, 3.0D);
+		SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageIntervalTicks")
+				.comment("Ticks between textured Sandevistan afterimages while moving.")
+				.defineInRange("sandevistanAfterimageIntervalTicks", 1, 1, 20);
+		SANDEVISTAN_AFTERIMAGE_MAX_COUNT = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageMaxCount")
+				.comment("Maximum number of Sandevistan afterimages retained for the local player.")
+				.defineInRange("sandevistanAfterimageMaxCount", 24, 1, 64);
+		SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanRemoteAfterimageMaxCount")
+				.comment("Maximum number of Sandevistan afterimages retained for each remote player.")
+				.defineInRange("sandevistanRemoteAfterimageMaxCount", 16, 1, 64);
+		SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageLifetimeTicks")
+				.comment("Lifetime in ticks of each Sandevistan afterimage.")
+				.defineInRange("sandevistanAfterimageLifetimeTicks", 24, 1, 100);
+		SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageMinDistance")
+				.comment("Minimum movement distance in blocks before another afterimage can be captured.")
+				.defineInRange("sandevistanAfterimageMinDistance", 0.2D, 0.0D, 2.0D);
+		SANDEVISTAN_AFTERIMAGE_ALPHA = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageAlpha")
+				.comment("Initial opacity of textured Sandevistan afterimages.")
+				.defineInRange("sandevistanAfterimageAlpha", 0.86D, 0.05D, 1.0D);
+		SANDEVISTAN_AFTERIMAGE_START_COLOR = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageStartColor")
+				.comment("Hex RGB tint used by newly captured afterimages.")
+				.define("sandevistanAfterimageStartColor", "#33E6FF", EPMConfig::isHexColor);
+		SANDEVISTAN_AFTERIMAGE_MIDDLE_COLOR = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageMiddleColor")
+				.comment("Hex RGB tint used midway through an afterimage's lifetime.")
+				.define("sandevistanAfterimageMiddleColor", "#AD4DFF", EPMConfig::isHexColor);
+		SANDEVISTAN_AFTERIMAGE_END_COLOR = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageEndColor")
+				.comment("Hex RGB tint used by fading afterimages.")
+				.define("sandevistanAfterimageEndColor", "#FF941F", EPMConfig::isHexColor);
+		SANDEVISTAN_FILTER_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterEnabled")
+				.comment("Enables the low-cost green Sandevistan screen filter.")
+				.define("sandevistanFilterEnabled", true);
+		SANDEVISTAN_FILTER_INTENSITY = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterIntensity")
+				.comment("Strength of the green Sandevistan screen filter.")
+				.defineInRange("sandevistanFilterIntensity", 1.0D, 0.0D, 1.0D);
+		SANDEVISTAN_FILTER_FADE_IN_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterFadeInTicks")
+				.comment("Ticks used to fade in the Sandevistan screen filter.")
+				.defineInRange("sandevistanFilterFadeInTicks", 6, 1, 40);
+		SANDEVISTAN_FILTER_FADE_OUT_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterFadeOutTicks")
+				.comment("Ticks used to fade out the Sandevistan screen filter.")
+				.defineInRange("sandevistanFilterFadeOutTicks", 8, 1, 40);
+		SANDEVISTAN_FILTER_COLOR = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterColor")
+				.comment("Hex RGB channel multiplier used by the low-cost Sandevistan color grade.")
+				.define("sandevistanFilterColor", "#3CFF48", EPMConfig::isHexColor);
+		SANDEVISTAN_FILTER_DEBUG_GREEN_SCREEN = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanFilterDebugGreenScreen")
+				.comment("Debug only. Replaces the world with the solid filter color to inspect stencil exclusions.")
+				.define("sandevistanFilterDebugGreenScreen", false);
+		SANDEVISTAN_EDGE_BLUR_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurEnabled")
+				.comment("Enables the low-cost radial blur around the screen edges while Sandevistan is active.")
+				.define("sandevistanEdgeBlurEnabled", true);
+		SANDEVISTAN_EDGE_BLUR_INTENSITY = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurIntensity")
+				.comment("Overall opacity of the Sandevistan edge blur.")
+				.defineInRange("sandevistanEdgeBlurIntensity", 1.0D, 0.0D, 1.0D);
+		SANDEVISTAN_EDGE_BLUR_STRENGTH = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurStrength")
+				.comment("Distance sampled toward the screen center. Higher values create longer blur trails.")
+				.defineInRange("sandevistanEdgeBlurStrength", 0.3D, 0.0D, 0.6D);
+		SANDEVISTAN_EDGE_BLUR_SAMPLES = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurSamples")
+				.comment("Texture samples used by the edge blur. Higher values look smoother but cost more GPU time.")
+				.defineInRange("sandevistanEdgeBlurSamples", 10, 1, 12);
+		SANDEVISTAN_EDGE_BLUR_START = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurStart")
+				.comment(
+						"Position where edge blur begins. 0 is the screen center and 1 is the screen border.",
+						"Increase this value to restrict blur to a thinner outer edge.")
+				.defineInRange("sandevistanEdgeBlurStart", 0.6D, 0.0D, 0.99D);
+		SANDEVISTAN_EDGE_BLUR_FULL = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeBlurFull")
+				.comment(
+						"Position where edge blur reaches full strength. 0 is the screen center and 1 is the screen border.",
+						"This should normally be greater than sandevistanEdgeBlurStart.")
+				.defineInRange("sandevistanEdgeBlurFull", 0.8D, 0.01D, 1.0D);
+		SANDEVISTAN_EDGE_WARP_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpEnabled")
+				.comment("Enables the radial screen-edge distortion pulse when Sandevistan activates.")
+				.define("sandevistanEdgeWarpEnabled", true);
+		SANDEVISTAN_EDGE_WARP_STRENGTH = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpStrength")
+				.comment("Maximum UV displacement used by the Sandevistan activation distortion pulse.")
+				.defineInRange("sandevistanEdgeWarpStrength", 0.2D, 0.0D, 0.35D);
+		SANDEVISTAN_EDGE_WARP_DURATION_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpDurationTicks")
+				.comment("Total duration in ticks of the Sandevistan activation distortion pulse.")
+				.defineInRange("sandevistanEdgeWarpDurationTicks", 12, 1, 40);
+		SANDEVISTAN_EDGE_WARP_RISE_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpRiseTicks")
+				.comment("Ticks used for the activation distortion pulse to reach full strength before fading out.")
+				.defineInRange("sandevistanEdgeWarpRiseTicks", 5, 0, 10);
+		SANDEVISTAN_EDGE_WARP_START = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpStart")
+				.comment(
+						"Position where activation distortion begins. 0 is the screen center and 1 is the screen border.",
+						"Increase this value to preserve a larger undistorted center area.")
+				.defineInRange("sandevistanEdgeWarpStart", 0.45D, 0.0D, 0.99D);
+		SANDEVISTAN_EDGE_WARP_FULL = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanEdgeWarpFull")
+				.comment(
+						"Position where activation distortion reaches full strength. 0 is the screen center and 1 is the screen border.",
+						"This should normally be greater than sandevistanEdgeWarpStart.")
+				.defineInRange("sandevistanEdgeWarpFull", 0.6D, 0.01D, 1.0D);
+		SANDEVISTAN_CHROMATIC_ABERRATION_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanChromaticAberrationEnabled")
+				.comment("Enables radial RGB channel separation during the Sandevistan activation pulse.")
+				.define("sandevistanChromaticAberrationEnabled", true);
+		SANDEVISTAN_CHROMATIC_ABERRATION_STRENGTH = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanChromaticAberrationStrength")
+				.comment("Maximum UV offset between red and blue channels during the activation pulse.")
+				.defineInRange("sandevistanChromaticAberrationStrength", 0.012D, 0.0D, 0.04D);
+		SANDEVISTAN_ACTIVATION_FLASH_ENABLED = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanActivationFlashEnabled")
+				.comment("Enables the short white exposure flash at the peak of Sandevistan activation.")
+				.define("sandevistanActivationFlashEnabled", true);
+		SANDEVISTAN_ACTIVATION_FLASH_STRENGTH = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanActivationFlashStrength")
+				.comment("Maximum white exposure mixed into the screen at the activation peak.")
+				.defineInRange("sandevistanActivationFlashStrength", 0.72D, 0.0D, 1.0D);
+		builder.pop();
+
 		builder.push("Debug");
 		DEBUG_SPIDER_TECHNIQUES_ATTACK_STATE = builder
 				.translation("epic_parcool_momentum.configuration.debugSpiderTechniquesAttackState")
@@ -355,6 +557,14 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.debugCameraEventState")
 				.comment("Temporary debug option. true: logs camera angle event diagnostics for intermittent camera shake investigation.")
 				.define("debugCameraEventState", false);
+		DEBUG_SANDEVISTAN_PERFORMANCE = builder
+				.translation("epic_parcool_momentum.configuration.debugSandevistanPerformance")
+				.comment("Logs Sandevistan rendering costs when a client frame exceeds the configured hitch threshold.")
+				.define("debugSandevistanPerformance", false);
+		DEBUG_SANDEVISTAN_PERFORMANCE_THRESHOLD_MS = builder
+				.translation("epic_parcool_momentum.configuration.debugSandevistanPerformanceThresholdMs")
+				.comment("Client frame time in milliseconds that triggers a Sandevistan performance diagnostic log.")
+				.defineInRange("debugSandevistanPerformanceThresholdMs", 33, 16, 250);
 		builder.pop();
 
 		builder.push("Internal");
@@ -370,6 +580,14 @@ public final class EPMConfig {
 
 	public static boolean autoFastRunDash() {
 		return AUTO_FAST_RUN_DASH.get();
+	}
+
+	public static double movementAnimationSpeedCapMultiplier() {
+		return MOVEMENT_ANIMATION_SPEED_CAP_MULTIPLIER.get();
+	}
+
+	public static float movementAnimationMaxPlaySpeed() {
+		return MOVEMENT_ANIMATION_MAX_PLAY_SPEED.get().floatValue();
 	}
 
 	public static boolean customFastRunAnimations() {
@@ -590,6 +808,14 @@ public final class EPMConfig {
 		}
 	}
 
+	public static boolean debugSandevistanPerformance() {
+		return DEBUG_SANDEVISTAN_PERFORMANCE.get();
+	}
+
+	public static int debugSandevistanPerformanceThresholdMs() {
+		return DEBUG_SANDEVISTAN_PERFORMANCE_THRESHOLD_MS.get();
+	}
+
 	public static double epicParCoolClimbUpVerticalVelocity() {
 		return EPIC_PARCOOL_CLIMB_UP_VERTICAL_VELOCITY.get();
 	}
@@ -600,6 +826,146 @@ public final class EPMConfig {
 
 	public static int epicParCoolClimbUpLateralAirControlTicks() {
 		return EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS.get();
+	}
+
+	public static boolean sandevistanEnabled() {
+		return SANDEVISTAN_ENABLED.get();
+	}
+
+	public static double sandevistanTimeScale() {
+		return SANDEVISTAN_TIME_SCALE.get();
+	}
+
+	public static double sandevistanRadius() {
+		return SANDEVISTAN_RADIUS.get();
+	}
+
+	public static double sandevistanPlayerSpeedMultiplier() {
+		return SANDEVISTAN_PLAYER_SPEED_MULTIPLIER.get();
+	}
+
+	public static int sandevistanAfterimageIntervalTicks() {
+		return SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS.get();
+	}
+
+	public static int sandevistanAfterimageMaxCount() {
+		return SANDEVISTAN_AFTERIMAGE_MAX_COUNT.get();
+	}
+
+	public static int sandevistanRemoteAfterimageMaxCount() {
+		return SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT.get();
+	}
+
+	public static int sandevistanAfterimageLifetimeTicks() {
+		return SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS.get();
+	}
+
+	public static double sandevistanAfterimageMinDistance() {
+		return SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE.get();
+	}
+
+	public static float sandevistanAfterimageAlpha() {
+		return SANDEVISTAN_AFTERIMAGE_ALPHA.get().floatValue();
+	}
+
+	public static int sandevistanAfterimageStartColor() {
+		return parseHexColor(SANDEVISTAN_AFTERIMAGE_START_COLOR.get(), 0x33E6FF);
+	}
+
+	public static int sandevistanAfterimageMiddleColor() {
+		return parseHexColor(SANDEVISTAN_AFTERIMAGE_MIDDLE_COLOR.get(), 0xAD4DFF);
+	}
+
+	public static int sandevistanAfterimageEndColor() {
+		return parseHexColor(SANDEVISTAN_AFTERIMAGE_END_COLOR.get(), 0xFF941F);
+	}
+
+	public static boolean sandevistanFilterEnabled() {
+		return SANDEVISTAN_FILTER_ENABLED.get();
+	}
+
+	public static float sandevistanFilterIntensity() {
+		return SANDEVISTAN_FILTER_INTENSITY.get().floatValue();
+	}
+
+	public static int sandevistanFilterFadeInTicks() {
+		return SANDEVISTAN_FILTER_FADE_IN_TICKS.get();
+	}
+
+	public static int sandevistanFilterFadeOutTicks() {
+		return SANDEVISTAN_FILTER_FADE_OUT_TICKS.get();
+	}
+
+	public static int sandevistanFilterColor() {
+		return parseHexColor(SANDEVISTAN_FILTER_COLOR.get(), 0x3CFF48);
+	}
+
+	public static boolean sandevistanFilterDebugGreenScreen() {
+		return SANDEVISTAN_FILTER_DEBUG_GREEN_SCREEN.get();
+	}
+
+	public static boolean sandevistanEdgeBlurEnabled() {
+		return SANDEVISTAN_EDGE_BLUR_ENABLED.get();
+	}
+
+	public static float sandevistanEdgeBlurIntensity() {
+		return SANDEVISTAN_EDGE_BLUR_INTENSITY.get().floatValue();
+	}
+
+	public static float sandevistanEdgeBlurStrength() {
+		return SANDEVISTAN_EDGE_BLUR_STRENGTH.get().floatValue();
+	}
+
+	public static int sandevistanEdgeBlurSamples() {
+		return SANDEVISTAN_EDGE_BLUR_SAMPLES.get();
+	}
+
+	public static float sandevistanEdgeBlurStart() {
+		return SANDEVISTAN_EDGE_BLUR_START.get().floatValue();
+	}
+
+	public static float sandevistanEdgeBlurFull() {
+		return SANDEVISTAN_EDGE_BLUR_FULL.get().floatValue();
+	}
+
+	public static boolean sandevistanEdgeWarpEnabled() {
+		return SANDEVISTAN_EDGE_WARP_ENABLED.get();
+	}
+
+	public static float sandevistanEdgeWarpStrength() {
+		return SANDEVISTAN_EDGE_WARP_STRENGTH.get().floatValue();
+	}
+
+	public static int sandevistanEdgeWarpDurationTicks() {
+		return SANDEVISTAN_EDGE_WARP_DURATION_TICKS.get();
+	}
+
+	public static int sandevistanEdgeWarpRiseTicks() {
+		return SANDEVISTAN_EDGE_WARP_RISE_TICKS.get();
+	}
+
+	public static float sandevistanEdgeWarpStart() {
+		return SANDEVISTAN_EDGE_WARP_START.get().floatValue();
+	}
+
+	public static float sandevistanEdgeWarpFull() {
+		return SANDEVISTAN_EDGE_WARP_FULL.get().floatValue();
+	}
+
+	public static boolean sandevistanChromaticAberrationEnabled() {
+		return SANDEVISTAN_CHROMATIC_ABERRATION_ENABLED.get();
+	}
+
+	public static float sandevistanChromaticAberrationStrength() {
+		return SANDEVISTAN_CHROMATIC_ABERRATION_STRENGTH.get().floatValue();
+	}
+
+	public static boolean sandevistanActivationFlashEnabled() {
+		return SANDEVISTAN_ACTIVATION_FLASH_ENABLED.get();
+	}
+
+	public static float sandevistanActivationFlashStrength() {
+		return SANDEVISTAN_ACTIVATION_FLASH_STRENGTH.get().floatValue();
 	}
 
 	public static boolean parCoolDodgeDefaultMigrationApplied() {
@@ -613,6 +979,23 @@ public final class EPMConfig {
 
 	private static boolean isStringValue(Object value) {
 		return value instanceof String;
+	}
+
+	private static boolean isHexColor(Object value) {
+		return value instanceof String string && string.matches("#?[0-9a-fA-F]{6}");
+	}
+
+	private static int parseHexColor(String value, int fallback) {
+		if (!isHexColor(value)) {
+			return fallback;
+		}
+
+		String normalized = value.charAt(0) == '#' ? value.substring(1) : value;
+		try {
+			return Integer.parseInt(normalized, 16);
+		} catch (NumberFormatException ignored) {
+			return fallback;
+		}
 	}
 
 	private static String normalizeType(String type) {

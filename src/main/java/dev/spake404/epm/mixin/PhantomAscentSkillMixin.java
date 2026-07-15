@@ -26,16 +26,19 @@ public abstract class PhantomAscentSkillMixin {
 	@Inject(method = "lambda$onInitiate$1", at = @At("HEAD"), cancellable = true)
 	private void parcoolxwom$disablePhantomAscentForBlockedStates(SkillContainer skillContainer, MovementInputEvent event, CallbackInfo callback) {
 		Player player = event.getPlayerPatch().getOriginal();
+		EPMClientHooks.logPhantomAscentInputOrder(player, "phantom_head");
 		if ((!EPMClientHooks.isForcedDemolitionPhantomAscent(player)
 				&& DemolitionLeapCatJumpHandler.shouldSuppressPhantomAscent(player))
 				|| parcoolxwom$shouldBlockUnderwaterSwimming(player)
 				|| EPMClientHooks.isHoldingPhantomAscentBlockedWeapon(player)) {
 			skillContainer.getDataManager().setData(SkillDataKeys.JUMP_KEY_PRESSED_LAST_TICK.get(), Boolean.valueOf(isJumpPressed()));
+			EPMClientHooks.logPhantomAscentInputOrder(player, "phantom_cancel_blocked_state");
 			callback.cancel();
 			return;
 		}
 
 		if (EPMClientHooks.shouldCancelPhantomAscentForJumpArbitration(skillContainer, event)) {
+			EPMClientHooks.logPhantomAscentInputOrder(player, "phantom_cancel_arbitration");
 			callback.cancel();
 		}
 	}
@@ -86,6 +89,7 @@ public abstract class PhantomAscentSkillMixin {
 			require = 1
 	)
 	private void parcoolxwom$markNativePhantomAscentStarted(SkillContainer skillContainer, MovementInputEvent event, CallbackInfo callback) {
+		EPMClientHooks.logPhantomAscentInputOrder(event.getPlayerPatch().getOriginal(), "phantom_native_start_before_mark");
 		EPMClientHooks.markNativePhantomAscentStarted(event.getPlayerPatch().getOriginal());
 	}
 

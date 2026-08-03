@@ -7,7 +7,12 @@ public enum EpmLivingMotions implements LivingMotion {
 	FAST_SWIM,
 	SURFACE_FAST_SWIM,
 	DEMOLITION_LEAP_CHARGING,
-	DOUBLE_JUMP_FALL;
+	DOUBLE_JUMP_FALL,
+	CRAWL_ENTER,
+	CRAWL_IDLE,
+	CRAWL_MOVE_LEFT,
+	CRAWL_MOVE_RIGHT,
+	CRAWL_EXIT;
 
 	private final int id = LivingMotion.ENUM_MANAGER.assign(this);
 

@@ -15,6 +15,7 @@ import dev.spake404.epm.aqua.AquaManeuvreFastSwimHandler;
 import dev.spake404.epm.climb.ClingToCliffDebug;
 import dev.spake404.epm.compat.ModCompat;
 import dev.spake404.epm.config.EPMConfig;
+import dev.spake404.epm.crawl.CrawlAnimationHandler;
 import dev.spake404.epm.demolition.DemolitionLeapAirJumpHandler;
 import dev.spake404.epm.demolition.DemolitionLeapCatJumpHandler;
 import dev.spake404.epm.naturalsprinter.NaturalSprinterDodgeStepArbiter;
@@ -46,6 +47,7 @@ public final class EPMClientActionEvents {
 		AquaManeuvreFastSwimHandler.registerFastSwimAnimation(event);
 		DemolitionLeapCatJumpHandler.registerChargeJumpAnimation(event);
 		EPMClientHooks.registerDoubleJumpFallAnimation(event);
+		CrawlAnimationHandler.registerAnimations(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
@@ -54,6 +56,7 @@ public final class EPMClientActionEvents {
 		AquaManeuvreFastSwimHandler.chooseFastSwimAnimation(event);
 		DemolitionLeapCatJumpHandler.chooseChargeJumpAnimation(event);
 		EPMClientHooks.chooseDoubleJumpFallAnimation(event);
+		CrawlAnimationHandler.chooseAnimation(event);
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)

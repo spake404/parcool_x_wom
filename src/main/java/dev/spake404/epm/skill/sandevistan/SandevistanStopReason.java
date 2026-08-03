@@ -1,7 +1,6 @@
 package dev.spake404.epm.skill.sandevistan;
 
 public enum SandevistanStopReason {
-	ATTACK,
 	TIMEOUT,
 	MANUAL,
 	DEATH,

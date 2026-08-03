@@ -2,7 +2,6 @@ package dev.spake404.epm.mixin;
 
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.EPMClientHooks;
-import dev.spake404.epm.skill.sandevistan.client.SandevistanClientState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,7 +17,6 @@ public abstract class MinecraftAttackMixin {
 
 	@Inject(method = "startAttack", at = @At("HEAD"), require = 0)
 	private void parcoolxwom$cancelWallJumpBeforeAttack(CallbackInfoReturnable<Boolean> callback) {
-		SandevistanClientState.onLocalAttackInput();
 		if (!EPMClientHooks.cancelWallJumpForTaczAttackInput(this.player)) {
 			EPMClientHooks.cancelWallJumpForAttackInput(this.player);
 		}

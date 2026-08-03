@@ -1,10 +1,12 @@
 package dev.spake404.epm.skill.sandevistan.network;
 
 import dev.spake404.epm.EPM;
-import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.skill.sandevistan.SandevistanManager;
 import dev.spake404.epm.skill.sandevistan.SandevistanStopReason;
 import dev.spake404.epm.skill.sandevistan.client.SandevistanClientState;
+import dev.spake404.epm.skill.sandevistan.client.SandevistanHudCombatState;
+import dev.spake404.epm.skill.sandevistan.type.SandevistanProfile;
+import dev.spake404.epm.skill.sandevistan.type.SandevistanProfiles;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -19,7 +21,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class SandevistanNetwork {
-	private static final String PROTOCOL_VERSION = "2";
+	private static final String PROTOCOL_VERSION = "6";
 	private static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
 			.named(ResourceLocation.fromNamespaceAndPath(EPM.MODID, "sandevistan"))
 			.networkProtocolVersion(() -> PROTOCOL_VERSION)
@@ -32,27 +34,39 @@ public final class SandevistanNetwork {
 	}
 
 	public static void register() {
-		CHANNEL.messageBuilder(AttackStopPacket.class, packetId++)
-				.encoder(AttackStopPacket::encode)
-				.decoder(AttackStopPacket::decode)
-				.consumerMainThread(AttackStopPacket::handle)
+		CHANNEL.messageBuilder(ManualStopPacket.class, packetId++)
+				.encoder(ManualStopPacket::encode)
+				.decoder(ManualStopPacket::decode)
+				.consumerMainThread(ManualStopPacket::handle)
 				.add();
 		CHANNEL.messageBuilder(SyncStatePacket.class, packetId++)
 				.encoder(SyncStatePacket::encode)
 				.decoder(SyncStatePacket::decode)
 				.consumerMainThread(SyncStatePacket::handle)
 				.add();
+		CHANNEL.messageBuilder(CombatActivityPacket.class, packetId++)
+				.encoder(CombatActivityPacket::encode)
+				.decoder(CombatActivityPacket::decode)
+				.consumerMainThread(CombatActivityPacket::handle)
+				.add();
 	}
 
-	public static void sendAttackStopRequest() {
-		CHANNEL.sendToServer(AttackStopPacket.INSTANCE);
+	public static void sendManualStopRequest() {
+		CHANNEL.sendToServer(ManualStopPacket.INSTANCE);
+	}
+
+	public static void sendCombatActivity(ServerPlayer player) {
+		if (player != null) {
+			CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), CombatActivityPacket.INSTANCE);
+		}
 	}
 
 	public static void broadcastState(
 			ServerPlayer source,
 			boolean active,
 			int remainingTicks,
-			SandevistanStopReason reason) {
+			SandevistanStopReason reason,
+			ResourceLocation profileId) {
 		if (source == null) {
 			return;
 		}
@@ -64,9 +78,7 @@ public final class SandevistanNetwork {
 						active,
 						remainingTicks,
 						reason,
-						EPMConfig.sandevistanTimeScale(),
-						EPMConfig.sandevistanRadius(),
-						EPMConfig.sandevistanAfterimageIntervalTicks()));
+						profileId));
 	}
 
 	public static void sendSnapshot(ServerPlayer receiver, ServerPlayer source) {
@@ -74,6 +86,8 @@ public final class SandevistanNetwork {
 			return;
 		}
 
+		SandevistanProfile profile = SandevistanManager.activeProfile(source);
+		ResourceLocation profileId = profile == null ? SandevistanProfiles.DINARA_MK4.id() : profile.id();
 		CHANNEL.send(
 				PacketDistributor.PLAYER.with(() -> receiver),
 				new SyncStatePacket(
@@ -81,27 +95,44 @@ public final class SandevistanNetwork {
 						SandevistanManager.isActive(source),
 						SandevistanManager.remainingTicks(source),
 						null,
-						EPMConfig.sandevistanTimeScale(),
-						EPMConfig.sandevistanRadius(),
-						EPMConfig.sandevistanAfterimageIntervalTicks()));
+						profileId));
 	}
 
-	private static final class AttackStopPacket {
-		private static final AttackStopPacket INSTANCE = new AttackStopPacket();
+	private static final class ManualStopPacket {
+		private static final ManualStopPacket INSTANCE = new ManualStopPacket();
 
-		private static void encode(AttackStopPacket packet, FriendlyByteBuf buffer) {
+		private static void encode(ManualStopPacket packet, FriendlyByteBuf buffer) {
 		}
 
-		private static AttackStopPacket decode(FriendlyByteBuf buffer) {
+		private static ManualStopPacket decode(FriendlyByteBuf buffer) {
 			return INSTANCE;
 		}
 
-		private static void handle(AttackStopPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+		private static void handle(ManualStopPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
 			NetworkEvent.Context context = contextSupplier.get();
 			ServerPlayer sender = context.getSender();
 			if (sender != null) {
-				SandevistanManager.requestStop(sender, SandevistanStopReason.ATTACK);
+				SandevistanManager.requestStop(sender, SandevistanStopReason.MANUAL);
 			}
+			context.setPacketHandled(true);
+		}
+	}
+
+	private static final class CombatActivityPacket {
+		private static final CombatActivityPacket INSTANCE = new CombatActivityPacket();
+
+		private static void encode(CombatActivityPacket packet, FriendlyByteBuf buffer) {
+		}
+
+		private static CombatActivityPacket decode(FriendlyByteBuf buffer) {
+			return INSTANCE;
+		}
+
+		private static void handle(CombatActivityPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+			NetworkEvent.Context context = contextSupplier.get();
+			context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(
+					Dist.CLIENT,
+					() -> SandevistanHudCombatState::markCombatActivity));
 			context.setPacketHandled(true);
 		}
 	}
@@ -111,25 +142,19 @@ public final class SandevistanNetwork {
 		private final boolean active;
 		private final int remainingTicks;
 		private final SandevistanStopReason reason;
-		private final double timeScale;
-		private final double radius;
-		private final int afterimageIntervalTicks;
+		private final ResourceLocation profileId;
 
 		private SyncStatePacket(
 				UUID playerId,
 				boolean active,
 				int remainingTicks,
 				SandevistanStopReason reason,
-				double timeScale,
-				double radius,
-				int afterimageIntervalTicks) {
+				ResourceLocation profileId) {
 			this.playerId = playerId;
 			this.active = active;
 			this.remainingTicks = remainingTicks;
 			this.reason = reason;
-			this.timeScale = timeScale;
-			this.radius = radius;
-			this.afterimageIntervalTicks = afterimageIntervalTicks;
+			this.profileId = profileId;
 		}
 
 		private static void encode(SyncStatePacket packet, FriendlyByteBuf buffer) {
@@ -137,9 +162,7 @@ public final class SandevistanNetwork {
 			buffer.writeBoolean(packet.active);
 			buffer.writeVarInt(packet.remainingTicks);
 			buffer.writeVarInt(packet.reason == null ? -1 : packet.reason.ordinal());
-			buffer.writeDouble(packet.timeScale);
-			buffer.writeDouble(packet.radius);
-			buffer.writeVarInt(packet.afterimageIntervalTicks);
+			buffer.writeResourceLocation(packet.profileId);
 		}
 
 		private static SyncStatePacket decode(FriendlyByteBuf buffer) {
@@ -150,17 +173,13 @@ public final class SandevistanNetwork {
 			SandevistanStopReason reason = reasonOrdinal < 0
 					? null
 					: SandevistanStopReason.values()[Math.min(reasonOrdinal, SandevistanStopReason.values().length - 1)];
-			double timeScale = buffer.readDouble();
-			double radius = buffer.readDouble();
-			int afterimageIntervalTicks = buffer.readVarInt();
+			ResourceLocation profileId = buffer.readResourceLocation();
 			return new SyncStatePacket(
 					playerId,
 					active,
 					remainingTicks,
 					reason,
-					timeScale,
-					radius,
-					afterimageIntervalTicks);
+					profileId);
 		}
 
 		private static void handle(SyncStatePacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -171,9 +190,7 @@ public final class SandevistanNetwork {
 							packet.active,
 							packet.remainingTicks,
 							packet.reason,
-							packet.timeScale,
-							packet.radius,
-							packet.afterimageIntervalTicks)));
+							packet.profileId)));
 			context.setPacketHandled(true);
 		}
 	}

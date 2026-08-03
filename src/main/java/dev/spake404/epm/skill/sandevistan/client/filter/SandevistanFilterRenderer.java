@@ -10,7 +10,6 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.skill.sandevistan.SandevistanStateView;
 import dev.spake404.epm.skill.sandevistan.client.blur.SandevistanEdgeBlurRenderer;
-import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
@@ -48,9 +47,6 @@ public final class SandevistanFilterRenderer {
 		float step = 1.0F / Math.max(1, transitionTicks);
 		intensity = Mth.clamp(intensity + (active ? step : -step), 0.0F, 1.0F);
 
-		if (active || isVisible()) {
-			ensureStencilBuffer(minecraft);
-		}
 	}
 
 	public static void clearStencil(RenderLevelStageEvent event) {
@@ -206,14 +202,9 @@ public final class SandevistanFilterRenderer {
 		return beginStencilWrite();
 	}
 
-	public static boolean beginAfterimageMask(UUID ownerId) {
+	public static boolean beginAfterimageBatchMask() {
 		Minecraft minecraft = Minecraft.getInstance();
-		if (!isVisible() || ownerId == null || minecraft.player == null) {
-			return false;
-		}
-
-		boolean localOwner = ownerId.equals(minecraft.player.getUUID());
-		return (localOwner || SandevistanStateView.isActive(ownerId)) && beginStencilWrite();
+		return isVisible() && minecraft.player != null && beginStencilWrite();
 	}
 
 	public static void endMask() {
@@ -269,13 +260,6 @@ public final class SandevistanFilterRenderer {
 		RenderSystem.stencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_KEEP);
 		GL11.glDisable(GL11.GL_STENCIL_TEST);
 		stencilWriteActive = false;
-	}
-
-	private static void ensureStencilBuffer(Minecraft minecraft) {
-		RenderTarget target = minecraft.getMainRenderTarget();
-		if (!target.isStencilEnabled()) {
-			target.enableStencil();
-		}
 	}
 
 	private static void flush(MultiBufferSource bufferSource) {

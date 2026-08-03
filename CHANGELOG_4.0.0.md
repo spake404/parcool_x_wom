@@ -120,6 +120,7 @@
 - 新增 Epic Fight 风格白色残影，支持残影数量、持续时间、生成间隔、最小移动距离、透明度和颜色渐变配置。
 - 新增仅本地玩家可见的绿色滤镜、边缘模糊、启动边缘畸变、色差分离和白色闪光效果，并加入 Alt+P 配置项及中英文悬停说明。
 - 新增斯安威斯坦启动音效 sandevistan_start，在本地玩家成功开启技能时播放。
+- 移除发动攻击时自动结束斯安威斯坦的限制；玩家现在可以在技能持续期间正常进行普攻、连续攻击和攻击型技能。
 - 新增可选的斯安威斯坦性能诊断日志，用于区分残影渲染、后处理 Shader 和绿色滤镜造成的卡顿。
 
 #### English
@@ -130,7 +131,96 @@
 - Added Epic Fight-style white afterimages with configurable count, lifetime, spawn interval, minimum movement distance, alpha, and color gradient.
 - Added a local-player-only green filter, edge blur, activation edge warp, chromatic aberration, and white activation flash, with Alt+P settings and bilingual tooltips.
 - Added the Sandevistan activation sound sandevistan_start, played when the local player successfully activates the skill.
+- Removed the restriction that automatically ended Sandevistan when attacking; players can now use basic attacks, attack combos, and offensive skills while it remains active.
 - Added optional Sandevistan performance diagnostics to distinguish hitches caused by afterimage rendering, post-processing Shader work, or the green filter.
+
+### Sandevistan Model And Mechanic Expansion / 斯安威斯坦型号与机制扩展
+
+#### 中文
+
+- 将原有斯安威斯坦重制为**迪纳拉斯安威斯坦4型**，并新增**千替“实境扭曲”斯安威斯坦5型**、**军用科技“游隼”斯安威斯坦**、**军用科技“远地点”斯安威斯坦**和**泽塔科技斯安威斯坦**；五种型号均拥有独立技能书、图标入口、持续时间、冷却、时间倍率和战斗属性。
+- 新增型号配置档案系统，将时间减速、影响范围、伤害倍率、伤害减免、冷却、击杀奖励和充能规则从通用客户端设置中分离，后续可继续扩展新的斯安威斯坦型号。
+- 新增**反应调幅**机制：激活时读取 Epic Fight 最大耐力，每点最大耐力增加 0.1 秒可用持续时间，不消耗耐力，并在技能书界面显示当前最大耐力及实际增加的持续时间。
+- 新增军用科技型号的**部分充能激活**：游隼和远地点可在仍有剩余持续时间时再次启动，技能结束后保留未使用时间；只有全部容量耗尽后才进入完整冷却，激活期间暂停恢复，且手动结束不会返还冷却。
+- 新增按 `V` 再次触发以提前结束斯安威斯坦；支持返还的型号会按照剩余持续时间比例的 60% 折算冷却返还，军用科技游隼和远地点不使用该返还机制。
+- 新增型号专属战斗效果：千替5型提供普通伤害减免以及火焰、凋零伤害的强化减免；泽塔科技根据地面/空中状态动态切换时间倍率，空中攻击获得额外伤害并减少原版摔落伤害。
+- 新增击杀奖励：游隼击杀后恢复持续时间和最大生命值百分比；远地点与泽塔科技击杀后恢复持续时间和最大耐力百分比。持续时间恢复不会超过该次激活由基础时间与反应调幅共同确定的上限。
+- 重写斯安威斯坦技能书说明与中英文本地化，按功能分段显示时间倍率、范围、伤害、减伤、持续时间、冷却、反应调幅、充能规则及击杀奖励，并修复跑酷技能类型在界面中显示原始 ID 的问题。
+- 优化残影渲染路径：新增专用残影渲染器、视锥剔除并移除残影的动态披风渲染，在保留原有残影位置、生成时机与叠加效果的同时降低光影环境下的渲染负担。
+
+#### English
+
+- Reworked the original Sandevistan into the **Dinara Sandevistan Mk.4** and added the **Qiant “Warp Dancer” Sandevistan Mk.5**, **Militech “Falcon” Sandevistan**, **Militech “Apogee” Sandevistan**, and **Zetatech Sandevistan**. All five models have independent skill books, skill entries, durations, cooldowns, time scales, and combat attributes.
+- Added a profile-based model system that separates time dilation, radius, damage multipliers, damage reduction, cooldowns, kill rewards, and charge rules from general client configuration, allowing additional Sandevistan models to be added cleanly later.
+- Added **Reaction Tuning**: activation reads Epic Fight maximum stamina and grants 0.1 seconds of additional usable duration per maximum stamina point without consuming stamina. The skill-book interface displays the current maximum stamina and resulting duration bonus.
+- Added **partial-charge activation** for the Militech models: Falcon and Apogee can reactivate while usable duration remains, preserve unused duration after deactivation, and enter their full cooldown only after the entire capacity is consumed. Recharge pauses while active, and manual deactivation grants no cooldown refund.
+- Added a second press of `V` to end Sandevistan early. Eligible models convert 60% of the remaining-duration percentage into cooldown refund, while Militech Falcon and Apogee do not use this refund mechanic.
+- Added model-specific combat effects: Qiant Mk.5 reduces ordinary incoming damage and provides stronger protection against fire and wither damage; Zetatech dynamically switches time scale between grounded and airborne states, increases airborne attack damage, and reduces vanilla fall damage.
+- Added kill rewards: Falcon restores duration and a percentage of maximum health, while Apogee and Zetatech restore duration and a percentage of maximum stamina. Restored duration cannot exceed the activation limit determined by base duration plus Reaction Tuning.
+- Reworked the Sandevistan skill-book descriptions and bilingual localization into readable functional sections covering time scale, radius, damage, defenses, duration, cooldown, Reaction Tuning, charge behavior, and kill rewards. Also fixed the Parkour Skill category displaying its raw ID in the interface.
+- Optimized the afterimage rendering path with a dedicated renderer, frustum culling, and removal of dynamic cape rendering, reducing shader-heavy rendering cost while preserving the established afterimage positions, spawn timing, and layered appearance.
+
+### Stationary Action Afterimages / 原地动作残影
+
+#### 中文
+
+- 新增原地动作残影：斯安威斯坦激活期间，即使玩家没有产生水平位移，只要正在播放 Epic Fight 攻击或动作状态，也会捕获当前模型姿势并生成残影；普通站立待机不会生成残影。
+- 将原地动作残影与移动拖尾残影完全拆分。移动拖尾继续使用原有的最小距离、生命周期、透明度淡出以及青蓝、紫色、橙色渐变配置，不受原地动作残影调整影响。
+- 原地动作残影使用独立的生成间隔、显示延迟、生命周期、起始透明度、结束透明度和固定颜色配置；当前默认值为：每 2 Tick 捕获一次、延迟 2 Tick 显示、显示 15 Tick、起始透明度 0.85、结束透明度 0.45、固定青蓝色 `#33E6FF`。
+- 新增固定客户端 Tick 显示队列：模型姿势被捕获后会等待配置的 Tick 数再进入渲染，生命周期从真正显示时才开始计算。显示延迟按客户端 Tick 计数，不受正常帧率波动影响。
+- 原地动作残影在生命周期内保持固定颜色，不执行移动拖尾的颜色渐变；透明度使用固定的 2.2 次幂 Ease-In 曲线，前段淡出较慢、后段逐渐加快，并在生命周期末尾准确达到配置的结束透明度。
+- 原地动作残影的数值配置已加入 ParCool Alt+P 设置界面，并补充完整的中英文名称与悬停说明；十六进制颜色继续通过 Forge 配置文件修改。
+
+#### English
+
+- Added stationary action afterimages: while Sandevistan is active, the current model pose is captured when an Epic Fight attack or action is playing even without horizontal player movement. Ordinary idle standing does not generate afterimages.
+- Fully separated stationary action afterimages from moving trail afterimages. Moving trails retain their existing minimum-distance, lifetime, opacity fade, and cyan-to-purple-to-orange gradient settings and are unaffected by stationary-action adjustments.
+- Added independent stationary-action settings for capture interval, display delay, lifetime, starting opacity, ending opacity, and fixed color. Current defaults are one capture every 2 ticks, a 2-tick display delay, a 15-tick visible lifetime, 0.85 starting opacity, 0.45 ending opacity, and fixed cyan-blue `#33E6FF`.
+- Added a fixed client-tick display queue: captured model poses wait for the configured number of ticks before entering rendering, and their visible lifetime begins only after they are displayed. The delay is counted in client ticks and is independent of ordinary frame-rate fluctuations.
+- Stationary action afterimages keep a constant color and do not use the moving trail color gradient. Their opacity uses a fixed power-2.2 Ease-In curve, fading slowly at first and accelerating later until it reaches the configured ending opacity at the end of the lifetime.
+- Added the stationary-action numeric settings to the ParCool Alt+P configuration screen with complete Chinese and English names and tooltips. The hexadecimal color remains editable through the Forge configuration file.
+
+### 斯安威斯坦 HUD、环境时缓与兼容修复 / Sandevistan HUD, Environmental Time Dilation, and Compatibility Fixes
+
+#### 中文
+
+- 新增独立的斯安威斯坦能量 HUD，并移除原有动作栏持续时间、冷却时间以及启动/结束提示。状态条使用绿色与红色格子显示可用时间和已消耗时间；总格数会根据基础持续时间与反应调幅后的实际容量按秒四舍五入。激活时格子从右向左由绿色变为红色，普通型号冷却时从左向右恢复为绿色，游隼与远地点的部分充能也会按照实际恢复的可用秒数更新格子。
+- 将斯安威斯坦状态条注册为 Epic Fight HUD 设置中的独立可调整组件，不再跟随 Epic Fight 原有技能或武器技能 HUD。状态条默认水平居中，支持 Epic Fight 原生的水平/垂直锚点与 X/Y 拖动设置，并会根据窗口和 GUI 尺寸自动缩放。
+- 新增状态条战斗可见性规则：造成或受到伤害、锁定有效敌人时进入战斗显示状态，最后一次战斗活动结束 5 秒后退出；能量未满时即使脱战也会持续显示，能量充满且脱战后等待 1 秒再开始渐隐，并在随后 1 秒内完全隐藏。
+- 修复手动按 `V` 提前结束斯安威斯坦后，客户端状态条仍按照旧的激活结束时间继续减少、且恢复状态需要再次启动技能后才会刷新的问题。服务端结束同步现在会立即清除本地激活状态并切换到正确的剩余能量或冷却恢复显示。
+- 为斯安威斯坦技能书替换新的专用图标，并加入状态条所使用的绿色、红色格子纹理资源。
+- 新增 `Use EpicParCool Default CatLeap Animation` / `使用 EpicParCool 默认猫跳动画` 配置，默认关闭并放置在 Alt+P 设置界面的 `Auto FastRun Dash` 下方。开启后恢复 EpicParCool 原本的猫跳准备与腾空动画，跳过 WOM Natural Sprinter 的冲刺跳跃动画和运动修正，同时保留猫跳触发、耐力消耗与幻影跃升预备效果。
+- 将斯安威斯坦局部时间减速扩展到客户端粒子系统：范围内的普通粒子和 TrackingEmitter 使用独立的局部 Tick 时钟降低更新频率，并使用对应的局部 partialTick 平滑渲染；离开影响范围后恢复正常速度。施术者自己的斯安威斯坦残影被明确排除，继续保持原有生成、运动与淡出速度。
+- 将局部时间减速扩展到原版雨雪的特殊程序化动画。雨水纹理滚动、雪花下落与横向漂移会按照所在 X/Z 天气列的局部时间倍率减速，范围外天气继续使用世界正常时间，并通过独立局部时间和 partialTick 避免低速天气动画产生明显跳动。
+- 修复玩家获得速度效果后，Epic Fight 普通 RUN 动画播放速度没有随实际水平速度提高的问题。原有扩展逻辑在 `MovementAnimation#getPlaySpeed` 阶段使用 `x - xo` / `z - zo` 采样，但该时机的位移尚未更新，结果始终为 `0`。现在直接使用 `getDeltaMovement().horizontalDistance()` 驱动现有平滑曲线；普通速度范围保持 Epic Fight 原始行为，超过原版疾跑速度后继续加速至配置上限。该修复适用于 Epic Fight 武器 RUN、WOM `BIPED_SPRINT` / `BIPED_SPRINT_BAREHAND` 及其他 `MovementAnimation`，不会直接影响 LinkAnimation、攻击、跳跃或 Step 动画。
+
+#### English
+
+- Added an independent Sandevistan energy HUD and removed the previous action-bar duration, cooldown, activation, and deactivation messages. Green and red cells represent available and consumed time, with the total cell count rounded to the nearest second from the actual capacity after base duration and Reaction Tuning are applied. While active, cells turn from green to red from right to left; ordinary-model cooldowns restore green cells from left to right, and Falcon/Apogee partial charge updates the bar according to the actual usable seconds recovered.
+- Registered the Sandevistan bar as an independent adjustable component in Epic Fight's HUD setup screen instead of attaching it to Epic Fight's existing skill or weapon-skill HUD. The bar is horizontally centered by default, supports Epic Fight's native horizontal/vertical anchors and X/Y positioning, and automatically scales with the window and GUI size.
+- Added combat-based visibility rules for the bar. Dealing or receiving damage and focusing a valid enemy marks combat activity, which expires five seconds after the last activity. The bar remains visible while energy is incomplete even out of combat; once fully charged and out of combat, it waits one second before fading out completely over the following second.
+- Fixed manually ending Sandevistan with `V` leaving the client bar draining against the old activation end time and preventing the recovery display from refreshing until the skill was activated again. Server stop synchronization now immediately clears the local activation state and switches the HUD to the correct remaining-energy or cooldown-recovery state.
+- Replaced the Sandevistan skill-book icon with a dedicated new texture and added the green/red cell textures used by the energy HUD.
+- Added the `Use EpicParCool Default CatLeap Animation` option, disabled by default and positioned directly below `Auto FastRun Dash` in the Alt+P settings screen. Enabling it restores EpicParCool's original CatLeap preparation and airborne animations, skips WOM Natural Sprinter's sprint-jump animation and motion adjustment, and preserves CatLeap activation, stamina use, and Phantom Ascent priming.
+- Extended Sandevistan local time dilation to the client particle system. Standard particles and tracking emitters inside the affected area use independent local Tick clocks for reduced update frequency and matching local partialTicks for smooth rendering, then return to normal speed outside the field. The caster's own Sandevistan afterimages are explicitly excluded and retain their existing spawn, movement, and fade timing.
+- Extended local time dilation to vanilla rain and snow procedural animation. Rain texture scrolling, snow descent, and horizontal snow drift now follow the local time scale of each affected X/Z weather column, while precipitation outside the field continues using normal world time. Independent local time and partialTick values prevent visibly jerky low-speed weather animation.
+- Fixed Epic Fight ordinary RUN animations not increasing their playback speed when the player had a movement-speed effect. The previous extension sampled `x - xo` and `z - zo` during `MovementAnimation#getPlaySpeed`, but movement had not yet updated at that stage and the measured value remained `0`. The existing smoothed curve is now driven directly by `getDeltaMovement().horizontalDistance()`; ordinary-speed ranges retain Epic Fight's original behavior, while movement above vanilla sprint speed continues toward the configured cap. The fix applies to Epic Fight weapon RUN animations, WOM `BIPED_SPRINT` / `BIPED_SPRINT_BAREHAND`, and other `MovementAnimation` instances without directly affecting LinkAnimation, attacks, jumps, or Step animations.
+
+### 斯安威斯坦渲染兼容修复
+
+#### 中文
+
+- 修复其他模组修改 `ParticleEngine` 粒子渲染路径后，斯安威斯坦粒子局部 partialTick 的强制 Mixin 注入找不到原始 `Particle.render` 调用、进而在游戏初始化阶段触发 `MixinTransformerError` 崩溃的问题。粒子渲染平滑钩子现已改为可选兼容注入；如果 Embeddium、Oculus 或其他模组替换了对应渲染路径，游戏将继续正常启动并保留粒子 Tick 减速，只停用该路径上的局部渲染插值并输出一次兼容警告。
+- 修复在启用 Oculus 光影与 Distant Horizons 时，开启斯安威斯坦会导致远处 LOD 越过近处方块、地形和实体显示的问题。原因是技能激活过程中动态调用主渲染目标的 `enableStencil()`，该操作会销毁并重建主帧缓冲的颜色与深度附件，使 Distant Horizons 或 Oculus 缓存的深度关联失效。
+- 将主渲染目标的 Stencil 缓冲改为在客户端设置阶段一次性初始化。斯安威斯坦激活、结束和滤镜淡入淡出期间不再重建主帧缓冲，同时继续保留本地玩家、第一人称手部、斯安威斯坦残影及其他斯安威斯坦玩家不受绿色滤镜影响的遮罩功能。
+- 修复首次提前初始化 Stencil 时发生的游戏启动崩溃。初始化时机已从 Forge 配置尚未加载的客户端资源监听器注册阶段，移动到配置加载完成后的 `FMLClientSetupEvent` 主线程任务中，避免 `RenderTarget.createBuffers` 提前读取配置。
+
+#### English
+
+- Fixed a startup `MixinTransformerError` that occurred when another mod replaced the `ParticleEngine` rendering path and the mandatory Sandevistan local-partialTick redirect could no longer find the original `Particle.render` invocation. The particle smoothing hook is now an optional compatibility injection: when Embeddium, Oculus, or another mod replaces that path, the game continues loading and particle Tick slowdown remains active, while only local render interpolation for that path is disabled with a single compatibility warning.
+- Fixed Distant Horizons LOD rendering through nearby blocks, terrain, and entities when Sandevistan was activated with Oculus shaders enabled. The issue was caused by dynamically calling `enableStencil()` on the main render target during activation, which destroyed and recreated the main framebuffer color and depth attachments and invalidated depth references cached by Distant Horizons or Oculus.
+- Changed the main render target stencil buffer to initialize once during client setup. Activating, ending, or fading the Sandevistan filter no longer rebuilds the main framebuffer, while stencil exclusions for the local player, first-person hands, Sandevistan afterimages, and other active Sandevistan users remain supported.
+- Fixed the startup crash introduced by initializing the stencil buffer before Forge configuration values were available. Initialization now runs as a main-thread task during `FMLClientSetupEvent`, after configuration loading, instead of during client reload-listener registration.
 
 ## Version Info
 

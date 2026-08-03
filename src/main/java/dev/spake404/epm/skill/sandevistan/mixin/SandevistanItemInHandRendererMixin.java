@@ -16,7 +16,7 @@ public abstract class SandevistanItemInHandRendererMixin {
 	@Unique
 	private boolean epm$sandevistanHandMask;
 
-	@Inject(method = "renderHandsWithItems", at = @At("HEAD"))
+	@Inject(method = "renderHandsWithItems", at = @At("HEAD"), require = 0)
 	private void epm$beginSandevistanHandMask(
 			float partialTick,
 			PoseStack poseStack,
@@ -27,7 +27,7 @@ public abstract class SandevistanItemInHandRendererMixin {
 		epm$sandevistanHandMask = SandevistanFilterRenderer.beginLocalHandMask(bufferSource);
 	}
 
-	@Inject(method = "renderHandsWithItems", at = @At("RETURN"))
+	@Inject(method = "renderHandsWithItems", at = @At("RETURN"), require = 0)
 	private void epm$endSandevistanHandMask(
 			float partialTick,
 			PoseStack poseStack,

@@ -2,17 +2,23 @@
   "required": false,
   "minVersion": "0.8",
   "package": "dev.spake404.epm.skill.sandevistan.mixin",
+  "plugin": "dev.spake404.epm.mixin.EPMMixinPlugin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "epic_parcool_momentum.refmap.json",
   "mixins": [
     "SandevistanServerLevelMixin"
   ],
   "client": [
+    "SandevistanAsyncParticlesGpuMixin",
     "SandevistanClientLevelMixin",
     "SandevistanEntityRenderDispatcherMixin",
     "SandevistanItemInHandRendererMixin",
     "SandevistanLevelRendererMixin",
-    "SandevistanPostChainAccessor"
+    "SandevistanMinecraftMixin",
+    "SandevistanParticleEngineMixin",
+    "SandevistanParticleRenderMixin",
+    "SandevistanPostChainAccessor",
+    "SandevistanWeatherRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

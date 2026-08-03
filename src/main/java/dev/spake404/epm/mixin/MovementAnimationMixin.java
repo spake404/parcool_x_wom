@@ -17,6 +17,7 @@ public abstract class MovementAnimationMixin {
 			DynamicAnimation animation,
 			CallbackInfoReturnable<Float> callback) {
 		callback.setReturnValue(MovementAnimationSpeedController.modifyPlaySpeed(
+				(MovementAnimation) (Object) this,
 				entityPatch,
 				animation,
 				callback.getReturnValueF()));

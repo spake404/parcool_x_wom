@@ -9,6 +9,7 @@ import net.minecraftforge.common.ForgeConfigSpec;
 public final class EPMConfig {
 	public static final ForgeConfigSpec SPEC;
 	private static final ForgeConfigSpec.BooleanValue CUSTOM_FAST_RUN_ANIMATIONS;
+	private static final ForgeConfigSpec.BooleanValue USE_EPIC_PARCOOL_DEFAULT_CAT_LEAP_ANIMATION;
 	private static final ForgeConfigSpec.BooleanValue NATURAL_SPRINTER_MANUAL_STEP;
 	private static final ForgeConfigSpec.BooleanValue AUTO_GENERATE_FAST_RUN_FROM_CURRENT_WEAPON;
 	private static final ForgeConfigSpec.IntValue GENERIC_FAST_RUN_STEP_COOLDOWN_TICKS;
@@ -61,14 +62,20 @@ public final class EPMConfig {
 	private static final ForgeConfigSpec.DoubleValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_VELOCITY;
 	private static final ForgeConfigSpec.IntValue EPIC_PARCOOL_CLIMB_UP_LATERAL_AIR_CONTROL_TICKS;
 	private static final ForgeConfigSpec.BooleanValue SANDEVISTAN_ENABLED;
-	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_TIME_SCALE;
-	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_RADIUS;
-	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_PLAYER_SPEED_MULTIPLIER;
-	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_HUD_X;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_HUD_Y;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_HUD_HORIZONTAL_BASIS;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_HUD_VERTICAL_BASIS;
 	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_MAX_COUNT;
 	private static final ForgeConfigSpec.IntValue SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT;
 	private static final ForgeConfigSpec.IntValue SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS;
 	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_INTERVAL_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_DISPLAY_DELAY_TICKS;
+	private static final ForgeConfigSpec.IntValue SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_LIFETIME_TICKS;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_ALPHA;
+	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_END_ALPHA;
+	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_COLOR;
 	private static final ForgeConfigSpec.DoubleValue SANDEVISTAN_AFTERIMAGE_ALPHA;
 	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_AFTERIMAGE_START_COLOR;
 	private static final ForgeConfigSpec.ConfigValue<String> SANDEVISTAN_AFTERIMAGE_MIDDLE_COLOR;
@@ -109,6 +116,13 @@ public final class EPMConfig {
 						"true: enables this mod's custom FastRun animation replacement and related step/jump visuals.",
 						"false: keeps EpicParCool's default FastRun animation behavior and disables the R-key FastRun step.")
 				.define("customFastRunAnimations", true);
+		USE_EPIC_PARCOOL_DEFAULT_CAT_LEAP_ANIMATION = builder
+				.translation("epic_parcool_momentum.configuration.useEpicParCoolDefaultCatLeapAnimation")
+				.comment(
+						"Restores EpicParCool's default CatLeap preparation and airborne animations.",
+						"false: WOM Natural Sprinter replaces CatLeap with its sprint-jump animation when the compatibility conditions are met.",
+						"true: skips the Natural Sprinter CatLeap animation and motion overrides while preserving CatLeap gameplay and Phantom Ascent priming.")
+				.define("useEpicParCoolDefaultCatLeapAnimation", false);
 		NATURAL_SPRINTER_MANUAL_STEP = builder
 				.translation("epic_parcool_momentum.configuration.naturalSprinterManualStep")
 				.comment(
@@ -358,22 +372,18 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.sandevistanEnabled")
 				.comment("Enables the Sandevistan time-dilation skill.")
 				.define("sandevistanEnabled", true);
-		SANDEVISTAN_TIME_SCALE = builder
-				.translation("epic_parcool_momentum.configuration.sandevistanTimeScale")
-				.comment("Local tick-rate multiplier for entities near the Sandevistan user.")
-				.defineInRange("sandevistanTimeScale", 0.25D, 0.1D, 1.0D);
-		SANDEVISTAN_RADIUS = builder
-				.translation("epic_parcool_momentum.configuration.sandevistanRadius")
-				.comment("Radius in blocks affected by time dilation.")
-				.defineInRange("sandevistanRadius", 40.0D, 4.0D, 128.0D);
-		SANDEVISTAN_PLAYER_SPEED_MULTIPLIER = builder
-				.translation("epic_parcool_momentum.configuration.sandevistanPlayerSpeedMultiplier")
-				.comment("Additional movement-speed multiplier applied to the Sandevistan user.")
-				.defineInRange("sandevistanPlayerSpeedMultiplier", 1.4D, 1.0D, 3.0D);
-		SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS = builder
-				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageIntervalTicks")
-				.comment("Ticks between textured Sandevistan afterimages while moving.")
-				.defineInRange("sandevistanAfterimageIntervalTicks", 1, 1, 20);
+		SANDEVISTAN_HUD_X = builder
+				.comment("Independent Sandevistan HUD horizontal coordinate used by Epic Fight's HUD setup screen.")
+				.defineInRange("sandevistanHudX", 0, -10000, 10000);
+		SANDEVISTAN_HUD_Y = builder
+				.comment("Independent Sandevistan HUD vertical coordinate used by Epic Fight's HUD setup screen.")
+				.defineInRange("sandevistanHudY", 70, -10000, 10000);
+		SANDEVISTAN_HUD_HORIZONTAL_BASIS = builder
+				.comment("Horizontal screen basis of the independent Sandevistan HUD: LEFT, RIGHT, or CENTER.")
+				.define("sandevistanHudHorizontalBasis", "CENTER", EPMConfig::isHorizontalBasis);
+		SANDEVISTAN_HUD_VERTICAL_BASIS = builder
+				.comment("Vertical screen basis of the independent Sandevistan HUD: TOP, BOTTOM, or CENTER.")
+				.define("sandevistanHudVerticalBasis", "BOTTOM", EPMConfig::isVerticalBasis);
 		SANDEVISTAN_AFTERIMAGE_MAX_COUNT = builder
 				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageMaxCount")
 				.comment("Maximum number of Sandevistan afterimages retained for the local player.")
@@ -390,6 +400,30 @@ public final class EPMConfig {
 				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageMinDistance")
 				.comment("Minimum movement distance in blocks before another afterimage can be captured.")
 				.defineInRange("sandevistanAfterimageMinDistance", 0.2D, 0.0D, 2.0D);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_INTERVAL_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageIntervalTicks")
+				.comment("Ticks between afterimage captures while performing an Epic Fight action without moving.")
+				.defineInRange("sandevistanStationaryActionAfterimageIntervalTicks", 2, 1, 40);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_DISPLAY_DELAY_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageDisplayDelayTicks")
+				.comment("Client ticks between capturing a stationary action pose and displaying its afterimage.")
+				.defineInRange("sandevistanStationaryActionAfterimageDisplayDelayTicks", 2, 0, 40);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_LIFETIME_TICKS = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageLifetimeTicks")
+				.comment("Lifetime in ticks of afterimages captured from stationary Epic Fight actions.")
+				.defineInRange("sandevistanStationaryActionAfterimageLifetimeTicks", 15, 1, 100);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_ALPHA = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageAlpha")
+				.comment("Starting opacity of stationary Epic Fight action afterimages.")
+				.defineInRange("sandevistanStationaryActionAfterimageAlpha", 0.85D, 0.05D, 1.0D);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_END_ALPHA = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageEndAlpha")
+				.comment("Opacity reached by stationary Epic Fight action afterimages at the end of their lifetime.")
+				.defineInRange("sandevistanStationaryActionAfterimageEndAlpha", 0.45D, 0.0D, 1.0D);
+		SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_COLOR = builder
+				.translation("epic_parcool_momentum.configuration.sandevistanStationaryActionAfterimageColor")
+				.comment("Constant hex RGB tint of stationary Epic Fight action afterimages.")
+				.define("sandevistanStationaryActionAfterimageColor", "#33E6FF", EPMConfig::isHexColor);
 		SANDEVISTAN_AFTERIMAGE_ALPHA = builder
 				.translation("epic_parcool_momentum.configuration.sandevistanAfterimageAlpha")
 				.comment("Initial opacity of textured Sandevistan afterimages.")
@@ -592,6 +626,10 @@ public final class EPMConfig {
 
 	public static boolean customFastRunAnimations() {
 		return CUSTOM_FAST_RUN_ANIMATIONS.get();
+	}
+
+	public static boolean useEpicParCoolDefaultCatLeapAnimation() {
+		return USE_EPIC_PARCOOL_DEFAULT_CAT_LEAP_ANIMATION.get();
 	}
 
 	public static boolean naturalSprinterManualStep() {
@@ -832,20 +870,44 @@ public final class EPMConfig {
 		return SANDEVISTAN_ENABLED.get();
 	}
 
-	public static double sandevistanTimeScale() {
-		return SANDEVISTAN_TIME_SCALE.get();
+	public static int sandevistanHudX() {
+		return SANDEVISTAN_HUD_X.get();
 	}
 
-	public static double sandevistanRadius() {
-		return SANDEVISTAN_RADIUS.get();
+	public static int sandevistanHudY() {
+		return SANDEVISTAN_HUD_Y.get();
 	}
 
-	public static double sandevistanPlayerSpeedMultiplier() {
-		return SANDEVISTAN_PLAYER_SPEED_MULTIPLIER.get();
+	public static String sandevistanHudHorizontalBasis() {
+		return SANDEVISTAN_HUD_HORIZONTAL_BASIS.get();
 	}
 
-	public static int sandevistanAfterimageIntervalTicks() {
-		return SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS.get();
+	public static String sandevistanHudVerticalBasis() {
+		return SANDEVISTAN_HUD_VERTICAL_BASIS.get();
+	}
+
+	public static void setSandevistanHudX(int value) {
+		SANDEVISTAN_HUD_X.set(value);
+		SPEC.save();
+	}
+
+	public static void setSandevistanHudY(int value) {
+		SANDEVISTAN_HUD_Y.set(value);
+		SPEC.save();
+	}
+
+	public static void setSandevistanHudHorizontalBasis(String value) {
+		if (isHorizontalBasis(value)) {
+			SANDEVISTAN_HUD_HORIZONTAL_BASIS.set(value);
+			SPEC.save();
+		}
+	}
+
+	public static void setSandevistanHudVerticalBasis(String value) {
+		if (isVerticalBasis(value)) {
+			SANDEVISTAN_HUD_VERTICAL_BASIS.set(value);
+			SPEC.save();
+		}
 	}
 
 	public static int sandevistanAfterimageMaxCount() {
@@ -862,6 +924,30 @@ public final class EPMConfig {
 
 	public static double sandevistanAfterimageMinDistance() {
 		return SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE.get();
+	}
+
+	public static int sandevistanStationaryActionAfterimageIntervalTicks() {
+		return SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_INTERVAL_TICKS.get();
+	}
+
+	public static int sandevistanStationaryActionAfterimageDisplayDelayTicks() {
+		return SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_DISPLAY_DELAY_TICKS.get();
+	}
+
+	public static int sandevistanStationaryActionAfterimageLifetimeTicks() {
+		return SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_LIFETIME_TICKS.get();
+	}
+
+	public static float sandevistanStationaryActionAfterimageAlpha() {
+		return SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_ALPHA.get().floatValue();
+	}
+
+	public static float sandevistanStationaryActionAfterimageEndAlpha() {
+		return SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_END_ALPHA.get().floatValue();
+	}
+
+	public static int sandevistanStationaryActionAfterimageColor() {
+		return parseHexColor(SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_COLOR.get(), 0x33E6FF);
 	}
 
 	public static float sandevistanAfterimageAlpha() {
@@ -979,6 +1065,16 @@ public final class EPMConfig {
 
 	private static boolean isStringValue(Object value) {
 		return value instanceof String;
+	}
+
+	private static boolean isHorizontalBasis(Object value) {
+		return value instanceof String string
+				&& ("LEFT".equals(string) || "RIGHT".equals(string) || "CENTER".equals(string));
+	}
+
+	private static boolean isVerticalBasis(Object value) {
+		return value instanceof String string
+				&& ("TOP".equals(string) || "BOTTOM".equals(string) || "CENTER".equals(string));
 	}
 
 	private static boolean isHexColor(Object value) {

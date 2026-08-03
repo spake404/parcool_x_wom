@@ -1,13 +1,12 @@
 package dev.spake404.epm.skill.sandevistan.client;
 
 import dev.spake404.epm.config.EPMConfig;
-import dev.spake404.epm.skill.sandevistan.client.filter.SandevistanFilterRenderer;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import java.util.UUID;
 import yesman.epicfight.api.utils.EntitySnapshot;
 import yesman.epicfight.client.particle.EntityAfterimageParticle;
 import yesman.epicfight.world.capabilities.EpicFightCapabilities;
@@ -16,13 +15,28 @@ import yesman.epicfight.world.capabilities.entitypatch.LivingEntityPatch;
 final class SandevistanAfterimageParticle extends EntityAfterimageParticle {
 	private final int lifetimeTicks;
 	private final float initialAlpha;
+	private final float endAlpha;
 	private final int startColor;
 	private final int middleColor;
 	private final int endColor;
-	private final UUID ownerId;
+	private final boolean animatedVisuals;
+	private final int displayDelayTicks;
+	private final AABB renderBounds;
+	private boolean readyForRendering;
+	private int pendingTicks;
 	private int visualAge;
 
-	private SandevistanAfterimageParticle(ClientLevel level, EntitySnapshot<?> snapshot, UUID ownerId) {
+	private SandevistanAfterimageParticle(
+			ClientLevel level,
+			EntitySnapshot<?> snapshot,
+			int lifetimeTicks,
+			float initialAlpha,
+			float endAlpha,
+			int startColor,
+			int middleColor,
+			int endColor,
+			boolean animatedVisuals,
+			int displayDelayTicks) {
 		super(
 				level,
 				snapshot.getPosition().x,
@@ -34,37 +48,98 @@ final class SandevistanAfterimageParticle extends EntityAfterimageParticle {
 				snapshot,
 				ignored -> {
 				});
-		lifetimeTicks = EPMConfig.sandevistanAfterimageLifetimeTicks();
-		initialAlpha = EPMConfig.sandevistanAfterimageAlpha();
-		startColor = EPMConfig.sandevistanAfterimageStartColor();
-		middleColor = EPMConfig.sandevistanAfterimageMiddleColor();
-		endColor = EPMConfig.sandevistanAfterimageEndColor();
-		this.ownerId = ownerId;
-		setLifetime(lifetimeTicks);
+		this.lifetimeTicks = Math.max(1, lifetimeTicks);
+		this.initialAlpha = initialAlpha;
+		this.endAlpha = endAlpha;
+		this.startColor = startColor;
+		this.middleColor = middleColor;
+		this.endColor = endColor;
+		this.animatedVisuals = animatedVisuals;
+		this.displayDelayTicks = Math.max(0, displayDelayTicks);
+		this.readyForRendering = this.displayDelayTicks == 0;
+		Vec3 position = snapshot.getPosition();
+		renderBounds = new AABB(
+				position.x - 0.9D,
+				position.y - 0.25D,
+				position.z - 0.9D,
+				position.x + 0.9D,
+				position.y + 2.75D,
+				position.z + 0.9D);
+		setLifetime(this.lifetimeTicks);
 		applyVisuals(0.0F);
 	}
 
-	static SandevistanAfterimageParticle capture(Player player) {
+	static SandevistanAfterimageParticle captureMovement(Player player) {
+		return capture(
+				player,
+				EPMConfig.sandevistanAfterimageLifetimeTicks(),
+				EPMConfig.sandevistanAfterimageAlpha(),
+				0.0F,
+				EPMConfig.sandevistanAfterimageStartColor(),
+				EPMConfig.sandevistanAfterimageMiddleColor(),
+				EPMConfig.sandevistanAfterimageEndColor(),
+				true,
+				1);
+	}
+
+	static SandevistanAfterimageParticle captureStationaryAction(Player player) {
+		int color = EPMConfig.sandevistanStationaryActionAfterimageColor();
+		return capture(
+				player,
+				EPMConfig.sandevistanStationaryActionAfterimageLifetimeTicks(),
+				EPMConfig.sandevistanStationaryActionAfterimageAlpha(),
+				EPMConfig.sandevistanStationaryActionAfterimageEndAlpha(),
+				color,
+				color,
+				color,
+				false,
+				EPMConfig.sandevistanStationaryActionAfterimageDisplayDelayTicks());
+	}
+
+	private static SandevistanAfterimageParticle capture(
+			Player player,
+			int lifetimeTicks,
+			float initialAlpha,
+			float endAlpha,
+			int startColor,
+			int middleColor,
+			int endColor,
+			boolean animatedVisuals,
+			int displayDelayTicks) {
 		if (player == null || !(player.level() instanceof ClientLevel level)) {
 			return null;
 		}
 
 		LivingEntityPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, LivingEntityPatch.class);
-		EntitySnapshot<?> snapshot = playerPatch == null ? null : playerPatch.captureEntitySnapshot();
-		return snapshot == null ? null : new SandevistanAfterimageParticle(level, snapshot, player.getUUID());
+		EntitySnapshot<?> snapshot = playerPatch == null ? null : EntitySnapshot.captureLivingEntity(playerPatch);
+		return snapshot == null ? null : new SandevistanAfterimageParticle(
+				level,
+				snapshot,
+				lifetimeTicks,
+				initialAlpha,
+				endAlpha,
+				startColor,
+				middleColor,
+				endColor,
+				animatedVisuals,
+				displayDelayTicks);
 	}
 
-	@Override
-	public void render(VertexConsumer vertexConsumer, Camera camera, float partialTick) {
-		long startedNanos = System.nanoTime();
-		boolean masking = SandevistanFilterRenderer.beginAfterimageMask(ownerId);
-		try {
-			super.render(vertexConsumer, camera, partialTick);
-		} finally {
-			if (masking) {
-				SandevistanFilterRenderer.endMask();
-			}
-			SandevistanPerformanceDiagnostics.recordAfterimage(System.nanoTime() - startedNanos);
+	void renderAfterimage(Camera camera, float partialTick) {
+		super.render(null, camera, partialTick);
+	}
+
+	boolean isVisible(Frustum frustum) {
+		return frustum == null || frustum.isVisible(renderBounds);
+	}
+
+	boolean isReadyForRendering() {
+		return readyForRendering && isAlive();
+	}
+
+	void advanceDisplayDelay() {
+		if (!readyForRendering && ++pendingTicks >= displayDelayTicks) {
+			readyForRendering = true;
 		}
 	}
 
@@ -80,6 +155,12 @@ final class SandevistanAfterimageParticle extends EntityAfterimageParticle {
 	}
 
 	private void applyVisuals(float progress) {
+		if (!animatedVisuals) {
+			setAlpha(lerp(initialAlpha, endAlpha, easeIn(progress)));
+			setColor(channel(startColor, 16), channel(startColor, 8), channel(startColor, 0));
+			return;
+		}
+
 		setAlpha(alpha(progress));
 		float[] color = color(progress);
 		setColor(color[0], color[1], color[2]);
@@ -123,5 +204,10 @@ final class SandevistanAfterimageParticle extends EntityAfterimageParticle {
 	private static float smoothstep(float value) {
 		float clamped = Math.max(0.0F, Math.min(1.0F, value));
 		return clamped * clamped * (3.0F - 2.0F * clamped);
+	}
+
+	private static float easeIn(float value) {
+		float clamped = Math.max(0.0F, Math.min(1.0F, value));
+		return (float)Math.pow(clamped, 2.2D);
 	}
 }

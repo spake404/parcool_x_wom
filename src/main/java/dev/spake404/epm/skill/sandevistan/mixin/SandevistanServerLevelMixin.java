@@ -13,8 +13,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class SandevistanServerLevelMixin {
 	@Inject(method = "tickNonPassenger", at = @At("HEAD"), cancellable = true)
 	private void epm$sandevistanSlowServerEntity(Entity entity, CallbackInfo callback) {
-		int interval = SandevistanManager.tickIntervalFor(entity);
-		if (!SandevistanEntityTickClock.shouldTick(entity, interval)) {
+		double timeScale = SandevistanManager.timeScaleFor(entity);
+		if (!SandevistanEntityTickClock.shouldTick(entity, timeScale)) {
+			SandevistanEntityTickClock.advanceUnscaledDamageTimers(entity);
 			callback.cancel();
 		}
 	}

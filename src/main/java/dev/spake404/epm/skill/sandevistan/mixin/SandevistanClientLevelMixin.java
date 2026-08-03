@@ -1,5 +1,6 @@
 package dev.spake404.epm.skill.sandevistan.mixin;
 
+import dev.spake404.epm.skill.sandevistan.SandevistanEntityTickClock;
 import dev.spake404.epm.skill.sandevistan.client.SandevistanClientState;
 import dev.spake404.epm.skill.sandevistan.client.SandevistanClientTickClock;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -13,8 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class SandevistanClientLevelMixin {
 	@Inject(method = "tickNonPassenger", at = @At("HEAD"), cancellable = true)
 	private void epm$sandevistanSlowClientEntity(Entity entity, CallbackInfo callback) {
-		int interval = SandevistanClientState.tickIntervalFor(entity);
-		if (!SandevistanClientTickClock.beginTick(entity, interval)) {
+		double timeScale = SandevistanClientState.timeScaleFor(entity);
+		if (!SandevistanClientTickClock.beginTick(entity, timeScale)) {
+			SandevistanEntityTickClock.advanceUnscaledDamageTimers(entity);
 			callback.cancel();
 		}
 	}

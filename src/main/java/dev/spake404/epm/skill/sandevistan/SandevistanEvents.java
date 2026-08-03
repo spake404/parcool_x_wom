@@ -3,11 +3,13 @@ package dev.spake404.epm.skill.sandevistan;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.skill.sandevistan.network.SandevistanNetwork;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -24,21 +26,35 @@ public final class SandevistanEvents {
 	}
 
 	@SubscribeEvent
-	public static void attackEntity(AttackEntityEvent event) {
-		if (event.getEntity() instanceof ServerPlayer player) {
-			SandevistanManager.requestStop(player, SandevistanStopReason.ATTACK);
+	public static void livingHurt(LivingHurtEvent event) {
+		if (event.getSource().getEntity() instanceof ServerPlayer player) {
+			event.setAmount((float)(event.getAmount() * SandevistanManager.outgoingDamageMultiplier(player)));
 		}
+		if (event.getEntity() instanceof ServerPlayer player) {
+			event.setAmount((float)(event.getAmount()
+					* SandevistanManager.incomingDamageMultiplier(player, event.getSource())));
+		}
+
 	}
 
-	@SubscribeEvent
-	public static void livingAttack(LivingAttackEvent event) {
-		if (event.getSource().getEntity() instanceof ServerPlayer player) {
-			SandevistanManager.requestStop(player, SandevistanStopReason.ATTACK);
+	@SubscribeEvent(priority = EventPriority.LOWEST)
+	public static void livingDamage(LivingDamageEvent event) {
+		Entity attacker = event.getSource().getEntity();
+		if (event.getAmount() > 0.0F && attacker != null) {
+			if (attacker instanceof ServerPlayer player && event.getEntity() != player) {
+				SandevistanNetwork.sendCombatActivity(player);
+			}
+			if (event.getEntity() instanceof ServerPlayer player && attacker != player) {
+				SandevistanNetwork.sendCombatActivity(player);
+			}
 		}
 	}
 
 	@SubscribeEvent
 	public static void playerDeath(LivingDeathEvent event) {
+		if (event.getSource().getEntity() instanceof ServerPlayer killer && event.getEntity() != killer) {
+			SandevistanManager.rewardKill(killer);
+		}
 		if (event.getEntity() instanceof ServerPlayer player) {
 			SandevistanManager.stop(player, SandevistanStopReason.DEATH);
 		}

@@ -18,7 +18,8 @@ public abstract class SandevistanLevelRendererMixin {
 			method = "renderEntity",
 			at = @At(
 					value = "INVOKE",
-					target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"))
+					target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"),
+			require = 0)
 	private void epm$renderWithSandevistanLocalPartialTick(
 			EntityRenderDispatcher dispatcher,
 			Entity entity,

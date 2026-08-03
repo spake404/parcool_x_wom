@@ -4,6 +4,7 @@ import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.input.EPMKeyMappings;
 import dev.spake404.epm.skill.sandevistan.client.blur.SandevistanEdgeBlurRenderer;
+import dev.spake404.epm.skill.sandevistan.client.filter.SandevistanStencilInitializer;
 import com.alrex.parcool.common.action.impl.Dodge;
 import com.alrex.parcool.config.ParCoolConfig;
 import net.minecraftforge.api.distmarker.Dist;
@@ -21,6 +22,7 @@ public final class EPMClientModEvents {
 	@SubscribeEvent
 	public static void onClientSetup(FMLClientSetupEvent event) {
 		event.enqueueWork(EPMClientModEvents::applyParCoolDodgeDefault);
+		event.enqueueWork(SandevistanStencilInitializer::initialize);
 	}
 
 	@SubscribeEvent

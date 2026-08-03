@@ -8,27 +8,29 @@ public final class SandevistanPerformanceDiagnostics {
 	private static long previousFrameNanos;
 	private static long lastLogNanos;
 	private static long afterimageNanos;
-	private static long longestAfterimageNanos;
+	private static long longestAfterimageBatchNanos;
 	private static long postProcessNanos;
 	private static long filterNanos;
 	private static int afterimageCount;
+	private static int culledAfterimageCount;
 
 	private SandevistanPerformanceDiagnostics() {
-	}
-
-	public static void recordAfterimage(long elapsedNanos) {
-		if (!EPMConfig.debugSandevistanPerformance()) {
-			return;
-		}
-		afterimageCount++;
-		afterimageNanos += elapsedNanos;
-		longestAfterimageNanos = Math.max(longestAfterimageNanos, elapsedNanos);
 	}
 
 	public static void recordPostProcess(long elapsedNanos) {
 		if (EPMConfig.debugSandevistanPerformance()) {
 			postProcessNanos += elapsedNanos;
 		}
+	}
+
+	public static void recordAfterimageBatch(long elapsedNanos, int visibleCount, int culledCount) {
+		if (!EPMConfig.debugSandevistanPerformance()) {
+			return;
+		}
+		afterimageNanos += elapsedNanos;
+		longestAfterimageBatchNanos = Math.max(longestAfterimageBatchNanos, elapsedNanos);
+		afterimageCount += visibleCount;
+		culledAfterimageCount += culledCount;
 	}
 
 	public static void recordFilter(long elapsedNanos) {
@@ -50,11 +52,12 @@ public final class SandevistanPerformanceDiagnostics {
 			long thresholdNanos = EPMConfig.debugSandevistanPerformanceThresholdMs() * 1_000_000L;
 			if (frameNanos >= thresholdNanos && now - lastLogNanos >= LOG_COOLDOWN_NANOS) {
 				EPM.LOGGER.warn(
-						"[EPM/SandevistanPerf] hitch={}ms afterimages={} afterimageCpu={}ms longestAfterimage={}ms postProcess={}ms filter={}ms blurSamples={} chromatic={} lifetimeTicks={} maxCount={}",
+						"[EPM/SandevistanPerf] hitch={}ms afterimages={} culledAfterimages={} afterimageCpu={}ms longestAfterimageBatch={}ms postProcess={}ms filter={}ms blurSamples={} chromatic={} lifetimeTicks={} maxCount={}",
 						millis(frameNanos),
 						afterimageCount,
+						culledAfterimageCount,
 						millis(afterimageNanos),
-						millis(longestAfterimageNanos),
+						millis(longestAfterimageBatchNanos),
 						millis(postProcessNanos),
 						millis(filterNanos),
 						EPMConfig.sandevistanEdgeBlurSamples(),
@@ -75,9 +78,10 @@ public final class SandevistanPerformanceDiagnostics {
 
 	private static void resetFrameCounters() {
 		afterimageNanos = 0L;
-		longestAfterimageNanos = 0L;
+		longestAfterimageBatchNanos = 0L;
 		postProcessNanos = 0L;
 		filterNanos = 0L;
 		afterimageCount = 0;
+		culledAfterimageCount = 0;
 	}
 }

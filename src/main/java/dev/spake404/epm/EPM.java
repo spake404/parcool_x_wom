@@ -4,6 +4,7 @@ import dev.spake404.epm.animation.EpmAnimations;
 import dev.spake404.epm.animation.EpmLivingMotions;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.event.EPMEvents;
+import dev.spake404.epm.item.EpmCreativeTabs;
 import dev.spake404.epm.network.EPMNetwork;
 import dev.spake404.epm.skill.EpmSkillCategories;
 import dev.spake404.epm.skill.EpmSkillSlots;
@@ -28,6 +29,7 @@ public class EPM {
 		SkillCategory.ENUM_MANAGER.registerEnumCls(MODID, EpmSkillCategories.class);
 		SkillSlot.ENUM_MANAGER.registerEnumCls(MODID, EpmSkillSlots.class);
 		context.getModEventBus().addListener(EpmAnimations::register);
+		EpmCreativeTabs.register(context.getModEventBus());
 		EpmSounds.register(context.getModEventBus());
 		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, EPMConfig.SPEC);
 		EPMNetwork.register();

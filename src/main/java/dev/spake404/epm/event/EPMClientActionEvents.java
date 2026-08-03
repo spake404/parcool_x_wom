@@ -65,7 +65,9 @@ public final class EPMClientActionEvents {
 		}
 
 		EPMClientHooks.markCatLeapForPhantomAscent(event.getPlayer());
-		if (!ModCompat.isWomLoaded() || !EPMConfig.customFastRunAnimations()) {
+		if (EPMConfig.useEpicParCoolDefaultCatLeapAnimation()
+				|| !ModCompat.isWomLoaded()
+				|| !EPMConfig.customFastRunAnimations()) {
 			return;
 		}
 

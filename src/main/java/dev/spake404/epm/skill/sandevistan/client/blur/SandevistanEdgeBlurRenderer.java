@@ -1,10 +1,12 @@
 package dev.spake404.epm.skill.sandevistan.client.blur;
 
 import com.google.gson.JsonSyntaxException;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.skill.sandevistan.SandevistanStateView;
 import dev.spake404.epm.skill.sandevistan.client.SandevistanPerformanceDiagnostics;
+import dev.spake404.epm.skill.sandevistan.client.debug.SandevistanRenderDiagnostics;
 import dev.spake404.epm.skill.sandevistan.mixin.SandevistanPostChainAccessor;
 import java.io.IOException;
 import java.util.List;
@@ -110,10 +112,13 @@ public final class SandevistanEdgeBlurRenderer {
 		effect.safeGetUniform("chromaticStrength").set(EPMConfig.sandevistanChromaticAberrationEnabled()
 				? EPMConfig.sandevistanChromaticAberrationStrength()
 				: 0.0F);
+		RenderTarget mainTarget = minecraft.getMainRenderTarget();
+		SandevistanRenderDiagnostics.beforePostChain(mainTarget);
 		long startedNanos = System.nanoTime();
 		chain.process(event.getPartialTick());
 		SandevistanPerformanceDiagnostics.recordPostProcess(System.nanoTime() - startedNanos);
-		minecraft.getMainRenderTarget().bindWrite(false);
+		mainTarget.bindWrite(false);
+		SandevistanRenderDiagnostics.afterPostChain(mainTarget);
 	}
 
 	public static float activationFlashStrength(float partialTick) {

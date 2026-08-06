@@ -1,10 +1,13 @@
 package dev.spake404.epm.skill.sandevistan.client.blur;
 
 import com.google.gson.JsonSyntaxException;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import dev.spake404.epm.EPM;
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.skill.sandevistan.SandevistanStateView;
 import dev.spake404.epm.skill.sandevistan.client.SandevistanPerformanceDiagnostics;
+import dev.spake404.epm.skill.sandevistan.client.filter.SandevistanFilterRenderer;
+import dev.spake404.epm.skill.sandevistan.client.filter.SandevistanMaskRenderer;
 import dev.spake404.epm.skill.sandevistan.mixin.SandevistanPostChainAccessor;
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +30,10 @@ public final class SandevistanEdgeBlurRenderer {
 	private static volatile boolean reloadRequested;
 	private static int renderWidth = -1;
 	private static int renderHeight = -1;
+	private static long mainTargetGeneration = -1L;
+	private static int mainFramebuffer = -1;
+	private static int mainColorTexture = -1;
+	private static int mainDepthTexture = -1;
 	private static float previousIntensity;
 	private static float intensity;
 	private static boolean wasSandevistanActive;
@@ -78,7 +85,8 @@ public final class SandevistanEdgeBlurRenderer {
 		float activation = Mth.lerp(event.getPartialTick(), previousIntensity, intensity)
 				* EPMConfig.sandevistanEdgeBlurIntensity();
 		float warpActivation = Mth.lerp(event.getPartialTick(), previousWarpPulse, warpPulse);
-		if (activation <= 1.0E-3F && warpActivation <= 1.0E-3F) {
+		float filterStrength = SandevistanFilterRenderer.colorGradeStrength(event.getPartialTick());
+		if (activation <= 1.0E-3F && warpActivation <= 1.0E-3F && filterStrength <= 1.0E-3F) {
 			return;
 		}
 
@@ -102,7 +110,9 @@ public final class SandevistanEdgeBlurRenderer {
 		effect.safeGetUniform("strength").set(EPMConfig.sandevistanEdgeBlurStrength());
 		effect.safeGetUniform("blurStart").set(blurStart);
 		effect.safeGetUniform("blurFull").set(Mth.clamp(blurFull, 0.0F, 1.0F));
-		effect.safeGetUniform("samples").set(EPMConfig.sandevistanEdgeBlurSamples());
+		effect.safeGetUniform("samples").set(activation > 1.0E-3F
+				? EPMConfig.sandevistanEdgeBlurSamples()
+				: 0);
 		effect.safeGetUniform("warpPulse").set(warpActivation);
 		effect.safeGetUniform("warpStrength").set(EPMConfig.sandevistanEdgeWarpStrength());
 		effect.safeGetUniform("warpStart").set(warpStart);
@@ -110,10 +120,24 @@ public final class SandevistanEdgeBlurRenderer {
 		effect.safeGetUniform("chromaticStrength").set(EPMConfig.sandevistanChromaticAberrationEnabled()
 				? EPMConfig.sandevistanChromaticAberrationStrength()
 				: 0.0F);
+		RenderTarget mainTarget = minecraft.getMainRenderTarget();
+		int maskTexture = SandevistanMaskRenderer.colorTextureId();
+		effect.setSampler("MaskSampler", () -> maskTexture >= 0
+				? maskTexture
+				: mainTarget.getColorTextureId());
+		effect.safeGetUniform("maskEnabled").set(maskTexture >= 0 ? 1.0F : 0.0F);
+		effect.safeGetUniform("filterStrength").set(filterStrength);
+		int filterColor = SandevistanFilterRenderer.colorGradeColor();
+		effect.safeGetUniform("filterColor").set(
+				(filterColor >> 16 & 0xFF) / 255.0F,
+				(filterColor >> 8 & 0xFF) / 255.0F,
+				(filterColor & 0xFF) / 255.0F);
+		effect.safeGetUniform("filterDarkness").set(SandevistanFilterRenderer.maximumDarkness());
+		effect.safeGetUniform("filterDebug").set(SandevistanFilterRenderer.debugGreenScreen() ? 1.0F : 0.0F);
 		long startedNanos = System.nanoTime();
 		chain.process(event.getPartialTick());
 		SandevistanPerformanceDiagnostics.recordPostProcess(System.nanoTime() - startedNanos);
-		minecraft.getMainRenderTarget().bindWrite(false);
+		mainTarget.bindWrite(true);
 	}
 
 	public static float activationFlashStrength(float partialTick) {
@@ -152,6 +176,15 @@ public final class SandevistanEdgeBlurRenderer {
 			reloadRequested = false;
 			initializationFailed = false;
 		}
+		RenderTarget mainTarget = minecraft.getMainRenderTarget();
+		long generation = SandevistanMaskRenderer.mainTargetGeneration();
+		if (chain != null && (mainTargetGeneration != generation
+				|| mainFramebuffer != mainTarget.frameBufferId
+				|| mainColorTexture != mainTarget.getColorTextureId()
+				|| mainDepthTexture != mainTarget.getDepthTextureId())) {
+			releaseChain();
+			initializationFailed = false;
+		}
 		if (chain != null) {
 			return true;
 		}
@@ -163,8 +196,12 @@ public final class SandevistanEdgeBlurRenderer {
 			chain = new PostChain(
 					minecraft.getTextureManager(),
 					minecraft.getResourceManager(),
-					minecraft.getMainRenderTarget(),
+					mainTarget,
 					POST_CHAIN);
+			mainTargetGeneration = generation;
+			mainFramebuffer = mainTarget.frameBufferId;
+			mainColorTexture = mainTarget.getColorTextureId();
+			mainDepthTexture = mainTarget.getDepthTextureId();
 			renderWidth = -1;
 			renderHeight = -1;
 			return true;
@@ -199,5 +236,9 @@ public final class SandevistanEdgeBlurRenderer {
 		}
 		renderWidth = -1;
 		renderHeight = -1;
+		mainTargetGeneration = -1L;
+		mainFramebuffer = -1;
+		mainColorTexture = -1;
+		mainDepthTexture = -1;
 	}
 }

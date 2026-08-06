@@ -62,6 +62,7 @@
     "SPAnimatorControlMixin",
     "SsrWallClimbBodyLockHandlerMixin",
     "SynchedEntityDataDebugMixin",
+    "UISetupScreenMixin",
     "VaultChainMixin",
     "VaultDebugMixin"
   ],

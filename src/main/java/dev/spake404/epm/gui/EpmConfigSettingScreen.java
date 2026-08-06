@@ -31,6 +31,7 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		addInt("naturalSprinterStepDodgeFirstTapMaxTicks", "NATURAL_SPRINTER_STEP_DODGE_FIRST_TAP_MAX_TICKS", 1, 40, 1);
 		addBool("fastRunStartStepAnimation", "FAST_RUN_START_STEP_ANIMATION");
 		addBool("autoFastRunDash", "AUTO_FAST_RUN_DASH");
+		addBool("useEpicParCoolDefaultCatLeapAnimation", "USE_EPIC_PARCOOL_DEFAULT_CAT_LEAP_ANIMATION");
 		addDouble("movementAnimationSpeedCapMultiplier", "MOVEMENT_ANIMATION_SPEED_CAP_MULTIPLIER", 1.0, 3.0, 0.1);
 		addDouble("movementAnimationMaxPlaySpeed", "MOVEMENT_ANIMATION_MAX_PLAY_SPEED", 1.16, 4.0, 0.05);
 
@@ -90,14 +91,15 @@ public class EpmConfigSettingScreen extends ParCoolSettingScreen {
 		// Sandevistan
 		addHeader("Sandevistan");
 		addBool("sandevistanEnabled", "SANDEVISTAN_ENABLED");
-		addDouble("sandevistanTimeScale", "SANDEVISTAN_TIME_SCALE", 0.1, 1.0, 0.05);
-		addDouble("sandevistanRadius", "SANDEVISTAN_RADIUS", 4.0, 128.0, 1.0);
-		addDouble("sandevistanPlayerSpeedMultiplier", "SANDEVISTAN_PLAYER_SPEED_MULTIPLIER", 1.0, 3.0, 0.1);
-		addInt("sandevistanAfterimageIntervalTicks", "SANDEVISTAN_AFTERIMAGE_INTERVAL_TICKS", 1, 20, 1);
 		addInt("sandevistanAfterimageMaxCount", "SANDEVISTAN_AFTERIMAGE_MAX_COUNT", 1, 64, 1);
 		addInt("sandevistanRemoteAfterimageMaxCount", "SANDEVISTAN_REMOTE_AFTERIMAGE_MAX_COUNT", 1, 64, 1);
 		addInt("sandevistanAfterimageLifetimeTicks", "SANDEVISTAN_AFTERIMAGE_LIFETIME_TICKS", 1, 100, 1);
 		addDouble("sandevistanAfterimageMinDistance", "SANDEVISTAN_AFTERIMAGE_MIN_DISTANCE", 0.0, 2.0, 0.05);
+		addInt("sandevistanStationaryActionAfterimageIntervalTicks", "SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_INTERVAL_TICKS", 1, 40, 1);
+		addInt("sandevistanStationaryActionAfterimageDisplayDelayTicks", "SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_DISPLAY_DELAY_TICKS", 0, 40, 1);
+		addInt("sandevistanStationaryActionAfterimageLifetimeTicks", "SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_LIFETIME_TICKS", 1, 100, 1);
+		addDouble("sandevistanStationaryActionAfterimageAlpha", "SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_ALPHA", 0.05, 1.0, 0.05);
+		addDouble("sandevistanStationaryActionAfterimageEndAlpha", "SANDEVISTAN_STATIONARY_ACTION_AFTERIMAGE_END_ALPHA", 0.0, 1.0, 0.05);
 		addDouble("sandevistanAfterimageAlpha", "SANDEVISTAN_AFTERIMAGE_ALPHA", 0.05, 1.0, 0.05);
 		addBool("sandevistanFilterEnabled", "SANDEVISTAN_FILTER_ENABLED");
 		addDouble("sandevistanFilterIntensity", "SANDEVISTAN_FILTER_INTENSITY", 0.0, 1.0, 0.05);

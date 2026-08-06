@@ -99,7 +99,6 @@ dependencies {
     implementation fg.deobf("curse.maven:whatimpressing-1194084:6238530")
     implementation fg.deobf("curse.maven:epicfight-awaken-1423319:8262835")
     implementation fg.deobf("curse.maven:combat-evolution-1377795:8368239")
-
     implementation fg.deobf("curse.maven:gliders-828331:7349611")
     implementation fg.deobf("net.threetag:PalladiumCore-forge:1.20-2.0.0.0:forge")
     implementation fg.deobf("curse.maven:playeranimator-658587:4587214")
@@ -108,6 +107,9 @@ dependencies {
     implementation fg.deobf("curse.maven:epic-fight-x-better-lock-on-better-third-person-qol-fixes-1511653:8219164")
     implementation fg.deobf("curse.maven:better-lock-on-1339577:8332801")
     implementation fg.deobf("curse.maven:seramicxs-smooth-f5-1531249:8130965")
+    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
+    implementation fg.deobf("curse.maven:oculus-581495:6020952")
+    implementation fg.deobf("curse.maven:asyncparticles-1215753:8551952")
 
     // Add mod dependencies here when implementation starts.
     // Example:

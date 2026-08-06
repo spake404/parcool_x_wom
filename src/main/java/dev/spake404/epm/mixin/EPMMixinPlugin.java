@@ -19,6 +19,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	private static final String EPICFIGHTX = "epicfightx";
 	private static final String SSRCAMERA_FIXES = "ssrcamerafixes";
 	private static final String VC_GLIDERS = "vc_gliders";
+	private static final String ASYNC_PARTICLES = "asyncparticles";
 
 	@Override
 	public void onLoad(String mixinPackage) {
@@ -32,7 +33,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 		return switch (simpleName(mixinClassName)) {
-			case "AquaManeuvreSkillMixin", "NaturalSprinterSkillBookScreenMixin", "NaturalSprinterSkillMixin", "SpiderTechniquesSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
+			case "AquaManeuvreSkillMixin", "NaturalSprinterSkillMixin", "SpiderTechniquesSkillMixin", "VerticalWallRunMixin" -> isLoaded(WOM);
 			case "CatLeapMixin", "ChargeJumpMixin", "JumpChargingAnimatorMixin", "ParCoolAnimationAccessor", "ParCoolSettingScreenMixin", "WallJumpMixin" -> isLoaded(PARCOOL);
 			case "ComboBasicAttackMixin", "InvincibleJumpConditionMixin" -> isLoaded(INVINCIBLE);
 			case "EFNAirborneConditionMixin", "EFNOnGroundConditionMixin" -> isLoaded(NIGHTFALL);
@@ -40,6 +41,7 @@ public final class EPMMixinPlugin implements IMixinConfigPlugin {
 			case "AbstractClientPlayerPatchMixin", "CombatMasteryIIMixin" -> isLoaded(EPICFIGHTX);
 			case "SsrWallClimbBodyLockHandlerMixin" -> isLoaded(SSRCAMERA_FIXES) && isLoaded(WOM);
 			case "GliderAnimationHandlerMixin", "GliderDataMixin", "GliderToggleMessageMixin", "PlayerGliderLayerMixin" -> isLoaded(VC_GLIDERS);
+			case "SandevistanAsyncParticlesGpuMixin" -> isLoaded(ASYNC_PARTICLES);
 			default -> true;
 		};
 	}

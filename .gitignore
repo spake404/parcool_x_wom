@@ -2,6 +2,7 @@
 .idea/
 .aiassistant/
 .codex_backups/
+.codex-backups/
 build/
 run/
 run-data/

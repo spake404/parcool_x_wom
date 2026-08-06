@@ -2,6 +2,7 @@ package dev.spake404.epm.animation;
 
 import com.mojang.datafixers.util.Pair;
 import dev.spake404.epm.EPM;
+import dev.spake404.epm.crawl.CrawlAnimationHandler;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,12 +24,18 @@ import yesman.epicfight.world.capabilities.entitypatch.LivingEntityPatch;
 
 public final class EpmAnimations {
 	private static final float DEMOLITION_LEAP_CHARGE_HOLD_EPSILON = 0.001F;
+	private static final float CRAWL_PLAY_SPEED_MULTIPLIER = 2.0F;
 
 	private static AnimationManager.AnimationAccessor<MovementAnimation> MERMAID_FAST_SWIM;
 	private static AnimationManager.AnimationAccessor<StaticAnimation> DEMOLITION_LEAP_CHARGE_JUMP;
 	private static AnimationManager.AnimationAccessor<ActionAnimation> DOUBLE_JUMP_JUMP;
 	private static AnimationManager.AnimationAccessor<StaticAnimation> DOUBLE_JUMP_FALL;
 	private static AnimationManager.AnimationAccessor<StaticAnimation> DOUBLE_JUMP_LAND;
+	private static AnimationManager.AnimationAccessor<StaticAnimation> CRAWL_ENTER;
+	private static AnimationManager.AnimationAccessor<StaticAnimation> CRAWL_IDLE;
+	private static AnimationManager.AnimationAccessor<MovementAnimation> CRAWL_MOVE_LEFT;
+	private static AnimationManager.AnimationAccessor<MovementAnimation> CRAWL_MOVE_RIGHT;
+	private static AnimationManager.AnimationAccessor<StaticAnimation> CRAWL_EXIT;
 
 	private EpmAnimations() {
 	}
@@ -57,6 +64,26 @@ public final class EpmAnimations {
 		return DOUBLE_JUMP_LAND;
 	}
 
+	public static AssetAccessor<? extends StaticAnimation> crawlEnter() {
+		return CRAWL_ENTER;
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> crawlIdle() {
+		return CRAWL_IDLE;
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> crawlMoveLeft() {
+		return CRAWL_MOVE_LEFT;
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> crawlMoveRight() {
+		return CRAWL_MOVE_RIGHT;
+	}
+
+	public static AssetAccessor<? extends StaticAnimation> crawlExit() {
+		return CRAWL_EXIT;
+	}
+
 	private static void build(AnimationManager.AnimationBuilder builder) {
 		MERMAID_FAST_SWIM = builder.nextAccessor("biped/living/mermaid_fast_swim", EpmAnimations::createMermaidFastSwim);
 		DEMOLITION_LEAP_CHARGE_JUMP = builder.nextAccessor(
@@ -71,6 +98,21 @@ public final class EpmAnimations {
 		DOUBLE_JUMP_LAND = builder.nextAccessor(
 				"biped/living/double_jump/land",
 				EpmAnimations::createDoubleJumpLand);
+		CRAWL_ENTER = builder.nextAccessor(
+				"biped/living/crawl/enter",
+				EpmAnimations::createCrawlEnter);
+		CRAWL_IDLE = builder.nextAccessor(
+				"biped/living/crawl/idle",
+				EpmAnimations::createCrawlIdle);
+		CRAWL_MOVE_LEFT = builder.nextAccessor(
+				"biped/living/crawl/move_left",
+				EpmAnimations::createCrawlMoveLeft);
+		CRAWL_MOVE_RIGHT = builder.nextAccessor(
+				"biped/living/crawl/move_right",
+				EpmAnimations::createCrawlMoveRight);
+		CRAWL_EXIT = builder.nextAccessor(
+				"biped/living/crawl/exit",
+				EpmAnimations::createCrawlExit);
 	}
 
 	private static MovementAnimation createMermaidFastSwim(AnimationManager.AnimationAccessor<MovementAnimation> accessor) {
@@ -103,6 +145,38 @@ public final class EpmAnimations {
 
 	private static StaticAnimation createDoubleJumpLand(AnimationManager.AnimationAccessor<StaticAnimation> accessor) {
 		return new StaticAnimation(0.05F, false, accessor, Armatures.BIPED);
+	}
+
+	private static StaticAnimation createCrawlEnter(AnimationManager.AnimationAccessor<StaticAnimation> accessor) {
+		return addCrawlEndEvent(addCrawlPlaySpeed(new StaticAnimation(0.08F, false, accessor, Armatures.BIPED)));
+	}
+
+	private static StaticAnimation createCrawlIdle(AnimationManager.AnimationAccessor<StaticAnimation> accessor) {
+		return addCrawlPlaySpeed(new StaticAnimation(0.08F, true, accessor, Armatures.BIPED));
+	}
+
+	private static MovementAnimation createCrawlMoveLeft(AnimationManager.AnimationAccessor<MovementAnimation> accessor) {
+		return addCrawlEndEvent(addCrawlPlaySpeed(new MovementAnimation(0.12F, false, accessor, Armatures.BIPED)));
+	}
+
+	private static MovementAnimation createCrawlMoveRight(AnimationManager.AnimationAccessor<MovementAnimation> accessor) {
+		return addCrawlEndEvent(addCrawlPlaySpeed(new MovementAnimation(0.12F, false, accessor, Armatures.BIPED)));
+	}
+
+	private static StaticAnimation createCrawlExit(AnimationManager.AnimationAccessor<StaticAnimation> accessor) {
+		return addCrawlEndEvent(addCrawlPlaySpeed(new StaticAnimation(0.08F, false, accessor, Armatures.BIPED)));
+	}
+
+	private static <T extends StaticAnimation> T addCrawlPlaySpeed(T animation) {
+		return animation.addProperty(
+				StaticAnimationProperty.PLAY_SPEED_MODIFIER,
+				(self, entityPatch, speed, prevElapsedTime, elapsedTime) -> speed * CRAWL_PLAY_SPEED_MULTIPLIER);
+	}
+
+	private static <T extends StaticAnimation> T addCrawlEndEvent(T animation) {
+		return animation.addEvents(
+				StaticAnimationProperty.ON_END_EVENTS,
+				AnimationEvent.SimpleEvent.create(CrawlAnimationHandler::onAnimationEnd, AnimationEvent.Side.CLIENT));
 	}
 
 	private static void playPhantomAscentStartEffects(

@@ -2,36 +2,41 @@ package dev.spake404.epm.skill.sandevistan;
 
 import dev.spake404.epm.config.EPMConfig;
 import dev.spake404.epm.skill.sandevistan.network.SandevistanNetwork;
+import dev.spake404.epm.skill.sandevistan.type.SandevistanProfile;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import yesman.epicfight.api.animation.types.DynamicAnimation;
+import yesman.epicfight.network.EpicFightNetworkManager;
+import yesman.epicfight.network.server.SPSetSkillContainerValue;
 import yesman.epicfight.skill.SkillContainer;
-import yesman.epicfight.skill.SkillCategories;
 import yesman.epicfight.world.capabilities.EpicFightCapabilities;
 import yesman.epicfight.world.capabilities.entitypatch.player.PlayerPatch;
-import yesman.epicfight.world.entity.eventlistener.PlayerEventListener;
-import yesman.epicfight.world.entity.eventlistener.SkillCastEvent;
 
 public final class SandevistanManager {
+	private static final double MANUAL_STOP_COOLDOWN_REFUND_FACTOR = 0.60D;
+	private static final double MINIMUM_REMAINING_COOLDOWN_SECONDS = 10.0D;
 	private static final UUID SPEED_MODIFIER_ID = UUID.fromString("bdb9a37a-e30c-4ffd-8097-308e9fcb2414");
-	private static final UUID BASIC_ATTACK_LISTENER_ID = UUID.fromString("38a5af50-7b5b-4e67-8f4f-04cc6bb12093");
-	private static final UUID ACTION_LISTENER_ID = UUID.fromString("0e376a28-fb2b-459a-960c-593acb774277");
-	private static final UUID SKILL_CAST_LISTENER_ID = UUID.fromString("f3d74bc5-7757-457e-96a2-af5cf1b6339f");
 	private static final Map<UUID, Activation> ACTIVE = new HashMap<>();
 
 	private SandevistanManager() {
 	}
 
-	public static boolean activate(SkillContainer container) {
+	public static boolean activate(
+			SkillContainer container,
+			int initialDurationTicks,
+			int effectiveMaxDurationTicks,
+			int baseDurationTicks) {
 		ServerPlayer player = container == null || container.getServerExecutor() == null
 				? null
 				: container.getServerExecutor().getOriginal();
@@ -42,11 +47,31 @@ public final class SandevistanManager {
 			return false;
 		}
 
-		ACTIVE.put(player.getUUID(), new Activation(player, container));
+		SandevistanProfile profile = ((SandevistanSkill)container.getSkill()).getProfile();
+		baseDurationTicks = Math.max(1, baseDurationTicks);
+		effectiveMaxDurationTicks = Math.max(baseDurationTicks, effectiveMaxDurationTicks);
+		initialDurationTicks = Math.max(1, Math.min(effectiveMaxDurationTicks, initialDurationTicks));
+		container.setMaxDuration(effectiveMaxDurationTicks);
+		if (profile.partialChargeActivation()) {
+			container.setMaxResource(effectiveMaxDurationTicks / 20.0F);
+		}
+		container.setDuration(initialDurationTicks);
+
+		Activation activation = new Activation(
+				player,
+				container,
+				profile,
+				baseDurationTicks,
+				effectiveMaxDurationTicks);
+		ACTIVE.put(player.getUUID(), activation);
 		SandevistanStateView.setActive(player.getUUID(), true);
-		applySpeedModifier(player);
-		registerAttackListeners(player);
-		SandevistanNetwork.broadcastState(player, true, container.getRemainDuration(), null);
+		applySpeedModifier(player, profile);
+		syncContainerLimits(player, container, effectiveMaxDurationTicks);
+		syncDuration(player, container);
+		if (profile.partialChargeActivation()) {
+			applyCooldownResource(player, container, 0.0F);
+		}
+		SandevistanNetwork.broadcastState(player, true, container.getRemainDuration(), null, profile.id());
 		return true;
 	}
 
@@ -67,16 +92,107 @@ public final class SandevistanManager {
 			return;
 		}
 
+		int remainingDurationTicks = Math.max(0, removed.container.getRemainDuration());
+		float cooldownResource = -1.0F;
+		if (!removed.profile.partialChargeActivation()
+				&& reason == SandevistanStopReason.MANUAL
+				&& removed.profile.manualCooldownRefundEnabled()) {
+			cooldownResource = calculateManualStopCooldownResource(removed);
+		}
+
 		SandevistanStateView.setActive(player.getUUID(), false);
 		removeSpeedModifier(player);
-		removeAttackListeners(player);
 		if (removed.container.isActivated()) {
-			if (cancelContainer && (reason == SandevistanStopReason.ATTACK || reason == SandevistanStopReason.MANUAL)) {
+			if (cancelContainer && reason == SandevistanStopReason.MANUAL) {
 				removed.container.getSkill().cancelOnServer(removed.container, null);
 			}
 			removed.container.deactivate();
 		}
-		SandevistanNetwork.broadcastState(player, false, 0, reason);
+		if (removed.profile.partialChargeActivation()) {
+			if (remainingDurationTicks > 0) {
+				applyPartialReadyState(player, removed, remainingDurationTicks);
+			} else {
+				applyPartialCooldownState(player, removed);
+			}
+		} else if (cooldownResource >= 0.0F) {
+			applyCooldownResource(player, removed.container, cooldownResource);
+		}
+		SandevistanNetwork.broadcastState(player, false, 0, reason, removed.profile.id());
+	}
+
+	private static float calculateManualStopCooldownResource(Activation activation) {
+		double remainingRatio = Math.max(0.0D, Math.min(
+				1.0D,
+				(double)activation.container.getRemainDuration() / activation.effectiveMaxDurationTicks));
+		double refund = activation.maxCooldownResource
+				* remainingRatio
+				* MANUAL_STOP_COOLDOWN_REFUND_FACTOR;
+		double maximumResource = Math.max(
+				0.0D,
+				activation.maxCooldownResource - MINIMUM_REMAINING_COOLDOWN_SECONDS);
+		return (float)Math.min(
+				maximumResource,
+				activation.container.getResource() + refund);
+	}
+
+	private static void applyCooldownResource(
+			ServerPlayer player,
+			SkillContainer container,
+			float resource) {
+		container.setResource(resource);
+		EpicFightNetworkManager.sendToPlayer(
+				SPSetSkillContainerValue.resource(container.getSlot(), container.getResource(), player.getId()),
+				player);
+		EpicFightNetworkManager.sendToPlayer(
+				SPSetSkillContainerValue.stacks(container.getSlot(), container.getStack(), player.getId()),
+				player);
+	}
+
+	private static void applyPartialReadyState(
+			ServerPlayer player,
+			Activation activation,
+			int remainingDurationTicks) {
+		SkillContainer container = activation.container;
+		container.setMaxDuration(activation.effectiveMaxDurationTicks);
+		container.setMaxResource(activation.effectiveMaxDurationTicks / 20.0F);
+		container.setStack(0);
+		container.setResource(remainingDurationTicks / 20.0F);
+		syncContainerLimits(player, container, activation.effectiveMaxDurationTicks);
+		applyCooldownResource(player, container, container.getResource());
+	}
+
+	private static void applyPartialCooldownState(ServerPlayer player, Activation activation) {
+		SkillContainer container = activation.container;
+		container.setMaxDuration(activation.effectiveMaxDurationTicks);
+		container.setMaxResource(activation.effectiveMaxDurationTicks / 20.0F);
+		container.setStack(0);
+		container.setResource(0.0F);
+		syncContainerLimits(player, container, activation.effectiveMaxDurationTicks);
+		applyCooldownResource(player, container, 0.0F);
+	}
+
+	private static void syncContainerLimits(
+			ServerPlayer player,
+			SkillContainer container,
+			int maxDurationTicks) {
+		EpicFightNetworkManager.sendToPlayer(
+				SPSetSkillContainerValue.maxDuration(
+						container.getSlot(),
+						Math.max(1, maxDurationTicks),
+						player.getId()),
+				player);
+		EpicFightNetworkManager.sendToPlayer(
+				SPSetSkillContainerValue.maxResource(
+						container.getSlot(),
+						container.getMaxResource(),
+						player.getId()),
+				player);
+	}
+
+	private static void syncDuration(ServerPlayer player, SkillContainer container) {
+		EpicFightNetworkManager.sendToPlayer(
+				SPSetSkillContainerValue.duration(container.getSlot(), container.getRemainDuration(), player.getId()),
+				player);
 	}
 
 	public static void tick() {
@@ -94,7 +210,6 @@ public final class SandevistanManager {
 				stop(player, SandevistanStopReason.TIMEOUT, false);
 				continue;
 			}
-
 		}
 	}
 
@@ -102,39 +217,95 @@ public final class SandevistanManager {
 		return player != null && ACTIVE.containsKey(player.getUUID());
 	}
 
-	public static int tickIntervalFor(Entity entity) {
+	public static double timeScaleFor(Entity entity) {
 		if (!EPMConfig.sandevistanEnabled() || entity == null) {
-			return 1;
+			return 1.0D;
 		}
 
-		double radiusSquared = EPMConfig.sandevistanRadius() * EPMConfig.sandevistanRadius();
-		boolean affected = false;
+		double timeScale = 1.0D;
 		for (Activation activation : ACTIVE.values()) {
 			ServerPlayer source = activation.player;
 			if (entity == source || entity == source.getRootVehicle()) {
-				return 1;
+				return 1.0D;
 			}
+			double radiusSquared = activation.profile.radius() * activation.profile.radius();
 			if (source.level() == entity.level() && source.distanceToSqr(entity) <= radiusSquared) {
-				affected = true;
-				break;
+				timeScale = Math.min(timeScale, activation.profile.timeScale(source));
 			}
 		}
-		if (!affected) {
-			return 1;
-		}
-		return timeDilationInterval();
+		return timeScale;
 	}
 
 	public static int remainingTicks(ServerPlayer player) {
 		Activation activation = player == null ? null : ACTIVE.get(player.getUUID());
-		if (activation == null) {
-			return 0;
-		}
-		return Math.max(0, activation.container.getRemainDuration());
+		return activation == null ? 0 : Math.max(0, activation.container.getRemainDuration());
 	}
 
-	public static int timeDilationInterval() {
-		return Math.max(1, (int)Math.round(1.0D / EPMConfig.sandevistanTimeScale()));
+	public static SandevistanProfile activeProfile(ServerPlayer player) {
+		Activation activation = player == null ? null : ACTIVE.get(player.getUUID());
+		return activation == null ? null : activation.profile;
+	}
+
+	public static double outgoingDamageMultiplier(ServerPlayer player) {
+		SandevistanProfile profile = activeProfile(player);
+		return profile == null ? 1.0D : profile.outgoingDamageMultiplier(player);
+	}
+
+	public static double incomingDamageMultiplier(ServerPlayer player, DamageSource source) {
+		SandevistanProfile profile = activeProfile(player);
+		if (profile == null || source == null) {
+			return 1.0D;
+		}
+		if (source.is(DamageTypeTags.IS_FIRE)
+				|| source.is(DamageTypes.WITHER)
+				|| source.is(DamageTypes.WITHER_SKULL)) {
+			return profile.fireWitherDamageMultiplier();
+		}
+		if (source.is(DamageTypeTags.IS_FALL)) {
+			return profile.incomingDamageMultiplier() * profile.fallDamageMultiplier();
+		}
+		return profile.incomingDamageMultiplier();
+	}
+
+	public static void rewardKill(ServerPlayer player) {
+		Activation activation = player == null ? null : ACTIVE.get(player.getUUID());
+		if (activation == null) {
+			return;
+		}
+
+		SandevistanProfile profile = activation.profile;
+		boolean durationChanged = false;
+		if (profile.killDurationRestoreFraction() > 0.0D) {
+			int restoreTicks = Math.max(
+					1,
+					(int)Math.round(activation.baseDurationTicks * profile.killDurationRestoreFraction()));
+			int newDuration = Math.min(
+					activation.effectiveMaxDurationTicks,
+					activation.container.getRemainDuration() + restoreTicks);
+			durationChanged = newDuration != activation.container.getRemainDuration();
+			activation.container.setDuration(newDuration);
+		}
+		if (profile.killHealthRestoreFraction() > 0.0D) {
+			player.heal((float)(player.getMaxHealth() * profile.killHealthRestoreFraction()));
+		}
+		if (profile.killStaminaRestoreFraction() > 0.0D) {
+			PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
+			if (playerPatch != null) {
+				float restoredStamina = (float)(playerPatch.getMaxStamina() * profile.killStaminaRestoreFraction());
+				playerPatch.setStamina(Math.min(
+						playerPatch.getMaxStamina(),
+						playerPatch.getStamina() + restoredStamina));
+			}
+		}
+		if (durationChanged) {
+			syncDuration(player, activation.container);
+			SandevistanNetwork.broadcastState(
+					player,
+					true,
+					activation.container.getRemainDuration(),
+					null,
+					profile.id());
+		}
 	}
 
 	private static boolean canActivate(ServerPlayer player, SkillContainer container) {
@@ -142,6 +313,7 @@ public final class SandevistanManager {
 				&& isValid(player)
 				&& !isActive(player)
 				&& container != null
+				&& container.getSkill() instanceof SandevistanSkill
 				&& container.isActivated();
 	}
 
@@ -153,14 +325,17 @@ public final class SandevistanManager {
 				&& player.connection != null;
 	}
 
-	private static void applySpeedModifier(ServerPlayer player) {
+	private static void applySpeedModifier(ServerPlayer player, SandevistanProfile profile) {
 		AttributeInstance movementSpeed = player.getAttribute(Attributes.MOVEMENT_SPEED);
 		if (movementSpeed == null) {
 			return;
 		}
 
 		movementSpeed.removeModifier(SPEED_MODIFIER_ID);
-		double amount = Math.max(0.0D, EPMConfig.sandevistanPlayerSpeedMultiplier() - 1.0D);
+		double amount = profile.playerSpeedMultiplier() - 1.0D;
+		if (Math.abs(amount) <= 1.0E-6D) {
+			return;
+		}
 		movementSpeed.addTransientModifier(new AttributeModifier(
 				SPEED_MODIFIER_ID,
 				"epic_parcool_momentum.sandevistan_speed",
@@ -175,57 +350,27 @@ public final class SandevistanManager {
 		}
 	}
 
-	private static void registerAttackListeners(ServerPlayer player) {
-		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (playerPatch == null) {
-			return;
-		}
-
-		PlayerEventListener listener = playerPatch.getEventListener();
-		listener.addEventListener(PlayerEventListener.EventType.BASIC_ATTACK_EVENT, BASIC_ATTACK_LISTENER_ID,
-				event -> requestStop(player, SandevistanStopReason.ATTACK));
-		listener.addEventListener(PlayerEventListener.EventType.ACTION_EVENT_SERVER, ACTION_LISTENER_ID, event -> {
-			DynamicAnimation animation = event.getAnimation().get();
-			if (animation != null && animation.isBasicAttackAnimation()) {
-				requestStop(player, SandevistanStopReason.ATTACK);
-			}
-		});
-		listener.addEventListener(PlayerEventListener.EventType.SKILL_CAST_EVENT, SKILL_CAST_LISTENER_ID,
-				event -> stopForOffensiveSkill(player, event));
-	}
-
-	private static void removeAttackListeners(ServerPlayer player) {
-		PlayerPatch<?> playerPatch = EpicFightCapabilities.getEntityPatch(player, PlayerPatch.class);
-		if (playerPatch == null) {
-			return;
-		}
-
-		PlayerEventListener listener = playerPatch.getEventListener();
-		listener.removeListener(PlayerEventListener.EventType.BASIC_ATTACK_EVENT, BASIC_ATTACK_LISTENER_ID);
-		listener.removeListener(PlayerEventListener.EventType.ACTION_EVENT_SERVER, ACTION_LISTENER_ID);
-		listener.removeListener(PlayerEventListener.EventType.SKILL_CAST_EVENT, SKILL_CAST_LISTENER_ID);
-	}
-
-	private static void stopForOffensiveSkill(ServerPlayer player, SkillCastEvent event) {
-		if (event == null || event.getSkillContainer() == null || event.getSkillContainer().getSkill() == null) {
-			return;
-		}
-
-		Object category = event.getSkillContainer().getSkill().getCategory();
-		if (category == SkillCategories.BASIC_ATTACK || category == SkillCategories.WEAPON_INNATE) {
-			requestStop(player, SandevistanStopReason.ATTACK);
-		}
-	}
-
 	private static final class Activation {
 		private final ServerPlayer player;
 		private final SkillContainer container;
+		private final SandevistanProfile profile;
+		private final int baseDurationTicks;
+		private final int effectiveMaxDurationTicks;
+		private final float maxCooldownResource;
 		private SandevistanStopReason pendingStop;
 
-		private Activation(ServerPlayer player, SkillContainer container) {
+		private Activation(
+				ServerPlayer player,
+				SkillContainer container,
+				SandevistanProfile profile,
+				int baseDurationTicks,
+				int effectiveMaxDurationTicks) {
 			this.player = player;
 			this.container = container;
+			this.profile = profile;
+			this.baseDurationTicks = baseDurationTicks;
+			this.effectiveMaxDurationTicks = effectiveMaxDurationTicks;
+			this.maxCooldownResource = Math.max(0.0F, container.getMaxResource());
 		}
 	}
 }
-

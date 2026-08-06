@@ -8,7 +8,8 @@
   "fragment": "epic_parcool_momentum:sandevistan_edge_blur",
   "attributes": ["Position"],
   "samplers": [
-    { "name": "DiffuseSampler" }
+    { "name": "DiffuseSampler" },
+    { "name": "MaskSampler" }
   ],
   "uniforms": [
     {
@@ -76,6 +77,36 @@
       "type": "int",
       "count": 1,
       "values": [10]
+    },
+    {
+      "name": "maskEnabled",
+      "type": "float",
+      "count": 1,
+      "values": [0.0]
+    },
+    {
+      "name": "filterStrength",
+      "type": "float",
+      "count": 1,
+      "values": [0.0]
+    },
+    {
+      "name": "filterColor",
+      "type": "float",
+      "count": 3,
+      "values": [0.23529412, 1.0, 0.28235295]
+    },
+    {
+      "name": "filterDarkness",
+      "type": "float",
+      "count": 1,
+      "values": [0.07843138]
+    },
+    {
+      "name": "filterDebug",
+      "type": "float",
+      "count": 1,
+      "values": [0.0]
     },
     {
       "name": "ProjMat",

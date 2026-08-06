@@ -1,6 +1,7 @@
 #version 150
 
 uniform sampler2D DiffuseSampler;
+uniform sampler2D MaskSampler;
 uniform vec2 center;
 uniform float intensity;
 uniform float strength;
@@ -12,6 +13,11 @@ uniform float warpStart;
 uniform float warpFull;
 uniform float chromaticStrength;
 uniform int samples;
+uniform float maskEnabled;
+uniform float filterStrength;
+uniform vec3 filterColor;
+uniform float filterDarkness;
+uniform float filterDebug;
 
 in vec2 texCoord;
 out vec4 fragColor;
@@ -47,5 +53,17 @@ void main() {
     vec2 chromaticOffset = normalizedDirection * chromaticStrength * chromaticMask;
     color.r = texture(DiffuseSampler, clamp(warpedUv + chromaticOffset, vec2(0.001), vec2(0.999))).r;
     color.b = texture(DiffuseSampler, clamp(warpedUv - chromaticOffset, vec2(0.001), vec2(0.999))).b;
+
+    float protectedPixel = 0.0;
+    if (maskEnabled > 0.5) {
+        protectedPixel = smoothstep(0.02, 0.20, texture(MaskSampler, texCoord).a);
+    }
+    float filterAmount = filterStrength * (1.0 - protectedPixel);
+    if (filterDebug > 0.5) {
+        color.rgb = mix(color.rgb, filterColor, filterAmount);
+    } else {
+        color.rgb *= mix(vec3(1.0), filterColor, filterAmount);
+        color.rgb *= 1.0 - filterDarkness * filterAmount;
+    }
     fragColor = color;
 }

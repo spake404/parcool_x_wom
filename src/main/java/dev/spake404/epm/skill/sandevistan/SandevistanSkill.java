@@ -22,6 +22,8 @@ import yesman.epicfight.world.entity.eventlistener.SkillCastEvent;
 
 public final class SandevistanSkill extends Skill {
 	private static final float PARTIAL_CHARGE_EPSILON = 1.0E-4F;
+	private static final int MINIMUM_PARTIAL_ACTIVATION_TICKS = 10;
+	private static final float MINIMUM_PARTIAL_ACTIVATION_SECONDS = MINIMUM_PARTIAL_ACTIVATION_TICKS / 20.0F;
 	private final SandevistanProfile profile;
 	private final String tooltipTranslationKey;
 	private final Map<SkillContainer, ActivationPlan> pendingActivations = new WeakHashMap<>();
@@ -53,26 +55,32 @@ public final class SandevistanSkill extends Skill {
 		if (container == null) {
 			return false;
 		}
+		boolean fullyChargedPartialState = profile.partialChargeActivation()
+				&& isFullyChargedPartialState(container);
+		boolean creativePartialActivation = profile.partialChargeActivation()
+				&& playerPatch.getOriginal().isCreative()
+				&& container.getStack() <= 0;
 		boolean partialResourceActivation = profile.partialChargeActivation()
-				&& container.getStack() <= 0
-				&& container.getResource() > PARTIAL_CHARGE_EPSILON;
+				&& !fullyChargedPartialState
+				&& hasMinimumPartialCharge(container);
 		if (profile.partialChargeActivation()
 				&& !partialResourceActivation
-				&& container.getStack() <= 0
+				&& !fullyChargedPartialState
 				&& !playerPatch.getOriginal().isCreative()) {
 			return false;
 		}
 
 		ActivationPlan activationPlan = createActivationPlan(container, playerPatch);
 		configureContainerForActivation(container, activationPlan);
-		if (partialResourceActivation) {
+		boolean temporaryStack = partialResourceActivation || creativePartialActivation;
+		if (temporaryStack) {
 			container.setStack(1);
 		}
 		boolean accepted;
 		try {
 			accepted = super.resourcePredicate(playerPatch, event);
 		} finally {
-			if (partialResourceActivation) {
+			if (temporaryStack) {
 				container.setStack(0);
 			}
 		}
@@ -125,6 +133,20 @@ public final class SandevistanSkill extends Skill {
 
 	@Override
 	public void updateContainer(SkillContainer container) {
+		if (profile.partialChargeActivation()
+				&& container.getExecutor().getOriginal().isCreative()
+				&& !SandevistanStateView.isActive(container.getExecutor().getOriginal())) {
+			int effectiveMaxDurationTicks = Math.max(
+					getMaxDuration() + reactionDurationTicks(container.getExecutor()),
+					Math.round(container.getMaxResource() * 20.0F));
+			container.setMaxDuration(effectiveMaxDurationTicks);
+			container.setMaxResource(effectiveMaxDurationTicks / 20.0F);
+			container.setStack(1);
+			container.setResource(container.getMaxResource());
+			super.updateContainer(container);
+			return;
+		}
+
 		boolean legacyStoredPartialCharge = profile.partialChargeActivation()
 				&& !SandevistanStateView.isActive(container.getExecutor().getOriginal())
 				&& container.getStack() > 0
@@ -280,9 +302,8 @@ public final class SandevistanSkill extends Skill {
 			int effectiveMaxDurationTicks = Math.max(
 					baseDurationTicks + reactionDurationTicks(playerPatch),
 					Math.round(container.getMaxResource() * 20.0F));
-			boolean fullyCharged = container.getStack() > 0
-					&& (container.getResource() <= PARTIAL_CHARGE_EPSILON
-							|| container.getResource() >= container.getMaxResource() - PARTIAL_CHARGE_EPSILON);
+			boolean fullyCharged = playerPatch != null && playerPatch.getOriginal().isCreative()
+					|| isFullyChargedPartialState(container);
 			int availableDurationTicks = fullyCharged
 					? effectiveMaxDurationTicks
 					: container.getResource() > PARTIAL_CHARGE_EPSILON
@@ -303,6 +324,16 @@ public final class SandevistanSkill extends Skill {
 				baseDurationTicks,
 				effectiveMaxDurationTicks,
 				effectiveMaxDurationTicks);
+	}
+
+	private static boolean hasMinimumPartialCharge(SkillContainer container) {
+		return container.getResource() + PARTIAL_CHARGE_EPSILON >= MINIMUM_PARTIAL_ACTIVATION_SECONDS;
+	}
+
+	private static boolean isFullyChargedPartialState(SkillContainer container) {
+		return container.getStack() > 0
+				&& (container.getResource() <= PARTIAL_CHARGE_EPSILON
+						|| container.getResource() >= container.getMaxResource() - PARTIAL_CHARGE_EPSILON);
 	}
 
 	private int reactionDurationTicks(PlayerPatch<?> playerPatch) {

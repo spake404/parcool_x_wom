@@ -109,7 +109,9 @@ public final class SandevistanManager {
 			removed.container.deactivate();
 		}
 		if (removed.profile.partialChargeActivation()) {
-			if (remainingDurationTicks > 0) {
+			if (player.isCreative()) {
+				applyPartialCreativeReadyState(player, removed);
+			} else if (remainingDurationTicks > 0) {
 				applyPartialReadyState(player, removed, remainingDurationTicks);
 			} else {
 				applyPartialCooldownState(player, removed);
@@ -169,6 +171,16 @@ public final class SandevistanManager {
 		container.setResource(0.0F);
 		syncContainerLimits(player, container, activation.effectiveMaxDurationTicks);
 		applyCooldownResource(player, container, 0.0F);
+	}
+
+	private static void applyPartialCreativeReadyState(ServerPlayer player, Activation activation) {
+		SkillContainer container = activation.container;
+		container.setMaxDuration(activation.effectiveMaxDurationTicks);
+		container.setMaxResource(activation.effectiveMaxDurationTicks / 20.0F);
+		container.setStack(1);
+		container.setResource(container.getMaxResource());
+		syncContainerLimits(player, container, activation.effectiveMaxDurationTicks);
+		applyCooldownResource(player, container, container.getMaxResource());
 	}
 
 	private static void syncContainerLimits(

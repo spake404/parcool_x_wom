@@ -193,9 +193,6 @@ public final class SandevistanSkillHud {
 		if (syncedRemainingTicks >= 0.0F) {
 			return true;
 		}
-		if (container.getExecutor().getOriginal().isCreative()) {
-			return false;
-		}
 		if (hasStoredPartialDuration(skill, container, state)) {
 			return container.getResource(partialTick) < 1.0F - EPSILON;
 		}
@@ -252,10 +249,6 @@ public final class SandevistanSkillHud {
 		if (syncedRemainingTicks >= 0.0F) {
 			float ratio = Mth.clamp(syncedRemainingTicks / Math.max(1.0F, capacityTicks), 0.0F, 1.0F);
 			return Mth.clamp((int)Math.ceil(ratio * cellCount - EPSILON), 0, cellCount);
-		}
-
-		if (container.getExecutor().getOriginal().isCreative()) {
-			return cellCount;
 		}
 
 		if (hasStoredPartialDuration(skill, container, state)) {
